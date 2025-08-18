@@ -2,8 +2,24 @@ services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:2025.8
     container_name: homeassistant
-    volumes:
-      - ./config:/config
     ports:
       - "8123:8123"
+    volumes:
+      - ./config:/config
     restart: unless-stopped
+  
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu] # Uncomment if using GPU
