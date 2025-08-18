@@ -1,8 +1,9 @@
 services:
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:stable
+    image: ghcr.io/home-assistant/home-assistant:2025.8
     container_name: homeassistant
     volumes:
       - ./config:/config
+    ports:
+      - "8123:8123"
     restart: unless-stopped
-    network_mode: host
