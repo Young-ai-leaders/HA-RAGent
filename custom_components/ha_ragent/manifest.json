@@ -1,0 +1,15 @@
+{
+  "domain": "HA-RAGent",
+  "name": "Home Assistant RAG Agent",
+  "version": "0.0.1",
+  "codeowners": ["@Young-ai-leaders"],
+  "config_flow": true,
+  "dependencies": [""],
+  "after_dependencies": ["assist_pipeline"],
+  "documentation": "https://github.com/Young-ai-leaders/HA-RAGent",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "requirements": [
+      "huggingface-hub>=0.23.0"
+  ]
+}

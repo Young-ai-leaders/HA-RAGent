@@ -1,1 +1,2 @@
-# llm-smart-home-assistant
+# HA RAGent (Home Assistant RAG Agent)
+
