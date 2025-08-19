@@ -13,12 +13,12 @@
 1. Open the shell of the home assitant container
 2. Execute ```wget -O - https://get.hacs.xyz | bash -``` 
 3. Restart the home assistant container
-4. Go to the "Settings/Devices & services" and click on "Add integration"
+4. In the home assistant web go to the "Settings/Devices & services" and click on "Add integration"
 5. Select "HACS"
 
 ### 3. Create dummy entities:
-1. Go to "HACS" in the sidebar
-2. Search for "Virtual Components" and install it
+1. In the home assistant web ui go to "HACS" in the sidebar
+2. Search for "Virtual Components" and install the integration
 3. Restart the home assistant container
 4. Copy the file "dev/devices/virtual.yaml" into "dev/containers/config/"
 5. Go to the "Settings/Devices & services" and click on "Add integration"
