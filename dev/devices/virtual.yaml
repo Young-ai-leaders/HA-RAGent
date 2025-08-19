@@ -1,0 +1,222 @@
+version: 1
+devices:
+  # Living Room (6 entities)
+  Living Room Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Living Room Floor Lamp:
+    - platform: light
+      initial_value: 'off'
+  Living Room TV:
+    - platform: media_player
+      initial_value: 'off'
+  Living Room Motion Sensor:
+    - platform: binary_sensor
+      device_class: motion
+      initial_value: 'off'
+  Living Room Temperature:
+    - platform: sensor
+      unit_of_measurement: "°C"
+      initial_value: 22
+  Living Room Smart Plug:
+    - platform: switch
+      initial_value: 'off'
+
+  # Kitchen (6 entities)
+  Kitchen Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Kitchen Coffee Maker:
+    - platform: switch
+      initial_value: 'off'
+  Kitchen Fridge Door:
+    - platform: binary_sensor
+      device_class: door
+      initial_value: 'off'
+  Kitchen Humidity:
+    - platform: sensor
+      unit_of_measurement: "%"
+      initial_value: 45
+  Kitchen Extractor Fan:
+    - platform: fan
+      initial_value: 'off'
+  Kitchen Oven:
+    - platform: switch
+      initial_value: 'off'
+
+  # Dining Room (6 entities)
+  Dining Room Chandelier:
+    - platform: light
+      initial_value: 'off'
+  Dining Room Sideboard Lamp:
+    - platform: light
+      initial_value: 'off'
+  Dining Room Window Sensor:
+    - platform: binary_sensor
+      device_class: window
+      initial_value: 'off'
+  Dining Room Air Quality:
+    - platform: sensor
+      unit_of_measurement: "ppm"
+      initial_value: 400
+  Dining Room Smart Plug:
+    - platform: switch
+      initial_value: 'off'
+  Dining Room Speaker:
+    - platform: media_player
+      initial_value: 'off'
+
+  # Office (6 entities)
+  Office Desk Lamp:
+    - platform: light
+      initial_value: 'off'
+  Office PC Power:
+    - platform: switch
+      initial_value: 'off'
+  Office Monitor:
+    - platform: media_player
+      initial_value: 'off'
+  Office Occupancy Sensor:
+    - platform: binary_sensor
+      device_class: occupancy
+      initial_value: 'off'
+  Office Temperature:
+    - platform: sensor
+      unit_of_measurement: "°C"
+      initial_value: 21
+  Office Printer Plug:
+    - platform: switch
+      initial_value: 'off'
+
+  # Hallway (6 entities)
+  Hallway Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Hallway Motion Sensor:
+    - platform: binary_sensor
+      device_class: motion
+      initial_value: 'off'
+  Hallway Smoke Detector:
+    - platform: binary_sensor
+      device_class: smoke
+      initial_value: 'off'
+  Hallway Night Light:
+    - platform: light
+      initial_value: 'off'
+  Hallway Air Quality:
+    - platform: sensor
+      unit_of_measurement: "ppm"
+      initial_value: 420
+  Hallway Smart Plug:
+    - platform: switch
+      initial_value: 'off'
+
+  # Bedroom 1 (6 entities)
+  Bedroom 1 Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Bedroom 1 Bedside Lamp:
+    - platform: light
+      initial_value: 'off'
+  Bedroom 1 Thermostat:
+    - platform: climate
+      initial_value: 'off'
+  Bedroom 1 Window Sensor:
+    - platform: binary_sensor
+      device_class: window
+      initial_value: 'off'
+  Bedroom 1 Temperature:
+    - platform: sensor
+      unit_of_measurement: "°C"
+      initial_value: 20
+  Bedroom 1 Fan:
+    - platform: fan
+      initial_value: 'off'
+
+  # Bedroom 2 (6 entities)
+  Bedroom 2 Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Bedroom 2 Bedside Lamp:
+    - platform: light
+      initial_value: 'off'
+  Bedroom 2 Fan:
+    - platform: fan
+      initial_value: 'off'
+  Bedroom 2 Motion Sensor:
+    - platform: binary_sensor
+      device_class: motion
+      initial_value: 'off'
+  Bedroom 2 Humidity:
+    - platform: sensor
+      unit_of_measurement: "%"
+      initial_value: 50
+  Bedroom 2 Smart Plug:
+    - platform: switch
+      initial_value: 'off'
+
+  # Bedroom 3 (6 entities)
+  Bedroom 3 Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Bedroom 3 Bedside Lamp:
+    - platform: light
+      initial_value: 'off'
+  Bedroom 3 Smart Plug:
+    - platform: switch
+      initial_value: 'off'
+  Bedroom 3 Occupancy Sensor:
+    - platform: binary_sensor
+      device_class: occupancy
+      initial_value: 'off'
+  Bedroom 3 Speaker:
+    - platform: media_player
+      initial_value: 'off'
+  Bedroom 3 Temperature:
+    - platform: sensor
+      unit_of_measurement: "°C"
+      initial_value: 19
+
+  # Bathroom (6 entities)
+  Bathroom Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Bathroom Mirror Light:
+    - platform: light
+      initial_value: 'off'
+  Bathroom Fan:
+    - platform: fan
+      initial_value: 'off'
+  Bathroom Humidity:
+    - platform: sensor
+      unit_of_measurement: "%"
+      initial_value: 60
+  Bathroom Leak Sensor:
+    - platform: binary_sensor
+      device_class: moisture
+      initial_value: 'off'
+  Bathroom Heater:
+    - platform: switch
+      initial_value: 'off'
+
+  # Garage (6 entities)
+  Garage Ceiling Light:
+    - platform: light
+      initial_value: 'off'
+  Garage Door:
+    - platform: cover
+      initial_value: 'closed'
+  Garage Workbench Plug:
+    - platform: switch
+      initial_value: 'off'
+  Garage Motion Sensor:
+    - platform: binary_sensor
+      device_class: motion
+      initial_value: 'off'
+  Garage Temperature:
+    - platform: sensor
+      unit_of_measurement: "°C"
+      initial_value: 16
+  Garage Freezer:
+    - platform: switch
+      initial_value: 'off'
