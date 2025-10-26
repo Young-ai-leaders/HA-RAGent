@@ -22,7 +22,7 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu] # Uncomment if using GPU
+              capabilities: [gpu]
     
   mongo:
     image: mongo:7.0
