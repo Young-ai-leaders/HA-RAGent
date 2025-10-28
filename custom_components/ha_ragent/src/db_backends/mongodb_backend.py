@@ -65,24 +65,23 @@ class MongoDbBackend(ABaseDbBackend):
         collection = self._get_collection()
         collection.insert_one(embedding.to_dict())
         
-    def get_top_n_devices_embeddings(self, query_embedding, top_k = 3) -> List[SmartHomeDevice]:
+    def get_top_n_devices_embeddings(self, query_embedding, top_k = 1) -> List[SmartHomeDevice]:
         collection = self._get_collection()
         pipeline = [
             {
                 "$vectorSearch": {
-                    "index": "vector_search_index",  # Must match the name from your create command
+                    "index": "vector_search_index",
                     "path": "vector_embedding",
                     "queryVector": query_embedding,
-                    "numCandidates": top_k * 10,   # Best practice: 10-20x your limit
+                    "numCandidates": top_k * 10,
                     "limit": top_k
                 }
             },
             {
-                # Project to add the score and shape the output
                 "$project": {
-                    "score": { "$meta": "vectorSearchScore" },
                     "id": 1,
                     "name": 1,
+                    "type": 1,
                     "location": 1,
                     "capabilities": 1,
                     "description": 1
@@ -91,15 +90,16 @@ class MongoDbBackend(ABaseDbBackend):
         ]
 
         try:
-            results = collection.aggregate(pipeline)
+            results = list(collection.aggregate(pipeline))
         except Exception as e:
             raise RuntimeError(f"Error during vector search: {e}")
-                
+                        
         devices = []
         for doc in results:
             devices.append(SmartHomeDevice(
                 id = doc.get("id"),
                 name = doc.get("name"),
+                type = doc.get("type"),
                 location = doc.get("location"),
                 capabilities = doc.get("capabilities", []),
                 description = doc.get("description", "")
