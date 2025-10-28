@@ -1,5 +1,6 @@
-from dataclasses import dataclass, asdict
+from typing import List
 import json
+from dataclasses import dataclass, asdict
 
 @dataclass
 class SmartHomeDevice:
@@ -8,7 +9,7 @@ class SmartHomeDevice:
     type: str
     location: str
     description: str = ""
-    capabilities: list[str] = None
+    capabilities: List[str] = None
     
     def __str__(self):
          return json.dumps(asdict(self))

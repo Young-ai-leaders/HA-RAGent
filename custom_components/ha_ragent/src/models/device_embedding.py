@@ -1,7 +1,7 @@
 from typing import List, Dict
 from models.device import SmartHomeDevice
 
-class EmbeddedDevice:
+class DeviceEmbedding:
     def __init__(self, device: SmartHomeDevice, vector_embedding: List[float]) -> None:
         self.device = device
         self.vector_embedding = vector_embedding

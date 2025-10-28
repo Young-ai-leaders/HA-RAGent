@@ -7,5 +7,9 @@ class ABaseEmbedding(ABC):
         pass
     
     @abstractmethod
-    def embed_devices(self, devices: List[SmartHomeDevice]):
+    def embed_text(self, text: str) -> None:
+        pass
+    
+    @abstractmethod
+    def embed_devices(self, devices: List[SmartHomeDevice]) -> None:
         pass

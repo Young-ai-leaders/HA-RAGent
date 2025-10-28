@@ -1,8 +1,8 @@
-from base_backend import BaseBackend
+from base_backend import ALlmBaseBackend
 from langchain_ollama.llms import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
 
-class OllamaBackend(BaseBackend):
+class OllamaBackend(ALlmBaseBackend):
     def __init__(self, template: str, model: str = "qwen3:8b"):
         super.__init__(template, model)
 

@@ -33,11 +33,8 @@ devices = [
 ]
 
 
-#embedding.embed_devices(devices)
-
+embedding.embed_devices(devices)
 time.sleep(4)
-emb = embedding.embed_query("Turn on the light in the living room")
-devices = db_backend.get_top_n_devices_embeddings(emb)
-
-for dev in devices:
-    print(dev)
+emb = embedding.embed_text("Turn on the light in the living room")
+devices = db_backend.load_device_embeddings(emb)
+print(devices)
