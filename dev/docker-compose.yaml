@@ -25,13 +25,14 @@ services:
               capabilities: [gpu]
     
   mongo:
-    image: mongo:7.0
+    image: mongodb/mongodb-atlas-local:latest
     container_name: mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: mongodb
+      MONGODB_INITDB_ROOT_USERNAME: admin
+      MONGODB_INITDB_ROOT_PASSWORD: mongodb
     volumes:
-      - ./containers/mongodb:/data/db
+      - ./containers/mongodb/db:/data/db
+      - ./containers/mongodb/config:/data/configdb
