@@ -16,5 +16,5 @@ class ABaseDbBackend(ABC):
         pass
     
     @abstractmethod
-    def load_device_embeddings(self, query_embedding: List[float], top_k: int = 10) -> List[SmartHomeDevice]:
+    def retrieve_devices(self, query_embedding: List[float], top_k: int = 10) -> List[SmartHomeDevice]:
         pass

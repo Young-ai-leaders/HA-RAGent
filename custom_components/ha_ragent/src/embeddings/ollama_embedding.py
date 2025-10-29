@@ -1,9 +1,12 @@
 from typing import List
+import logging
 import requests
-from embeddings.base_embedding import ABaseEmbedding
+from embeddings.base_llm_embedding import ABaseEmbedding
 from models.device import SmartHomeDevice
 from models.device_embedding import DeviceEmbedding
 from db_backends.base_db_backend import ABaseDbBackend
+
+_logger = logging.getLogger(__name__)
 
 class OllamaEmbeddingModels:
     small = ("nomic-embed-text", 768) # 274 MB
@@ -25,16 +28,18 @@ class OllamaEmbedding(ABaseEmbedding):
             raise ValueError(f"Unexpected response: {data}")
 
     def embed_text(self, text: str) -> None:
-        payload = {"model": self.embedding_model, "input": text}
-        response = requests.post(f"{self.ollama_url.removesuffix('/')}/api/embed", json=payload)
-        response.raise_for_status()
-        
-        return self._extract_embedding(response)
+        try:
+            payload = {"model": self.embedding_model, "input": text}
+            response = requests.post(f"{self.ollama_url.removesuffix('/')}/api/embed", json=payload)
+            response.raise_for_status()
+            return self._extract_embedding(response)
+        except Exception as e:
+            _logger.error(e)
 
-    def embed_devices(self, devices: List[SmartHomeDevice]) -> None:      
-        self.db_backend.cleanup_database(self.embedding_length)
-        embedded_devices = []
-        for device in devices:
-            embedded_devices.append(DeviceEmbedding(device, self.embed_text(str(device))))        
-            
-        self.db_backend.save_device_embeddings(embedded_devices)
+    def embed_devices(self, devices: List[SmartHomeDevice]) -> None: 
+        try:
+            self.db_backend.cleanup_database(self.embedding_length)
+            embedded_devices = [DeviceEmbedding(device, self.embed_text(str(device))) for device in devices]                
+            self.db_backend.save_device_embeddings(embedded_devices)
+        except Exception as e:
+            _logger.error(e)

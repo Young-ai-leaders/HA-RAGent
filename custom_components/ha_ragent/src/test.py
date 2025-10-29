@@ -34,7 +34,7 @@ devices = [
 
 
 embedding.embed_devices(devices)
-time.sleep(4)
+time.sleep(2)
 emb = embedding.embed_text("Turn on the light in the living room")
 devices = db_backend.load_device_embeddings(emb)
 print(devices)

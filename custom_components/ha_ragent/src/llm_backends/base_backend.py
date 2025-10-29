@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
+
 class ALlmBaseBackend(ABC):
-    def __init__(self, template: str, model: str = "qwen3:8b"):
+    def __init__(self, template: str, model: str):
         self.template = template
         self.model = model
     

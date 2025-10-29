@@ -1,9 +1,11 @@
+import logging
 from base_backend import ALlmBaseBackend
-from langchain_ollama.llms import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
 
+_logger = logging.getLogger(__name__)
+
 class OllamaBackend(ALlmBaseBackend):
-    def __init__(self, template: str, model: str = "qwen3:8b"):
+    def __init__(self, template: str, model: str = "qwen3:0.6b"):
         super.__init__(template, model)
 
     def send_request(self, query):

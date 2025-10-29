@@ -1,8 +1,11 @@
 from typing import List, Dict
+import logging
 from pymongo import MongoClient
 from db_backends.base_db_backend import ABaseDbBackend
 from models.device import SmartHomeDevice
 from models.device_embedding import DeviceEmbedding
+
+_logger = logging.getLogger(__name__)
 
 class MongoDbBackend(ABaseDbBackend):
     def __init__(self, host: str, username: str, password: str, port: str = "27017", db_name: str = "homeassistant", collection_name: str = "device_embeddings") -> None:
@@ -23,42 +26,48 @@ class MongoDbBackend(ABaseDbBackend):
     def _execute_and_verify(self, connection: MongoClient, command: Dict) -> None:
         result = self._get_database(connection).command(command)
         if result.get("ok") != 1.0:
-            raise f"Command execution failed with result: {result}"
+            _logger.warning(f"Command execution failed with result: {result}")
         
     def cleanup_database(self, embedding_length: int) -> None:
-        with self._get_connection() as conn:
-            conn.drop_database(self.db_name)
-        
-            self._execute_and_verify(conn, {"create": self.collection_name})
-            self._execute_and_verify(conn, {
-                "createSearchIndexes": self.collection_name,
-                "indexes": [
-                    {
-                        "name": "vector_search_index",
-                        "type": "vectorSearch",
-                        "definition": {
-                            "fields": [
-                                {
-                                    "path": "vector_embedding",
-                                    "type": "vector",
-                                    "numDimensions": embedding_length,
-                                    "similarity": "cosine"
-                                }
-                            ]
+        try:
+            with self._get_connection() as conn:
+                conn.drop_database(self.db_name)
+            
+                self._execute_and_verify(conn, {"create": self.collection_name})
+                self._execute_and_verify(conn, {
+                    "createSearchIndexes": self.collection_name,
+                    "indexes": [
+                        {
+                            "name": "vector_search_index",
+                            "type": "vectorSearch",
+                            "definition": {
+                                "fields": [
+                                    {
+                                        "path": "vector_embedding",
+                                        "type": "vector",
+                                        "numDimensions": embedding_length,
+                                        "similarity": "cosine"
+                                    }
+                                ]
+                            }
                         }
-                    }
-                ]
-            })
+                    ]
+                })
+        except Exception as e:
+            _logger.error(e)
             
     def save_device_embeddings(self, device_embeddings: List[DeviceEmbedding]) -> None:
-        with self._get_connection() as conn:
-            collection = self._get_collection(conn)
-            for embedding in device_embeddings:
-                collection.insert_one(embedding.to_dict())
+        try:
+            with self._get_connection() as conn:
+                collection = self._get_collection(conn)
+                for embedding in device_embeddings:
+                    collection.insert_one(embedding.to_dict())
+        except Exception as e:
+            _logger.error(e)
         
-    def load_device_embeddings(self, query_embedding: List[float], top_k: int = 1) -> List[SmartHomeDevice]:
-        with self._get_connection() as conn:
-            try:
+    def retrieve_devices(self, query_embedding: List[float], top_k: int = 1) -> List[SmartHomeDevice]:
+        try:
+            with self._get_connection() as conn:
                 collection = self._get_collection(conn)
                 pipeline = [
                     {
@@ -83,8 +92,6 @@ class MongoDbBackend(ABaseDbBackend):
                 ]
 
                 results = list(collection.aggregate(pipeline))
-            except Exception as e:
-                raise RuntimeError(f"Error during vector search: {e}")
                             
             devices = []
             for doc in results:
@@ -97,3 +104,5 @@ class MongoDbBackend(ABaseDbBackend):
                     description = doc.get("description", "")
                 ))
             return devices
+        except Exception as e:
+            _logger.error(e)
