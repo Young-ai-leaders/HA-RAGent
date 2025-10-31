@@ -2,7 +2,7 @@ from typing import List, Dict
 import logging
 from pymongo import MongoClient
 from db_backends.base_db_backend import ABaseDbBackend
-from models.device import SmartHomeDevice
+from models.device import Device
 from models.device_embedding import DeviceEmbedding
 
 _logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class MongoDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(e)
         
-    def retrieve_devices(self, query_embedding: List[float], top_k: int = 1) -> List[SmartHomeDevice]:
+    def retrieve_devices(self, query_embedding: List[float], top_k: int = 1) -> List[Device]:
         try:
             with self._get_connection() as conn:
                 collection = self._get_collection(conn)
@@ -95,7 +95,7 @@ class MongoDbBackend(ABaseDbBackend):
                             
             devices = []
             for doc in results:
-                devices.append(SmartHomeDevice(
+                devices.append(Device(
                     id = doc.get("id"),
                     name = doc.get("name"),
                     type = doc.get("type"),

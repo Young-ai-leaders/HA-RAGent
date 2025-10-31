@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass, asdict
 
 @dataclass
-class SmartHomeDevice:
+class Device:
     id: str
     name: str
     type: str

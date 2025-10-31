@@ -1,6 +1,6 @@
 from typing import List
 from abc import ABC, abstractmethod
-from models.device import SmartHomeDevice
+from models.device import Device
 
 class ABaseEmbedding(ABC):
     def __init__(self) -> None:
@@ -11,5 +11,5 @@ class ABaseEmbedding(ABC):
         pass
     
     @abstractmethod
-    def embed_devices(self, devices: List[SmartHomeDevice]) -> None:
+    def embed_devices(self, devices: List[Device]) -> None:
         pass
