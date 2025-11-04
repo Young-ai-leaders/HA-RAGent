@@ -12,7 +12,6 @@ devices:
       initial_value: 'off'
   Living Room Motion Sensor:
     - platform: binary_sensor
-      device_class: motion
       initial_value: 'off'
   Living Room Temperature:
     - platform: sensor
@@ -31,7 +30,6 @@ devices:
       initial_value: 'off'
   Kitchen Fridge Door:
     - platform: binary_sensor
-      device_class: door
       initial_value: 'off'
   Kitchen Humidity:
     - platform: sensor
@@ -53,7 +51,6 @@ devices:
       initial_value: 'off'
   Dining Room Window Sensor:
     - platform: binary_sensor
-      device_class: window
       initial_value: 'off'
   Dining Room Air Quality:
     - platform: sensor
@@ -78,7 +75,6 @@ devices:
       initial_value: 'off'
   Office Occupancy Sensor:
     - platform: binary_sensor
-      device_class: occupancy
       initial_value: 'off'
   Office Temperature:
     - platform: sensor
@@ -94,11 +90,9 @@ devices:
       initial_value: 'off'
   Hallway Motion Sensor:
     - platform: binary_sensor
-      device_class: motion
       initial_value: 'off'
   Hallway Smoke Detector:
     - platform: binary_sensor
-      device_class: smoke
       initial_value: 'off'
   Hallway Night Light:
     - platform: light
@@ -123,7 +117,6 @@ devices:
       initial_value: 'off'
   Bedroom 1 Window Sensor:
     - platform: binary_sensor
-      device_class: window
       initial_value: 'off'
   Bedroom 1 Temperature:
     - platform: sensor
@@ -145,7 +138,6 @@ devices:
       initial_value: 'off'
   Bedroom 2 Motion Sensor:
     - platform: binary_sensor
-      device_class: motion
       initial_value: 'off'
   Bedroom 2 Humidity:
     - platform: sensor
@@ -167,7 +159,6 @@ devices:
       initial_value: 'off'
   Bedroom 3 Occupancy Sensor:
     - platform: binary_sensor
-      device_class: occupancy
       initial_value: 'off'
   Bedroom 3 Speaker:
     - platform: media_player
@@ -193,7 +184,6 @@ devices:
       initial_value: 60
   Bathroom Leak Sensor:
     - platform: binary_sensor
-      device_class: moisture
       initial_value: 'off'
   Bathroom Heater:
     - platform: switch
@@ -211,7 +201,6 @@ devices:
       initial_value: 'off'
   Garage Motion Sensor:
     - platform: binary_sensor
-      device_class: motion
       initial_value: 'off'
   Garage Temperature:
     - platform: sensor

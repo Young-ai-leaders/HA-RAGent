@@ -1,5 +1,5 @@
 import logging
-from base_backend import ALlmBaseBackend
+from .base_backend import ALlmBaseBackend
 from langchain_core.prompts import ChatPromptTemplate
 
 _logger = logging.getLogger(__name__)
