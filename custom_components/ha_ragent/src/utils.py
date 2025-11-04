@@ -14,3 +14,6 @@ def is_valid_host(host: str) -> bool:
         return True
     except socket.gaierror:
         return False
+    
+def format_url(hostname: str, port: str, ssl: bool, path: str):
+    return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"

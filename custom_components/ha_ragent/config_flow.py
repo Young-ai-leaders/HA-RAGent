@@ -62,24 +62,12 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initialization step."""
         match self.flow_step:
-            case "init": return self._init_flow()
-            case "configure_backend": return self._configure_backend(user_input)
+            case "init": return await self._init_flow()
+            case "configure_backend": return await self._configure_backend(user_input)
             case "connect_to_backend": return await self._connect_to_backend_async(user_input)
             case _: raise AbortFlow("Uknown config flow step.")
-
-    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        backend = self.client_config[CONF_BACKEND_TYPE]
-        title = BACKEND_TO_CLASS[backend].get_name(self.client_config)
-        _logger.debug(f"creating provider with config: {self.client_config}")
-
-        return self.async_create_entry(
-            title=title,
-            description="A Large Language Model Chat Agent",
-            data={CONF_BACKEND_TYPE: backend},
-            options=self.client_config,
-        )
                 
-    def _init_flow(self) -> ConfigFlowResult:
+    async def _init_flow(self) -> ConfigFlowResult:
         """Registers the llm api in home assitant if not already present."""
         if not any([x.id == LLM_API_ID for x in llm.async_get_apis(self.hass)]):
             #llm.async_register_api(self.hass, HomeLLMAPI(self.hass))
@@ -93,13 +81,13 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             
         return self.async_abort(reason="already_configured")
             
-    def _configure_backend(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def _configure_backend(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input:
             self.client_config.update(user_input)
-            self.internal_step = "connect_to_backend"
+            self.flow_step = "connect_to_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=self.remote_connection_schema(self.client_config[CONF_BACKEND_TYPE]),
+                data_schema=self._remote_connection_schema(self.client_config[CONF_BACKEND_TYPE]),
                 last_step=True
             )
         return self.async_show_form(
@@ -132,11 +120,10 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                 )),
             }
         )
-
+        
     async def _connect_to_backend_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors = {}
         description_placeholders = {}
-        
         if user_input:
             self.client_config.update(user_input)
             hostname = user_input.get(CONF_HOST, "")
@@ -149,11 +136,11 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "failed_to_connect"
                     description_placeholders["exception"] = str(connect_err)
                 else:
-                    return self.async_step_finish()
+                    return await self._step_finish_async()
             
         return self.async_show_form(
             step_id="user", 
-            data_schema=self.remote_connection_schema(
+            data_schema=self._remote_connection_schema(
                 self.client_config[CONF_BACKEND_TYPE],
                 host=self.client_config.get(CONF_HOST),
                 port=self.client_config.get(CONF_PORT),
@@ -164,13 +151,27 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         
     
-    def remote_connection_schema(self, backend_type: str, host=None, port=None, ssl=None):
+    def _remote_connection_schema(self, backend_type: str, host=None, port=None, ssl=None):
+        if backend_type != DEFAULT_BACKEND_TYPE:
+            raise AbortFlow("Uknown backend type.")
+        
         default_port = 11434
-
         return vol.Schema(
             {
                 vol.Required(CONF_HOST, default=host if host else ""): str,
                 vol.Optional(CONF_PORT, default=port if port else default_port): int,
                 vol.Required(CONF_SSL, default=ssl if ssl else False): bool,
             }
+        )
+        
+    async def _step_finish_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        backend = self.client_config[CONF_BACKEND_TYPE]
+        title = BACKEND_TO_CLASS[backend].get_name(self.client_config)
+        _logger.debug(f"Creating provider with config: {self.client_config}")
+
+        return self.async_create_entry(
+            title=title,
+            description="A Large Language Model Chat Agent",
+            data={CONF_BACKEND_TYPE: backend},
+            options=self.client_config,
         )
