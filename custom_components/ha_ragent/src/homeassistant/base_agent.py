@@ -1,18 +1,8 @@
 from typing import List
-from models.device import Device
+from models.device import SmartHomeDevice
 from db_backends.base_db_backend import ABaseDbBackend
 from embeddings.base_llm_embedding import ABaseEmbedding
 from llm_backends.base_backend import ALlmBaseBackend
-
-from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
-from homeassistant.components.conversation.models import AbstractConversationAgent
-from homeassistant.components import conversation
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
-from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
-from homeassistant.exceptions import TemplateError, HomeAssistantError
-from homeassistant.helpers import chat_session, intent, llm
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 class LlmAgent:
     def __init__(self, db_backend: ABaseDbBackend, embedding: ABaseEmbedding, llm_backend: ALlmBaseBackend) -> None:
@@ -20,7 +10,7 @@ class LlmAgent:
         self.embedding = embedding
         self.llm_backend = llm_backend
         
-    def _get_devices(self, query: str) -> List[Device]:
+    def _get_devices(self, query: str) -> List[SmartHomeDevice]:
         embedded_query = self.embedding.embed_text(query)
         return self.db_backend.retrieve_devices(embedded_query)
     
