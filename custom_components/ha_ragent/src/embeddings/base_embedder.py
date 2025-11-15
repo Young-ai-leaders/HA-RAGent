@@ -2,7 +2,7 @@ from typing import List
 from abc import ABC, abstractmethod
 from models.device import Device
 
-class ABaseEmbedding(ABC):
+class ABaseEmbedder(ABC):
     def __init__(self) -> None:
         pass
     

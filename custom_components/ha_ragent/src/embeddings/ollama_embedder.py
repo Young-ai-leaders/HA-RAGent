@@ -1,7 +1,7 @@
 from typing import List
 import logging
 import requests
-from embeddings.base_llm_embedding import ABaseEmbedding
+from embeddings.base_embedder import ABaseEmbedder
 from models.device import Device
 from models.device_embedding import DeviceEmbedding
 from models.embedding_model import EmbeddingModel
@@ -14,7 +14,7 @@ class OllamaEmbeddingModels:
     medium = EmbeddingModel("mxbai-embed-large", 768) # 670 MB
     large = EmbeddingModel("BGE-M3", 768) # 1.2 GB
     
-class OllamaEmbedding(ABaseEmbedding):
+class OllamaEmbedder(ABaseEmbedder):
     def __init__(self, ollama_url: str, db_backend: ABaseDbBackend, model: EmbeddingModel = OllamaEmbeddingModels.small) -> None:
         self.ollama_url = ollama_url
         self.db_backend = db_backend
