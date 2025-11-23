@@ -11,29 +11,26 @@ from homeassistant.config_entries import (
 ) 
 
 from ..const import (
-    BACKEND_TO_CLASS, 
     CONF_BACKEND_TYPE,
     CONF_CHAT_MODEL,
-    CONF_PROMPT,
-    CONF_SELECTED_LANGUAGE,
-    CONF_BACKEND_TYPE,
-    CONF_BACKEND_PATH,
     CONF_CONTEXT_LENGTH,
-    CONF_MAX_TOKENS,
-    CONF_MAX_TOOL_CALL_ITERATIONS,
-    CONF_REMEMBER_NUM_INTERACTIONS,
-    CONF_REQUEST_TIMEOUT,
-    CONF_PROMPT_CACHING_ENABLED,
-    CONF_REFRESH_SYSTEM_PROMPT,
     CONF_GBNF_GRAMMAR_ENABLED,
     CONF_GBNF_GRAMMAR_FILE,
     CONF_IN_CONTEXT_LEARNING_ENABLED,
     CONF_IN_CONTEXT_LEARNING_FILE,
-    DEFAULT_BACKEND_TYPE,
-    DEFAULT_PROMPT,
+    CONF_MAX_TOKENS,
+    CONF_MAX_TOOL_CALL_ITERATIONS,
+    CONF_PROMPT,
+    CONF_PROMPT_CACHING_ENABLED,
+    CONF_REFRESH_SYSTEM_PROMPT,
+    CONF_REMEMBER_NUM_INTERACTIONS,
+    CONF_REQUEST_TIMEOUT,
+    CONF_SELECTED_LANGUAGE,
+
     DEFAULT_GBNF_GRAMMAR_FILE,
     DEFAULT_IN_CONTEXT_LEARNING_FILE,
-    DEFAULT_OPTIONS
+    DEFAULT_OPTIONS,
+    DEFAULT_PROMPT,
 )
 
 from ..utils import (
@@ -103,7 +100,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
             selected_default_options = {**DEFAULT_OPTIONS}
 
-            selected_default_options[CONF_PROMPT] = build_prompt_template(
+            selected_default_options[CONF_PROMPT] = RAGent.build_prompt_template(
                 selected_language, str(selected_default_options.get(CONF_PROMPT, DEFAULT_PROMPT))
             )
             
@@ -135,7 +132,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
                     errors["base"] = "missing_icl_file"
                     description_placeholders["filename"] = filename
 
-            # --- Normalize numeric fields to ints to avoid slice/type errors later ---
             for key in (
                 CONF_REMEMBER_NUM_INTERACTIONS,
                 CONF_MAX_TOOL_CALL_ITERATIONS,

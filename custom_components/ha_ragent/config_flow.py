@@ -4,7 +4,7 @@ import logging
 from typing import Any
 import voluptuous as vol
 
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL, CONF_LLM_HASS_API
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.config_entries import (
     ConfigEntriesFlowManager,
@@ -15,18 +15,13 @@ from homeassistant.helpers import llm
 
 from .src.const import (
     BACKEND_TO_CLASS,
-    BACKEND_TYPE_OPTIONS,
-    
+
     CONF_BACKEND_TYPE,
-    CONF_BACKEND_PATH,
     CONF_SELECTED_LANGUAGE,
-    
-    DEFAULT_BACKEND_TYPE,
-    DEFAULT_LANGUAGE,
+
     DOMAIN,
 
     LLM_API_ID,
-    SELECTED_LANGUAGE_OPTIONS
 )
 
 from .src.homeassistant.ui_schemas import (
@@ -41,7 +36,6 @@ from .src.utils import (
 _logger = logging.getLogger(__name__)
 
 class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Local LLM Conversation."""
     VERSION = 1
 
     client_config: dict[str, Any] = {}
@@ -49,11 +43,9 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @property
     def flow_manager(self) -> ConfigEntriesFlowManager:
-        """Return the correct flow manager."""
         return self.hass.config_entries.flow
             
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Handle the initialization step."""
         match self.flow_step:
             case "init": return await self._init_flow()
             case "configure_backend": return await self._configure_backend(user_input)
@@ -61,7 +53,6 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             case _: raise AbortFlow("Uknown config flow step.")
                 
     async def _init_flow(self) -> ConfigFlowResult:
-        """Registers the llm api in home assitant if not already present."""
         if not any([x.id == LLM_API_ID for x in llm.async_get_apis(self.hass)]):
             #llm.async_register_api(self.hass, HomeLLMAPI(self.hass))
 
