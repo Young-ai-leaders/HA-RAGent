@@ -17,3 +17,9 @@ def is_valid_host(host: str) -> bool:
     
 def format_url(hostname: str, port: str, ssl: bool, path: str):
     return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"
+
+def try_parse_int(value, default=0):
+    try:
+        return int(value)
+    except ValueError:
+        return default

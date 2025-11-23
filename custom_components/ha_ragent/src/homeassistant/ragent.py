@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 from typing import List
 from models.device import Device
 from db_backends.base_db_backend import ABaseDbBackend
-from embeddings.base_llm_embedding import ABaseEmbedding
+from embeddings.base_embedder import ABaseEmbedding
 from llm_backends.base_backend import ALlmBaseBackend
 
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
@@ -14,7 +16,9 @@ from homeassistant.exceptions import TemplateError, HomeAssistantError
 from homeassistant.helpers import chat_session, intent, llm
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-class LlmAgent:
+type RAGentConfigEntry = ConfigEntry[RAGent]
+
+class RAGent:
     def __init__(self, db_backend: ABaseDbBackend, embedding: ABaseEmbedding, llm_backend: ALlmBaseBackend) -> None:
         self.db_backend = db_backend
         self.embedding = embedding

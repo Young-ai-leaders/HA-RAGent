@@ -7,22 +7,11 @@ import voluptuous as vol
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL, CONF_LLM_HASS_API
 from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.config_entries import (
-    ConfigEntry,
-    ConfigFlow,
-    ConfigFlowResult,
-    ConfigSubentryFlow,
     ConfigEntriesFlowManager,
-    OptionsFlow as BaseOptionsFlow,
+    ConfigFlow,
+    ConfigFlowResult
 )
 from homeassistant.helpers import llm
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
-    TextSelector,
-    TextSelectorConfig,
-    TextSelectorType,
-)
 
 from .src.const import (
     BACKEND_TO_CLASS,
@@ -40,8 +29,12 @@ from .src.const import (
     SELECTED_LANGUAGE_OPTIONS
 )
 
+from .src.homeassistant.ui_schemas import (
+    remote_connection_schema,
+    pick_backend_schema
+)
+
 from .src.utils import (
-    get_value,
     is_valid_host
 )
 
@@ -87,39 +80,15 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             self.flow_step = "connect_to_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=self._remote_connection_schema(self.client_config[CONF_BACKEND_TYPE]),
+                data_schema=remote_connection_schema(self.client_config[CONF_BACKEND_TYPE]),
                 last_step=True
             )
         return self.async_show_form(
             step_id="user", 
-            data_schema=self._pick_backend_schema(
+            data_schema=pick_backend_schema(
                 backend_type=self.client_config.get(CONF_BACKEND_TYPE),
                 selected_language=self.client_config.get(CONF_SELECTED_LANGUAGE)), 
             last_step=False)
-        
-    def _pick_backend_schema(self, backend_type=None, selected_language=None) -> vol.Schema:
-        return vol.Schema(
-            {
-                vol.Required(
-                    CONF_BACKEND_TYPE,
-                    default=get_value(backend_type, DEFAULT_BACKEND_TYPE)
-                ): SelectSelector(SelectSelectorConfig(
-                    options=BACKEND_TYPE_OPTIONS,
-                    translation_key=CONF_BACKEND_TYPE,
-                    multiple=False,
-                    mode=SelectSelectorMode.DROPDOWN,
-                )),
-                vol.Required(
-                    CONF_SELECTED_LANGUAGE, 
-                    default=get_value(selected_language, DEFAULT_LANGUAGE)
-                ): SelectSelector(SelectSelectorConfig(
-                    options=SELECTED_LANGUAGE_OPTIONS,
-                    translation_key=CONF_SELECTED_LANGUAGE,
-                    multiple=False,
-                    mode=SelectSelectorMode.DROPDOWN,
-                )),
-            }
-        )
         
     async def _connect_to_backend_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors = {}
@@ -140,7 +109,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             
         return self.async_show_form(
             step_id="user", 
-            data_schema=self._remote_connection_schema(
+            data_schema=remote_connection_schema(
                 self.client_config[CONF_BACKEND_TYPE],
                 host=self.client_config.get(CONF_HOST),
                 port=self.client_config.get(CONF_PORT),
@@ -148,20 +117,6 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders=description_placeholders,
             last_step=True
-        )
-        
-    
-    def _remote_connection_schema(self, backend_type: str, host=None, port=None, ssl=None):
-        if backend_type != DEFAULT_BACKEND_TYPE:
-            raise AbortFlow("Uknown backend type.")
-        
-        default_port = 11434
-        return vol.Schema(
-            {
-                vol.Required(CONF_HOST, default=host if host else ""): str,
-                vol.Optional(CONF_PORT, default=port if port else default_port): int,
-                vol.Required(CONF_SSL, default=ssl if ssl else False): bool,
-            }
         )
         
     async def _step_finish_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
