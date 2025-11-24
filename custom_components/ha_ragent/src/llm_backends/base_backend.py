@@ -4,9 +4,9 @@ from typing import Any, Dict
 from homeassistant.core import HomeAssistant
 
 class ALlmBaseBackend(ABC):
-    def __init__(self, template: str, model: str):
-        self.template = template
-        self.model = model
+    def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
+        self.hass = hass
+        self.client_options = client_options
     
     @abstractmethod
     def send_request(self, query: str) -> str:

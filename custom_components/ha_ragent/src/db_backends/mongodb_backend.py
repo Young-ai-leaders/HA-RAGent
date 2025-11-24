@@ -1,9 +1,10 @@
 from typing import List, Dict
 import logging
 from pymongo import MongoClient
-from db_backends.base_db_backend import ABaseDbBackend
-from models.device import Device
-from models.device_embedding import DeviceEmbedding
+
+from ..db_backends.base_db_backend import ABaseDbBackend
+from ..models.device import Device
+from ..models.device_embedding import DeviceEmbedding
 
 _logger = logging.getLogger(__name__)
 

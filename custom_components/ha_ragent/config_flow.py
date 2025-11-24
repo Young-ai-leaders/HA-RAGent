@@ -9,7 +9,10 @@ from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.config_entries import (
     ConfigEntriesFlowManager,
     ConfigFlow,
-    ConfigFlowResult
+    ConfigFlowResult,
+    OptionsFlow,
+    ConfigEntry,
+    ConfigSubentryFlow
 )
 from homeassistant.helpers import llm
 
@@ -22,6 +25,9 @@ from .src.const import (
 
     BACKEND_TO_CLASS,
 )
+
+from .src.homeassistant.option_flow import RagentOptionsFlow
+from .src.homeassistant.subentry_flow import RagentSubentryFlowHandler
 
 from .src.homeassistant.ui_schemas import (
     remote_connection_schema,
@@ -37,8 +43,10 @@ _logger = logging.getLogger(__name__)
 class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    client_config: dict[str, Any] = {}
-    flow_step: str = "init"
+    def __init__(self) -> None:
+        super().__init__()
+        self.client_config: dict[str, Any] = {}
+        self.flow_step: str = "init"
 
     @property
     def flow_manager(self) -> ConfigEntriesFlowManager:
@@ -46,25 +54,25 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         match self.flow_step:
-            case "init": return await self._init_flow()
-            case "configure_backend": return await self._configure_backend(user_input)
+            case "init": return await self._init_flow_async()
+            case "configure_backend": return await self._configure_backend_async(user_input)
             case "connect_to_backend": return await self._connect_to_backend_async(user_input)
-            case _: raise AbortFlow("Uknown config flow step.")
+            case _: return self.async_abort(reason="unknown_step") 
                 
-    async def _init_flow(self) -> ConfigFlowResult:
+    async def _init_flow_async(self) -> ConfigFlowResult:
         if not any([x.id == LLM_API_ID for x in llm.async_get_apis(self.hass)]):
             #llm.async_register_api(self.hass, HomeLLMAPI(self.hass))
 
             self.flow_step = "configure_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=self._pick_backend_schema(), 
+                data_schema=pick_backend_schema(), 
                 last_step=False
             )
             
         return self.async_abort(reason="already_configured")
             
-    async def _configure_backend(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def _configure_backend_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input:
             self.client_config.update(user_input)
             self.flow_step = "connect_to_backend"
@@ -83,6 +91,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
     async def _connect_to_backend_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors = {}
         description_placeholders = {}
+        
         if user_input:
             self.client_config.update(user_input)
             hostname = user_input.get(CONF_HOST, "")
@@ -95,7 +104,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "failed_to_connect"
                     description_placeholders["exception"] = str(connect_err)
                 else:
-                    return await self._step_finish_async()
+                    return await self._step_finish_async(user_input)
             
         return self.async_show_form(
             step_id="user", 
@@ -120,3 +129,18 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             data={CONF_LLM_BACKEND_TYPE: backend},
             options=self.client_config,
         )
+    
+    @classmethod
+    def async_supports_options_flow(cls, config_entry: ConfigEntry) -> bool:
+        return True
+
+    @staticmethod
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return RagentOptionsFlow()
+    
+    @classmethod
+    def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
+        return {
+            "conversation": RagentSubentryFlowHandler,
+            "ai_agent": RagentSubentryFlowHandler,
+        }

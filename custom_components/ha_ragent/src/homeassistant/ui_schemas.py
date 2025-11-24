@@ -77,11 +77,11 @@ from ..utils import (
     get_value
 )
 
-from .ragent import RAGent
+from .ragent_client import RAGent
 
 _logger = logging.getLogger(__name__)
 
-def pick_backend_schema(self, backend_type=None, selected_language=None) -> vol.Schema:
+def pick_backend_schema(backend_type=None, selected_language=None) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
@@ -105,7 +105,7 @@ def pick_backend_schema(self, backend_type=None, selected_language=None) -> vol.
         }
     )
 
-def remote_connection_schema(self, backend_type: str, host=None, port=None, ssl=None):
+def remote_connection_schema(backend_type: str, host=None, port=None, ssl=None):
     if backend_type not in BACKEND_LLM_TYPE_OPTIONS:
         raise AbortFlow("Uknown backend type.")
         

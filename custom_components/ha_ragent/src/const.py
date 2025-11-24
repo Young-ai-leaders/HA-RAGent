@@ -1,4 +1,3 @@
-from typing import Mapping
 from .llm_backends.ollama_backend import OllamaBackend
 
 #-----------------------------------------------
@@ -13,14 +12,18 @@ INTEGRATION_VERSION = "0.1.0"
 #-----------------------------------------------
 CONF_SELECTED_LANGUAGE = "selected_language"
 
-SELECTED_LANGUAGE_OPTIONS = [ "en", "de"]
+SELECTED_LANGUAGE_OPTIONS = [ "en", "de" ]
 
 DEFAULT_LANGUAGE = "en"
 
 #-----------------------------------------------
 # Service Tool constants
 #-----------------------------------------------
+SERVICE_TOOL_NAME = "HassCallService"
+SERVICE_TOOL_ALLOWED_SERVICES = ["turn_on", "turn_off", "toggle", "press", "increase_speed", "decrease_speed", "open_cover", "close_cover", "stop_cover", "lock", "unlock", "start", "stop", "return_to_base", "pause", "cancel", "add_item", "set_temperature", "set_humidity", "set_fan_mode", "set_hvac_mode", "set_preset_mode"]
+SERVICE_TOOL_ALLOWED_DOMAINS = ["light", "switch", "button", "fan", "cover", "lock", "media_player", "climate", "vacuum", "todo", "timer", "script"]
 
+ALLOWED_SERVICE_CALL_ARGUMENTS = ["rgb_color", "brightness", "temperature", "humidity", "fan_mode", "hvac_mode", "preset_mode", "item", "duration" ]
 
 #-----------------------------------------------
 # Embedding backend constants
@@ -77,6 +80,36 @@ CONF_P_MIN = 0.1
 CONF_P_TOP = 0.9
 CONF_P_TYPICAL = 1.0
 
+PERSONA_PROMPTS = {
+    "de": "Du bist \"YAIL\", ein hilfreicher KI-Assistent, der die Geräte in einem Haus steuert. Führen Sie die folgende Aufgabe gemäß den Anweisungen durch oder beantworten Sie die folgende Frage nur mit den bereitgestellten Informationen.",
+    "en": "You are 'YAIL', a helpful AI Assistant that controls the devices in a house. Complete the following task as instructed with the information provided only.",
+}
+CURRENT_DATE_PROMPT = {
+    "de": """{% set day_name = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"] %}{% set month_name = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"] %}Die aktuelle Uhrzeit und das aktuelle Datum sind {{ (as_timestamp(now()) | timestamp_custom("%H:%M", local=True)) }} {{ day_name[now().weekday()] }}, {{ now().day }} {{ month_name[now().month -1]}} {{ now().year }}.""",
+    "en": """The current time and date is {{ (as_timestamp(now()) | timestamp_custom("%I:%M %p on %A %B %d, %Y", True, "")) }}"""
+}
+DEVICES_PROMPT = {
+    "de": "Geräte",
+    "en": "Devices",
+}
+SERVICES_PROMPT = {
+    "de": "Dienste",
+    "en": "Services"
+}
+TOOLS_PROMPT = {
+    "de": "Werkzeuge",
+    "en": "Tools"
+}
+AREA_PROMPT = {
+    "de": "Bereich",
+    "en": "Area"
+}
+USER_INSTRUCTION = {
+    "de": "Benutzeranweisung",
+    "en": "User instruction"
+}
+
+
 DEFAULT_CONTEXT_LENGTH = 4096
 
 DEFAULT_IN_CONTEXT_LEARNING_ENABLED = True
@@ -106,26 +139,23 @@ DEFAULT_P_TYPICAL = 1.0
 #-----------------------------------------------
 # Default override options for new entries
 #-----------------------------------------------
-
-DEFAULT_OPTIONS = Mapping(
-    {
-        CONF_PROMPT: DEFAULT_PROMPT,
-        CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
-        CONF_K_TOP: DEFAULT_K_TOP,
-        CONF_P_TOP: DEFAULT_P_TOP,
-        CONF_P_MIN: DEFAULT_P_MIN,
-        CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
-        CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
-        CONF_REQUEST_TIMEOUT: DEFAULT_REQUEST_TIMEOUT,
-        CONF_GBNF_GRAMMAR_ENABLED: DEFAULT_GBNF_GRAMMAR_ENABLED,
-        CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
-        CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
-        CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
-        CONF_IN_CONTEXT_LEARNING_ENABLED: DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
-        CONF_IN_CONTEXT_LEARNING_FILE: DEFAULT_IN_CONTEXT_LEARNING_FILE,
-        CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES: DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-        CONF_CONTEXT_LENGTH: DEFAULT_CONTEXT_LENGTH,
-        CONF_OLLAMA_KEEP_ALIVE_MIN: DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
-        CONF_OLLAMA_JSON_MODE: DEFAULT_OLLAMA_JSON_MODE
-    }
-)
+DEFAULT_OPTIONS = {
+    CONF_PROMPT: DEFAULT_PROMPT,
+    CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
+    CONF_K_TOP: DEFAULT_K_TOP,
+    CONF_P_TOP: DEFAULT_P_TOP,
+    CONF_P_MIN: DEFAULT_P_MIN,
+    CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
+    CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+    CONF_REQUEST_TIMEOUT: DEFAULT_REQUEST_TIMEOUT,
+    CONF_GBNF_GRAMMAR_ENABLED: DEFAULT_GBNF_GRAMMAR_ENABLED,
+    CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
+    CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
+    CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
+    CONF_IN_CONTEXT_LEARNING_ENABLED: DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
+    CONF_IN_CONTEXT_LEARNING_FILE: DEFAULT_IN_CONTEXT_LEARNING_FILE,
+    CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES: DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
+    CONF_CONTEXT_LENGTH: DEFAULT_CONTEXT_LENGTH,
+    CONF_OLLAMA_KEEP_ALIVE_MIN: DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
+    CONF_OLLAMA_JSON_MODE: DEFAULT_OLLAMA_JSON_MODE
+}

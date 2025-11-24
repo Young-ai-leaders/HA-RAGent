@@ -1,6 +1,7 @@
 from typing import List
 from abc import ABC, abstractmethod
-from models.device import Device
+
+from ..models.device import Device
 
 class ABaseEmbedder(ABC):
     def __init__(self) -> None:

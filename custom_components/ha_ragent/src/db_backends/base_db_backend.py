@@ -1,7 +1,7 @@
 from typing import List
 from abc import ABC, abstractmethod
-from models.device import SmartHomeDevice
-from models.device_embedding import DeviceEmbedding
+from ..models.device import Device
+from ..models.device_embedding import DeviceEmbedding
 
 class ABaseDbBackend(ABC):
     def __init__(self) -> None:
@@ -16,5 +16,5 @@ class ABaseDbBackend(ABC):
         pass
     
     @abstractmethod
-    def retrieve_devices(self, query_embedding: List[float], top_k: int = 10) -> List[SmartHomeDevice]:
+    def retrieve_devices(self, query_embedding: List[float], top_k: int = 10) -> List[Device]:
         pass

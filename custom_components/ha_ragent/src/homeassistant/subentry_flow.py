@@ -41,7 +41,7 @@ from .ui_schemas import (
     ragent_config_option_schema
 )
 
-from .ragent import RAGent, RagentConfigEntry
+from .ragent_client import RAGent, RAGentConfigEntry
 
 _logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
     @property
     def _client(self) -> RAGent:
-        entry: RagentConfigEntry = self._get_entry()
+        entry: RAGentConfigEntry = self._get_entry()
         return entry.runtime_data
 
     async def async_step_pick_model(

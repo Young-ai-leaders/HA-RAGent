@@ -1,11 +1,12 @@
 from typing import List
 import logging
 import requests
-from embeddings.base_embedder import ABaseEmbedder
-from models.device import Device
-from models.device_embedding import DeviceEmbedding
-from models.embedding_model import EmbeddingModel
-from db_backends.base_db_backend import ABaseDbBackend
+
+from ..embeddings.base_embedder import ABaseEmbedder
+from ..models.device import Device
+from ..models.device_embedding import DeviceEmbedding
+from ..models.embedding_model import EmbeddingModel
+from ..db_backends.base_db_backend import ABaseDbBackend
 
 _logger = logging.getLogger(__name__)
 
