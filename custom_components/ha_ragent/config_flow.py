@@ -14,14 +14,13 @@ from homeassistant.config_entries import (
 from homeassistant.helpers import llm
 
 from .src.const import (
-    BACKEND_TO_CLASS,
-
-    CONF_BACKEND_TYPE,
+    DOMAIN,
+    LLM_API_ID,
+    
+    CONF_LLM_BACKEND_TYPE,
     CONF_SELECTED_LANGUAGE,
 
-    DOMAIN,
-
-    LLM_API_ID,
+    BACKEND_TO_CLASS,
 )
 
 from .src.homeassistant.ui_schemas import (
@@ -71,13 +70,13 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             self.flow_step = "connect_to_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=remote_connection_schema(self.client_config[CONF_BACKEND_TYPE]),
+                data_schema=remote_connection_schema(self.client_config[CONF_LLM_BACKEND_TYPE]),
                 last_step=True
             )
         return self.async_show_form(
             step_id="user", 
             data_schema=pick_backend_schema(
-                backend_type=self.client_config.get(CONF_BACKEND_TYPE),
+                backend_type=self.client_config.get(CONF_LLM_BACKEND_TYPE),
                 selected_language=self.client_config.get(CONF_SELECTED_LANGUAGE)), 
             last_step=False)
         
@@ -91,7 +90,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_hostname"
                 description_placeholders["exception"] = "The provided hostname could not be resolved to an IP address."
             else:
-                connect_err = await BACKEND_TO_CLASS[self.client_config[CONF_BACKEND_TYPE]].async_validate_connection(self.hass, self.client_config)
+                connect_err = await BACKEND_TO_CLASS[self.client_config[CONF_LLM_BACKEND_TYPE]].async_validate_connection(self.hass, self.client_config)
                 if connect_err:
                     errors["base"] = "failed_to_connect"
                     description_placeholders["exception"] = str(connect_err)
@@ -101,7 +100,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user", 
             data_schema=remote_connection_schema(
-                self.client_config[CONF_BACKEND_TYPE],
+                self.client_config[CONF_LLM_BACKEND_TYPE],
                 host=self.client_config.get(CONF_HOST),
                 port=self.client_config.get(CONF_PORT),
                 ssl=self.client_config.get(CONF_SSL)), 
@@ -111,13 +110,13 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         )
         
     async def _step_finish_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        backend = self.client_config[CONF_BACKEND_TYPE]
+        backend = self.client_config[CONF_LLM_BACKEND_TYPE]
         title = BACKEND_TO_CLASS[backend].get_name(self.client_config)
         _logger.debug(f"Creating provider with config: {self.client_config}")
 
         return self.async_create_entry(
             title=title,
             description="A Large Language Model Chat Agent",
-            data={CONF_BACKEND_TYPE: backend},
+            data={CONF_LLM_BACKEND_TYPE: backend},
             options=self.client_config,
         )

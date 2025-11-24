@@ -11,8 +11,8 @@ from homeassistant.config_entries import (
 ) 
 
 from ..const import (
-    CONF_BACKEND_TYPE,
-    CONF_CHAT_MODEL,
+    CONF_LLM_BACKEND_TYPE,
+    CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
     CONF_GBNF_GRAMMAR_ENABLED,
     CONF_GBNF_GRAMMAR_FILE,
@@ -21,7 +21,6 @@ from ..const import (
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
-    CONF_PROMPT_CACHING_ENABLED,
     CONF_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_REQUEST_TIMEOUT,
@@ -91,7 +90,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         errors = {}
         description_placeholders = {}
         entry = self._get_entry()
-        backend_type = entry.data[CONF_BACKEND_TYPE]
+        backend_type = entry.data[CONF_LLM_BACKEND_TYPE]
 
         if CONF_PROMPT not in self.model_config:
             selected_language = self.model_config.get(
@@ -117,7 +116,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         )
 
         if user_input:
-            if not user_input.get(CONF_REFRESH_SYSTEM_PROMPT) and user_input.get(CONF_PROMPT_CACHING_ENABLED):
+            if not user_input.get(CONF_REFRESH_SYSTEM_PROMPT):
                 errors["base"] = "sys_refresh_caching_enabled"
 
             if user_input.get(CONF_GBNF_GRAMMAR_ENABLED):
@@ -167,7 +166,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         if self._is_new:
             return self.async_create_entry(
-                title=self.model_config.get(CONF_CHAT_MODEL, "Model"),
+                title=self.model_config.get(CONF_LLM_MODEL, "Model"),
                 data=self.model_config,
             )
         else:

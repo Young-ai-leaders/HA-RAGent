@@ -23,9 +23,9 @@ from homeassistant.helpers.selector import (
 )
 
 from ..const import (
-    BACKEND_TYPE_OPTIONS,
-    CONF_BACKEND_TYPE,
-    CONF_CHAT_MODEL,
+    BACKEND_LLM_TYPE_OPTIONS,
+    CONF_LLM_BACKEND_TYPE,
+    CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
     CONF_GBNF_GRAMMAR_ENABLED,
     CONF_GBNF_GRAMMAR_FILE,
@@ -34,7 +34,6 @@ from ..const import (
     CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
-    CONF_MIN_P,
     CONF_OLLAMA_JSON_MODE,
     CONF_OLLAMA_KEEP_ALIVE_MIN,
     CONF_PROMPT,
@@ -45,18 +44,18 @@ from ..const import (
     CONF_REQUEST_TIMEOUT,
     CONF_SELECTED_LANGUAGE,
     CONF_TEMPERATURE,
-    CONF_TOP_K,
-    CONF_TOP_P,
-    CONF_TYPICAL_P,
+    CONF_K_TOP,
+    CONF_P_MIN,
+    CONF_P_TOP,
+    CONF_P_TYPICAL,
 
-    DEFAULT_BACKEND_TYPE,
+    DEFAULT_LLM_BACKEND_TYPE,
     DEFAULT_CONTEXT_LENGTH,
     DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
     DEFAULT_IN_CONTEXT_LEARNING_FILE,
     DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-    DEFAULT_MIN_P,
     DEFAULT_OLLAMA_JSON_MODE,
     DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
     DEFAULT_PROMPT,
@@ -66,9 +65,10 @@ from ..const import (
     DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_SELECTED_LANGUAGE,
     DEFAULT_TEMPERATURE,
-    DEFAULT_TOP_K,
-    DEFAULT_TOP_P,
-    DEFAULT_TYPICAL_P,
+    DEFAULT_K_TOP,
+    DEFAULT_P_MIN,
+    DEFAULT_P_TOP,
+    DEFAULT_P_TYPICAL,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -85,11 +85,11 @@ def pick_backend_schema(self, backend_type=None, selected_language=None) -> vol.
     return vol.Schema(
         {
             vol.Required(
-                CONF_BACKEND_TYPE,
-                default=get_value(backend_type, DEFAULT_BACKEND_TYPE)
+                CONF_LLM_BACKEND_TYPE,
+                default=get_value(backend_type, DEFAULT_LLM_BACKEND_TYPE)
             ): SelectSelector(SelectSelectorConfig(
-                options=BACKEND_TYPE_OPTIONS,
-                translation_key=CONF_BACKEND_TYPE,
+                options=BACKEND_LLM_TYPE_OPTIONS,
+                translation_key=CONF_LLM_BACKEND_TYPE,
                 multiple=False,
                 mode=SelectSelectorMode.DROPDOWN,
             )),
@@ -106,7 +106,7 @@ def pick_backend_schema(self, backend_type=None, selected_language=None) -> vol.
     )
 
 def remote_connection_schema(self, backend_type: str, host=None, port=None, ssl=None):
-    if backend_type != DEFAULT_BACKEND_TYPE:
+    if backend_type not in BACKEND_LLM_TYPE_OPTIONS:
         raise AbortFlow("Uknown backend type.")
         
     default_port = 11434
@@ -122,7 +122,7 @@ def pick_remote_model_schema(available_models: list[str], chat_model: str | None
     _logger.debug(f"available models: {available_models}")
     return vol.Schema(
         {
-            vol.Required(CONF_CHAT_MODEL, default=chat_model if chat_model else available_models[0]): SelectSelector(SelectSelectorConfig(
+            vol.Required(CONF_LLM_MODEL, default=chat_model if chat_model else available_models[0]): SelectSelector(SelectSelectorConfig(
                 options=available_models,
                 custom_value=True,
                 multiple=False,
@@ -179,24 +179,24 @@ def ragent_config_option_schema(
             default=DEFAULT_CONTEXT_LENGTH,
         ): NumberSelector(NumberSelectorConfig(min=512, max=1_048_576, step=512)),
         vol.Required(
-            CONF_TOP_K,
-            description={"suggested_value": options.get(CONF_TOP_K)},
-            default=DEFAULT_TOP_K,
+            CONF_K_TOP,
+            description={"suggested_value": options.get(CONF_K_TOP)},
+            default=DEFAULT_K_TOP,
         ): NumberSelector(NumberSelectorConfig(min=1, max=256, step=1)),
         vol.Required(
-            CONF_TOP_P,
-            description={"suggested_value": options.get(CONF_TOP_P)},
-            default=DEFAULT_TOP_P,
+            CONF_P_TOP,
+            description={"suggested_value": options.get(CONF_P_TOP)},
+            default=DEFAULT_P_TOP,
         ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
          vol.Required(
-            CONF_MIN_P,
-            description={"suggested_value": options.get(CONF_MIN_P)},
-            default=DEFAULT_MIN_P,
+            CONF_P_MIN,
+            description={"suggested_value": options.get(CONF_P_MIN)},
+            default=DEFAULT_P_MIN,
         ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
         vol.Required(
-            CONF_TYPICAL_P,
-            description={"suggested_value": options.get(CONF_TYPICAL_P)},
-            default=DEFAULT_TYPICAL_P,
+            CONF_P_TYPICAL,
+            description={"suggested_value": options.get(CONF_P_TYPICAL)},
+            default=DEFAULT_P_TYPICAL,
         ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
         vol.Required(
             CONF_OLLAMA_JSON_MODE,
@@ -270,10 +270,10 @@ def ragent_config_option_schema(
         CONF_MAX_TOKENS,
         # sampling parameters
         CONF_TEMPERATURE,
-        CONF_TOP_P,
-        CONF_MIN_P,
-        CONF_TYPICAL_P,
-        CONF_TOP_K,
+        CONF_P_TOP,
+        CONF_P_MIN,
+        CONF_P_TYPICAL,
+        CONF_K_TOP,
         # tool calling/reasoning
         CONF_MAX_TOOL_CALL_ITERATIONS,
         CONF_GBNF_GRAMMAR_ENABLED,
