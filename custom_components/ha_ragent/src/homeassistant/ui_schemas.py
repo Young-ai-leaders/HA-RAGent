@@ -77,7 +77,7 @@ from ..utils import (
     get_value
 )
 
-from .ragent_client import RAGent
+from .ragent_client import RAGentClient
 
 _logger = logging.getLogger(__name__)
 
@@ -140,7 +140,7 @@ def ragent_config_option_schema(
     subentry_type: str,
 ) -> dict:
 
-    default_prompt = RAGent.build_prompt_template(language, DEFAULT_PROMPT)
+    default_prompt = RAGentClient.build_prompt_template(language, DEFAULT_PROMPT)
 
     result: dict = {
         vol.Optional(

@@ -41,7 +41,7 @@ from .ui_schemas import (
     ragent_config_option_schema
 )
 
-from .ragent_client import RAGent, RAGentConfigEntry
+from .ragent_client import RAGentClient, RAGentConfigEntry
 
 _logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         return self.source == "user"
 
     @property
-    def _client(self) -> RAGent:
+    def _client(self) -> RAGentClient:
         entry: RAGentConfigEntry = self._get_entry()
         return entry.runtime_data
 
@@ -99,7 +99,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
             selected_default_options = {**DEFAULT_OPTIONS}
 
-            selected_default_options[CONF_PROMPT] = RAGent.build_prompt_template(
+            selected_default_options[CONF_PROMPT] = RAGentClient.build_prompt_template(
                 selected_language, str(selected_default_options.get(CONF_PROMPT, DEFAULT_PROMPT))
             )
             

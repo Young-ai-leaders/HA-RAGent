@@ -1,8 +1,6 @@
 import logging
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as llm
-from homeassistant.config_entries import ConfigEntry
 
 from custom_components.ha_ragent.src.llm_backends.base_backend import ALlmBaseBackend
 
