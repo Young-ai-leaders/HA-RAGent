@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import List
-from models.device import Device
-from db_backends.base_db_backend import ABaseDbBackend
-from embeddings.base_embedder import ABaseEmbedding
-from llm_backends.base_backend import ALlmBaseBackend
+from ..models.device import Device
+from ..db_backends.base_db_backend import ABaseDbBackend
+from ..embeddings.base_embedder import ABaseEmbedder
+from ..llm_backends.base_backend import ALlmBaseBackend
 
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
 from homeassistant.components.conversation.models import AbstractConversationAgent
@@ -29,7 +29,7 @@ from ..const import (
 type RAGentConfigEntry = ConfigEntry[RAGent]
 
 class RAGent:
-    def __init__(self, db_backend: ABaseDbBackend, embedding: ABaseEmbedding, llm_backend: ALlmBaseBackend) -> None:
+    def __init__(self, db_backend: ABaseDbBackend, embedding: ABaseEmbedder, llm_backend: ALlmBaseBackend) -> None:
         self.db_backend = db_backend
         self.embedding = embedding
         self.llm_backend = llm_backend

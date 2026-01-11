@@ -1,5 +1,3 @@
-from .llm_backends.ollama_backend import OllamaBackend
-
 #-----------------------------------------------
 # General constants
 #-----------------------------------------------
@@ -26,12 +24,38 @@ SERVICE_TOOL_ALLOWED_DOMAINS = ["light", "switch", "button", "fan", "cover", "lo
 ALLOWED_SERVICE_CALL_ARGUMENTS = ["rgb_color", "brightness", "temperature", "humidity", "fan_mode", "hvac_mode", "preset_mode", "item", "duration" ]
 
 #-----------------------------------------------
+# Vector database backend constants
+#-----------------------------------------------
+CONF_VECTOR_DB_SECTION = "rag_vector_db_section"
+CONF_VECTOR_DB_BACKEND_TYPE = "rag_vector_db_backend"
+
+BACKEND_VECTOR_DB_TYPE_MONGODB = "mongodb"
+
+BACKEND_VECTOR_DB_TYPE_OPTIONS = [ 
+    BACKEND_VECTOR_DB_TYPE_MONGODB 
+]
+
+DEFAULT_VECTOR_DB_BACKEND_TYPE = BACKEND_VECTOR_DB_TYPE_MONGODB
+
+#-----------------------------------------------
 # Embedding backend constants
 #-----------------------------------------------
+CONF_EMBEDDING_BACKEND_SECTION = "rag_embedding_backend_section"
+CONF_EMBEDDING_BACKEND_TYPE = "rag_embedding_backend"
+CONF_EMBEDDING_MODEL = "rag_embedding_model"
+
+BACKEND_EMBEDDING_TYPE_OLLAMA = "ollama"
+
+BACKEND_EMBEDDING_TYPE_OPTIONS = [ 
+    BACKEND_EMBEDDING_TYPE_OLLAMA 
+]
+
+DEFAULT_EMBEDDING_BACKEND_TYPE = BACKEND_EMBEDDING_TYPE_OLLAMA
 
 #-----------------------------------------------
 # Chat backend constants
 #-----------------------------------------------
+CONF_LLM_BACKEND_SECTION = "rag_llm_backend_section"
 CONF_LLM_BACKEND_TYPE = "rag_llm_backend"
 CONF_LLM_MODEL = "rag_llm_model"
 
@@ -40,9 +64,6 @@ BACKEND_LLM_TYPE_OLLAMA = "ollama"
 BACKEND_LLM_TYPE_OPTIONS = [ 
     BACKEND_LLM_TYPE_OLLAMA 
 ]
-BACKEND_TO_CLASS = {
-    BACKEND_LLM_TYPE_OLLAMA: OllamaBackend
-}
 
 DEFAULT_LLM_BACKEND_TYPE = BACKEND_LLM_TYPE_OLLAMA
 

@@ -1,5 +1,6 @@
-from typing import List
+from typing import Any, Dict, List
 import logging
+import aiohttp
 import requests
 
 from ..embeddings.base_embedder import ABaseEmbedder
@@ -7,6 +8,12 @@ from ..models.device import Device
 from ..models.device_embedding import DeviceEmbedding
 from ..models.embedding_model import EmbeddingModel
 from ..db_backends.base_db_backend import ABaseDbBackend
+
+from homeassistant.core import HomeAssistant
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from ..const import CONF_EMBEDDING_BACKEND_SECTION, CONF_LLM_BACKEND_SECTION
 
 _logger = logging.getLogger(__name__)
 
@@ -16,14 +23,49 @@ class OllamaEmbeddingModels:
     large = EmbeddingModel("BGE-M3", 768) # 1.2 GB
     
 class OllamaEmbedder(ABaseEmbedder):
-    def __init__(self, ollama_url: str, db_backend: ABaseDbBackend, model: EmbeddingModel = OllamaEmbeddingModels.small) -> None:
-        self.ollama_url = ollama_url
-        self.db_backend = db_backend
-        self.model = model
-        
-    def get_embedding_size(self) -> int:
-        embedding = self.embed_text("This is a test message")
-        return len(embedding)
+    def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
+        super().__init__(hass, client_options)
+    
+    @staticmethod
+    def get_name(client_options: Dict[str, Any]):
+        return f"Embedding Backend: Ollama"
+
+    @staticmethod
+    async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
+        headers = {}
+        try:
+            session = async_get_clientsession(hass)
+            response = await session.get(
+                ABaseEmbedder._format_url(
+                    hostname=user_input[CONF_EMBEDDING_BACKEND_SECTION][CONF_HOST],
+                    port=user_input[CONF_EMBEDDING_BACKEND_SECTION][CONF_PORT],
+                    ssl=user_input[CONF_EMBEDDING_BACKEND_SECTION][CONF_SSL],
+                    path=f"/api/tags"
+                ),
+                timeout=aiohttp.ClientTimeout(total=5),
+                headers=headers
+            )
+            return None if response.ok else f"HTTP Status {response.status}"
+        except Exception as ex:
+            return str(ex)
+    
+    async def async_get_available_models(self) -> List[str]:
+        headers = {}
+        session = async_get_clientsession(self.hass)
+        async with session.get(
+             ABaseEmbedder._format_url(
+                hostname=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_HOST],
+                port=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_PORT],
+                ssl=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_SSL],
+                path=f"/api/tags"
+            ),
+            timeout=aiohttp.ClientTimeout(total=5),
+            headers=headers
+        ) as response:
+            response.raise_for_status()
+            models_result = await response.json()
+
+        return [x["name"] for x in models_result["models"] if "embed" in x["name"].lower()]
 
     def _extract_embedding(self, response: requests.Response) -> List[float]:
         data = response.json()

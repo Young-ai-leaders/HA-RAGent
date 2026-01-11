@@ -1,5 +1,12 @@
 import socket
 import logging
+from .db_backends.base_db_backend import ABaseDbBackend
+from .db_backends.mongodb_backend import MongoDbBackend
+from .embeddings.base_embedder import ABaseEmbedder
+from .embeddings.ollama_embedder import OllamaEmbedder
+from .llm_backends.base_backend import ALlmBaseBackend
+from .llm_backends.ollama_backend import OllamaBackend
+from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA
 
 _logger = logging.getLogger(__name__)
 
@@ -17,12 +24,28 @@ def is_valid_host(host: str) -> bool:
         return True
     except socket.gaierror:
         return False
-    
-def format_url(hostname: str, port: str, ssl: bool, path: str) -> str:
-    return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"
 
 def try_parse_int(value: str, default: int = 0) -> int:
     try:
         return int(value)
     except ValueError:
         return default
+
+def vector_db_to_class(vector_db_type: str) -> ABaseDbBackend:
+    backend_to_class = {
+        BACKEND_VECTOR_DB_TYPE_MONGODB: MongoDbBackend
+    }
+    return backend_to_class.get(vector_db_type)
+
+def embedding_backend_to_class(backend_type: str) -> ABaseEmbedder:
+    backend_to_class = {
+        BACKEND_EMBEDDING_TYPE_OLLAMA: OllamaEmbedder
+    }
+    return backend_to_class.get(backend_type)
+
+def llm_backend_to_class(backend_type: str) -> ALlmBaseBackend:
+    backend_to_class = {
+        BACKEND_LLM_TYPE_OLLAMA: OllamaBackend
+    }
+    return backend_to_class.get(backend_type)
+

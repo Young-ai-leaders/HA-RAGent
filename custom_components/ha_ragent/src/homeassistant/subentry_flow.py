@@ -10,7 +10,12 @@ from homeassistant.config_entries import (
     SubentryFlowResult
 ) 
 
+from ..embeddings.base_embedder import ABaseEmbedder
+from ..llm_backends.base_backend import ALlmBaseBackend
+
 from ..const import (
+    CONF_VECTOR_DB_BACKEND_TYPE,
+    CONF_EMBEDDING_BACKEND_TYPE,
     CONF_LLM_BACKEND_TYPE,
     CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
@@ -58,9 +63,14 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         return self.source == "user"
 
     @property
-    def _client(self) -> RAGentClient:
+    def _embedding_client(self) -> ABaseEmbedder:
         entry: RAGentConfigEntry = self._get_entry()
-        return entry.runtime_data
+        return entry.embedding_executor
+
+    @property
+    def _llm_client(self) -> ALlmBaseBackend:
+        entry: RAGentConfigEntry = self._get_entry()
+        return entry.llm_executor
 
     async def async_step_pick_model(
         self, user_input: dict[str, Any] | None = None
@@ -68,9 +78,12 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         schema = vol.Schema({})
         errors = {}
         description_placeholders = {}
-        entry = self._get_entry()
 
-        schema = pick_remote_model_schema(await entry.runtime_data.async_get_available_models())
+        _logger.error(self._llm_client)
+
+        embedding_models = await self._embedding_client.async_get_available_models()
+        llm_models = await self._llm_client.async_get_available_models()
+        schema = pick_remote_model_schema(embedding_models, llm_models)
 
         if user_input and "result" not in user_input:
             self.model_config.update(user_input)
@@ -90,7 +103,9 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         errors = {}
         description_placeholders = {}
         entry = self._get_entry()
-        backend_type = entry.data[CONF_LLM_BACKEND_TYPE]
+        vector_db_backend_type = entry.data[CONF_VECTOR_DB_BACKEND_TYPE]
+        embedding_backend_type = entry.data[CONF_EMBEDDING_BACKEND_TYPE]
+        llm_backend_type = entry.data[CONF_LLM_BACKEND_TYPE]
 
         if CONF_PROMPT not in self.model_config:
             selected_language = self.model_config.get(
@@ -110,7 +125,9 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
                 self.hass,
                 entry.options.get(CONF_SELECTED_LANGUAGE, "en"),
                 self.model_config,
-                backend_type,
+                vector_db_backend_type,
+                embedding_backend_type,
+                llm_backend_type,
                 self._subentry_type,
             )
         )

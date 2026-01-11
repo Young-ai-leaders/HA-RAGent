@@ -15,13 +15,16 @@ from homeassistant.config_entries import (
 from homeassistant.helpers import llm
 
 from .src.const import (
+    CONF_EMBEDDING_BACKEND_SECTION,
+    CONF_LLM_BACKEND_SECTION,
+    CONF_VECTOR_DB_BACKEND_TYPE,
+    CONF_EMBEDDING_BACKEND_TYPE,
+    CONF_VECTOR_DB_SECTION,
     DOMAIN,
     LLM_API_ID,
     
     CONF_LLM_BACKEND_TYPE,
     CONF_SELECTED_LANGUAGE,
-
-    BACKEND_TO_CLASS,
 )
 
 from .src.homeassistant.option_flow import RagentOptionsFlow
@@ -33,7 +36,10 @@ from .src.homeassistant.ui_schemas import (
 )
 
 from .src.utils import (
-    is_valid_host
+    is_valid_host,
+    vector_db_to_class,
+    embedding_backend_to_class,
+    llm_backend_to_class
 )
 
 _logger = logging.getLogger(__name__)
@@ -76,13 +82,18 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             self.flow_step = "connect_to_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=remote_connection_schema(self.client_config[CONF_LLM_BACKEND_TYPE]),
+                data_schema=remote_connection_schema(
+                    vector_db_backend_type=self.client_config[CONF_VECTOR_DB_BACKEND_TYPE],
+                    embedding_backend_type=self.client_config[CONF_EMBEDDING_BACKEND_TYPE],
+                    llm_backend_type=self.client_config[CONF_LLM_BACKEND_TYPE]),
                 last_step=True
             )
         return self.async_show_form(
             step_id="user", 
             data_schema=pick_backend_schema(
-                backend_type=self.client_config.get(CONF_LLM_BACKEND_TYPE),
+                ventor_db_backend_type=self.client_config.get(CONF_VECTOR_DB_BACKEND_TYPE),
+                embedding_backend_type=self.client_config.get(CONF_EMBEDDING_BACKEND_TYPE),
+                llm_backend_type=self.client_config.get(CONF_LLM_BACKEND_TYPE),
                 selected_language=self.client_config.get(CONF_SELECTED_LANGUAGE)), 
             last_step=False)
         
@@ -92,14 +103,25 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         
         if user_input:
             self.client_config.update(user_input)
-            hostname = user_input.get(CONF_HOST, "")
-            if not is_valid_host(hostname):
+            vector_db_hostname = user_input[CONF_VECTOR_DB_SECTION].get(CONF_HOST)
+            embedding_hostname = user_input[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_HOST)
+            llm_hostname = user_input[CONF_LLM_BACKEND_SECTION].get(CONF_HOST)
+
+            if not is_valid_host(vector_db_hostname) or not is_valid_host(embedding_hostname) or not is_valid_host(llm_hostname):
                 errors["base"] = "invalid_hostname"
                 description_placeholders["exception"] = "The provided hostname could not be resolved to an IP address."
             else:
-                connect_err = await BACKEND_TO_CLASS[self.client_config[CONF_LLM_BACKEND_TYPE]].async_validate_connection(self.hass, self.client_config)
+                ##connect_err = await vector_db_to_class(self.client_config[CONF_VECTOR_DB_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
+                connect_err = None
+
+                if not connect_err:
+                    connect_err = await embedding_backend_to_class(self.client_config[CONF_EMBEDDING_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
+                
+                if not connect_err:
+                    connect_err = await llm_backend_to_class(self.client_config[CONF_LLM_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
+
                 if connect_err:
-                    errors["base"] = "failed_to_connect"
+                    errors["base"] = f"failed_to_connect"
                     description_placeholders["exception"] = str(connect_err)
                 else:
                     return await self._step_finish_async(user_input)
@@ -107,24 +129,42 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user", 
             data_schema=remote_connection_schema(
-                self.client_config[CONF_LLM_BACKEND_TYPE],
-                host=self.client_config.get(CONF_HOST),
-                port=self.client_config.get(CONF_PORT),
-                ssl=self.client_config.get(CONF_SSL)), 
+                vector_db_backend_type=self.client_config[CONF_VECTOR_DB_BACKEND_TYPE],
+                embedding_backend_type=self.client_config[CONF_EMBEDDING_BACKEND_TYPE],
+                llm_backend_type=self.client_config[CONF_LLM_BACKEND_TYPE],
+                vector_db_host=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_HOST),
+                vector_db_port=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_PORT),
+                vector_db_ssl=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_SSL),
+                embedding_host=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_HOST),
+                embedding_port=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_PORT),
+                embedding_ssl=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_SSL),
+                llm_host=self.client_config[CONF_LLM_BACKEND_SECTION].get(CONF_HOST),
+                llm_port=self.client_config[CONF_LLM_BACKEND_SECTION].get(CONF_PORT),
+                llm_ssl=self.client_config[CONF_LLM_BACKEND_SECTION].get(CONF_SSL)), 
             errors=errors,
             description_placeholders=description_placeholders,
             last_step=True
         )
         
     async def _step_finish_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        backend = self.client_config[CONF_LLM_BACKEND_TYPE]
-        title = BACKEND_TO_CLASS[backend].get_name(self.client_config)
+        vector_db_backend = self.client_config[CONF_VECTOR_DB_BACKEND_TYPE]
+        embedding_backend = self.client_config[CONF_EMBEDDING_BACKEND_TYPE]
+        llm_backend = self.client_config[CONF_LLM_BACKEND_TYPE]
+
+        title = "Vect" # vector_db_to_class(vector_db_backend).get_name(self.client_config)
+        title += " | " + embedding_backend_to_class(embedding_backend).get_name(self.client_config)
+        title += " | " + llm_backend_to_class(llm_backend).get_name(self.client_config)
+        title += " | Language: " + self.client_config.get(CONF_SELECTED_LANGUAGE, "en") 
         _logger.debug(f"Creating provider with config: {self.client_config}")
 
         return self.async_create_entry(
             title=title,
-            description="A Large Language Model Chat Agent",
-            data={CONF_LLM_BACKEND_TYPE: backend},
+            description="A local RAG agent.",
+            data={
+                CONF_VECTOR_DB_BACKEND_TYPE: vector_db_backend,
+                CONF_EMBEDDING_BACKEND_TYPE: embedding_backend,
+                CONF_LLM_BACKEND_TYPE: llm_backend
+            },
             options=self.client_config,
         )
     

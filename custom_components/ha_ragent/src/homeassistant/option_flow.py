@@ -9,10 +9,18 @@ from homeassistant.config_entries import (
 )
 
 from ..const import (
-    BACKEND_TO_CLASS, 
+    CONF_EMBEDDING_BACKEND_SECTION,
+    CONF_LLM_BACKEND_SECTION,
     CONF_LLM_BACKEND_TYPE,
-    DEFAULT_LLM_BACKEND_TYPE
+    CONF_EMBEDDING_BACKEND_TYPE,
+    CONF_VECTOR_DB_BACKEND_TYPE,
+    CONF_VECTOR_DB_SECTION,
+    DEFAULT_LLM_BACKEND_TYPE,
+    DEFAULT_VECTOR_DB_BACKEND_TYPE,
+    DEFAULT_EMBEDDING_BACKEND_TYPE
 )
+
+from ..utils import embedding_backend_to_class, embedding_backend_to_class, llm_backend_to_class
 
 from .ui_schemas import (
     remote_connection_schema
@@ -28,14 +36,17 @@ class RagentOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors = {}
         description_placeholders = {}
-
-        backend_type = self.config_entry.data.get(CONF_LLM_BACKEND_TYPE, DEFAULT_LLM_BACKEND_TYPE)
         client_config = dict(self.config_entry.options)
 
         if user_input is not None:
             client_config.update(user_input)
+            connect_err = None
 
-            connect_err = await BACKEND_TO_CLASS[backend_type].async_validate_connection(self.hass, client_config)
+            if not connect_err:
+                connect_err = await embedding_backend_to_class(client_config[CONF_EMBEDDING_BACKEND_TYPE]).async_validate_connection(self.hass, client_config)
+                
+            if not connect_err:
+                connect_err = await llm_backend_to_class(client_config[CONF_LLM_BACKEND_TYPE]).async_validate_connection(self.hass, client_config)
 
             if not connect_err:
                 return self.async_create_entry(data=client_config)
@@ -44,12 +55,19 @@ class RagentOptionsFlow(OptionsFlow):
                 description_placeholders["exception"] = str(connect_err)
 
         schema = remote_connection_schema(
-            backend_type=backend_type,
-            host=client_config.get(CONF_HOST),
-            port=client_config.get(CONF_PORT),
-            ssl=client_config.get(CONF_SSL),
-        )
-
+            vector_db_backend_type=client_config[CONF_VECTOR_DB_BACKEND_TYPE],
+            embedding_backend_type=client_config[CONF_EMBEDDING_BACKEND_TYPE],
+            llm_backend_type=client_config[CONF_LLM_BACKEND_TYPE],
+            vector_db_host=client_config[CONF_VECTOR_DB_SECTION].get(CONF_HOST),
+            vector_db_port=client_config[CONF_VECTOR_DB_SECTION].get(CONF_PORT),
+            vector_db_ssl=client_config[CONF_VECTOR_DB_SECTION].get(CONF_SSL),
+            embedding_host=client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_HOST),
+            embedding_port=client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_PORT),
+            embedding_ssl=client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_SSL),
+            llm_host=client_config[CONF_LLM_BACKEND_SECTION].get(CONF_HOST),
+            llm_port=client_config[CONF_LLM_BACKEND_SECTION].get(CONF_PORT),
+            llm_ssl=client_config[CONF_LLM_BACKEND_SECTION].get(CONF_SSL))
+        
         return self.async_show_form(
             step_id="init",
             data_schema=schema,

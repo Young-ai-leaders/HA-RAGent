@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from homeassistant.core import HomeAssistant
 
@@ -8,14 +8,22 @@ class ALlmBaseBackend(ABC):
         self.hass = hass
         self.client_options = client_options
     
-    @abstractmethod
-    def send_request(self, query: str) -> str:
-        pass
-    
+    @staticmethod
+    def _format_url(hostname: str, port: str, ssl: bool, path: str) -> str:
+        return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"
+
     @staticmethod
     def get_name(client_options: dict[str, Any]):
         raise NotImplementedError()
     
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    async def async_get_available_models(self) -> List[str]:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def send_request(self, query: str) -> str:
         raise NotImplementedError()

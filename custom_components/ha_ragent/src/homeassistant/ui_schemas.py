@@ -4,7 +4,7 @@ import voluptuous as vol
 
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL, CONF_LLM_HASS_API, UnitOfTime
-from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.data_entry_flow import AbortFlow, section
 from homeassistant.helpers import llm
 from homeassistant.helpers.selector import (
     NumberSelector,
@@ -23,6 +23,14 @@ from homeassistant.helpers.selector import (
 )
 
 from ..const import (
+    CONF_VECTOR_DB_SECTION,
+    CONF_EMBEDDING_BACKEND_SECTION,
+    CONF_LLM_BACKEND_SECTION,
+    BACKEND_VECTOR_DB_TYPE_OPTIONS,
+    CONF_VECTOR_DB_BACKEND_TYPE,
+    BACKEND_EMBEDDING_TYPE_OPTIONS,
+    CONF_EMBEDDING_BACKEND_TYPE,
+    CONF_EMBEDDING_MODEL,
     BACKEND_LLM_TYPE_OPTIONS,
     CONF_LLM_BACKEND_TYPE,
     CONF_LLM_MODEL,
@@ -49,6 +57,7 @@ from ..const import (
     CONF_P_TOP,
     CONF_P_TYPICAL,
 
+    DEFAULT_EMBEDDING_BACKEND_TYPE,
     DEFAULT_LLM_BACKEND_TYPE,
     DEFAULT_CONTEXT_LENGTH,
     DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
@@ -69,6 +78,8 @@ from ..const import (
     DEFAULT_P_MIN,
     DEFAULT_P_TOP,
     DEFAULT_P_TYPICAL,
+    DEFAULT_VECTOR_DB_BACKEND_TYPE,
+    DEFAULT_VECTOR_DB_BACKEND_TYPE,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -81,12 +92,30 @@ from .ragent_client import RAGentClient
 
 _logger = logging.getLogger(__name__)
 
-def pick_backend_schema(backend_type=None, selected_language=None) -> vol.Schema:
+def pick_backend_schema(ventor_db_backend_type=None, embedding_backend_type=None, llm_backend_type=None, selected_language=None) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
+                CONF_VECTOR_DB_BACKEND_TYPE,
+                default=get_value(ventor_db_backend_type, DEFAULT_VECTOR_DB_BACKEND_TYPE)
+            ): SelectSelector(SelectSelectorConfig(
+                options=BACKEND_VECTOR_DB_TYPE_OPTIONS,
+                translation_key=CONF_VECTOR_DB_BACKEND_TYPE,
+                multiple=False,
+                mode=SelectSelectorMode.DROPDOWN,
+            )),
+            vol.Required(
+                CONF_EMBEDDING_BACKEND_TYPE,
+                default=get_value(embedding_backend_type, DEFAULT_EMBEDDING_BACKEND_TYPE)
+            ): SelectSelector(SelectSelectorConfig(
+                options=BACKEND_EMBEDDING_TYPE_OPTIONS,
+                translation_key=CONF_EMBEDDING_BACKEND_TYPE,
+                multiple=False,
+                mode=SelectSelectorMode.DROPDOWN,
+            )),
+            vol.Required(
                 CONF_LLM_BACKEND_TYPE,
-                default=get_value(backend_type, DEFAULT_LLM_BACKEND_TYPE)
+                default=get_value(llm_backend_type, DEFAULT_LLM_BACKEND_TYPE)
             ): SelectSelector(SelectSelectorConfig(
                 options=BACKEND_LLM_TYPE_OPTIONS,
                 translation_key=CONF_LLM_BACKEND_TYPE,
@@ -105,26 +134,79 @@ def pick_backend_schema(backend_type=None, selected_language=None) -> vol.Schema
         }
     )
 
-def remote_connection_schema(backend_type: str, host=None, port=None, ssl=None):
-    if backend_type not in BACKEND_LLM_TYPE_OPTIONS:
-        raise AbortFlow("Uknown backend type.")
+def remote_connection_schema(
+        vector_db_backend_type: str,
+        embedding_backend_type: str, 
+        llm_backend_type: str, 
+        embedding_host=None, 
+        embedding_port=None, 
+        embedding_ssl=None,
+        llm_host=None,
+        llm_port=None,
+        llm_ssl=None,
+        vector_db_host=None,
+        vector_db_port=None,
+        vector_db_ssl=None) -> vol.Schema:
+    if llm_backend_type not in BACKEND_LLM_TYPE_OPTIONS:
+        raise AbortFlow("Uknown llm backend type.")
+    
+    if embedding_backend_type not in BACKEND_EMBEDDING_TYPE_OPTIONS:
+        raise AbortFlow("Uknown embedding backend type.")
         
     default_port = 11434
+
     return vol.Schema(
         {
-            vol.Required(CONF_HOST, default=host if host else ""): str,
-            vol.Optional(CONF_PORT, default=port if port else default_port): int,
-            vol.Required(CONF_SSL, default=ssl if ssl else False): bool,
+            vol.Required(
+                CONF_VECTOR_DB_SECTION
+            ) : section(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_HOST, default=vector_db_host if vector_db_host else ""): str,
+                        vol.Optional(CONF_PORT, default=vector_db_port if vector_db_port else default_port): int,
+                        vol.Required(CONF_SSL, default=vector_db_ssl if vector_db_ssl else False): bool
+                    })
+            ),
+            vol.Required(
+                CONF_EMBEDDING_BACKEND_SECTION
+            ) : section(
+                vol.Schema(
+                    {
+                        vol.Required(CONF_HOST, default=embedding_host if embedding_host else ""): str,
+                        vol.Optional(CONF_PORT, default=embedding_port if embedding_port else default_port): int,
+                        vol.Required(CONF_SSL, default=embedding_ssl if embedding_ssl else False): bool
+                    })
+            ),
+            vol.Required(
+                CONF_LLM_BACKEND_SECTION
+            ) : section(
+                vol.Schema({
+                    vol.Required(CONF_HOST, default=llm_host if llm_host else ""): str,
+                    vol.Optional(CONF_PORT, default=llm_port if llm_port else default_port): int,
+                    vol.Required(CONF_SSL, default=llm_ssl if llm_ssl else False): bool
+                })
+            )
         }
     )
 
-def pick_remote_model_schema(available_models: list[str], chat_model: str | None = None):
-    _logger.debug(f"available models: {available_models}")
+def pick_remote_model_schema(embedding_models: list[str], llm_models: list[str], embedding_model: str | None = None, llm_model: str | None = None) -> vol.Schema:
+    if len(embedding_models) == 0:
+        embedding_models = [ "" ]
+    if len(llm_models) == 0:
+        llm_models = [ "" ]
+    
     return vol.Schema(
         {
-            vol.Required(CONF_LLM_MODEL, default=chat_model if chat_model else available_models[0]): SelectSelector(SelectSelectorConfig(
-                options=available_models,
-                custom_value=True,
+            vol.Required(CONF_EMBEDDING_MODEL, default=embedding_model if embedding_model else embedding_models[0]): SelectSelector(SelectSelectorConfig(
+                options=embedding_models,
+                custom_value=False,
+                multiple=False,
+                mode=SelectSelectorMode.DROPDOWN,
+            )),
+
+            vol.Required(CONF_LLM_MODEL, default=llm_model if llm_model else llm_models[0]): SelectSelector(SelectSelectorConfig(
+                options=llm_models,
+                custom_value=False,
                 multiple=False,
                 mode=SelectSelectorMode.DROPDOWN,
             )),
@@ -136,7 +218,9 @@ def ragent_config_option_schema(
     hass: HomeAssistant,
     language: str,
     options: dict[str, Any],
-    backend_type: str, 
+    vector_db_backend_type: str,
+    embedding_backend_type: str,
+    llm_backend_type: str, 
     subentry_type: str,
 ) -> dict:
 
