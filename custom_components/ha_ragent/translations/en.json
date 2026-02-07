@@ -1,0 +1,130 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configure HA RAGent",
+                "description": "Please select the backend and provide the connection details to connect to the APIs hosting the models.",
+                "data": {
+                    "host": "Hostname",
+                    "port": "Port",
+                    "ssl": "Use HTTPS"
+                },
+                "data_description": {
+                    "host": "The hostname or IP address of the API server (without the protocol)",
+                    "port": "The port number for the API server",
+                    "ssl": "Enable HTTPS for secure connections"
+                }
+            }
+        },
+        "error": {
+            "unknown_step": "Unknown configuration step",
+            "already_configured": "This integration is already configured",
+            "invalid_hostname": "The provided hostname was invalid. Please ensure you only provide the domain or IP address and not the full API endpoint.",
+            "failed_to_connect": "Failed to connect to the remote API: {exception}"
+        },
+        "abort": {
+            "unknown_step": "Unknown configuration step encountered",
+            "already_configured": "HA RAGent is already configured",
+            "entry_not_loaded": "Configuration entry is not loaded"
+        }
+    },
+    "config_subentries": {
+        "ragent": {
+            "initiate_flow": {
+                "user": "Add AI RAGent",
+                "reconfigure": "Reconfigure AI RAGent"
+            },
+            "entry_type": "AI RAGent",
+            "step": {
+                "pick_model": {
+                    "title": "Pick Models",
+                    "description": "Select the embedding and LLM models to use for this AI RAGent.",
+                    "data": {
+                        "rag_embedding_model": "Embedding Model",
+                        "rag_llm_model": "LLM Model"
+                    }
+                },
+                "model_parameters": {
+                    "title": "Configure Model Parameters",
+                    "description": "Configure the model parameters and behavior for the AI RAGent.",
+                    "data": {
+                        "rag_prompt": "System Prompt",
+                        "rag_temperature": "Temperature",
+                        "rag_in_context_learning_enabled": "Enable In Context Learning (ICL)",
+                        "rag_in_context_learning_file": "ICL Examples File",
+                        "rag_in_context_learning_num_examples": "Number of ICL Examples",
+                        "rag_max_tokens": "Maximum Tokens",
+                        "rag_context_length": "Context Length",
+                        "rag_k_top": "Top K",
+                        "rag_p_top": "Top P",
+                        "rag_p_min": "Min P",
+                        "rag_p_typical": "Typical P",
+                        "rag_ollama_json_mode": "Ollama JSON Mode",
+                        "rag_request_timeout": "Request Timeout",
+                        "rag_ollama_keep_alive_min": "Ollama Keep Alive",
+                        "rag_max_tool_call_iterations": "Maximum Tool Call Iterations"
+                    },
+                    "data_description": {
+                        "rag_prompt": "The system prompt that defines the behavior and personality of the assistant",
+                        "rag_in_context_learning_enabled": "Enable in-context learning examples to improve model responses",
+                        "rag_in_context_learning_file": "Filename for the in-context learning examples"
+                    }
+                },
+                "reconfigure": {
+                    "title": "Reconfigure Model Parameters",
+                    "description": "Update the model parameters and behavior for the AI agent."
+                }
+            },
+            "error": {
+                "unknown": "An unexpected error occurred",
+                "sys_refresh_caching_enabled": "System prompt refresh must be enabled for prompt caching to work",
+                "missing_gbnf_file": "The GBNF file was not found: {filename}",
+                "missing_icl_file": "The in context learning example file was not found: {filename}"
+            },
+            "abort": {
+                "reconfigure_successful": "Successfully updated model options",
+                "entry_not_loaded": "Configuration entry is not loaded"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "HA RAGent Options",
+                "description": "Update connection details for the APIs hosting the models.",
+                "data": {
+                    "host": "Hostname",
+                    "port": "Port",
+                    "ssl": "Use HTTPS"
+                }
+            }
+        },
+        "error": {
+            "failed_to_connect": "Failed to connect to the remote API: {exception}",
+            "invalid_hostname": "The provided hostname was invalid. Please ensure you only provide the domain or IP address and not the full API endpoint."
+        }
+    },
+    "selector": {
+        "rag_vector_db_backend": {
+            "options": {
+                "mongodb": "MongoDB"
+            }
+        },
+        "rag_embedding_backend": {
+            "options": {
+                "ollama": "Ollama"
+            }
+        },
+        "rag_llm_backend": {
+            "options": {
+                "ollama": "Ollama"
+            }
+        },
+        "rag_selected_language": {
+            "options": {
+                "en": "English",
+                "de": "German"
+            }
+        }
+    }
+}

@@ -79,10 +79,10 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         errors = {}
         description_placeholders = {}
 
-        _logger.error(self._llm_client)
-
         embedding_models = await self._embedding_client.async_get_available_models()
         llm_models = await self._llm_client.async_get_available_models()
+        _logger.debug("Available embedding models: %s", embedding_models)
+        _logger.debug("Available LLM models: %s", llm_models)
         schema = pick_remote_model_schema(embedding_models, llm_models)
 
         if user_input and "result" not in user_input:
@@ -103,9 +103,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         errors = {}
         description_placeholders = {}
         entry = self._get_entry()
-        vector_db_backend_type = entry.data[CONF_VECTOR_DB_BACKEND_TYPE]
-        embedding_backend_type = entry.data[CONF_EMBEDDING_BACKEND_TYPE]
-        llm_backend_type = entry.data[CONF_LLM_BACKEND_TYPE]
 
         if CONF_PROMPT not in self.model_config:
             selected_language = self.model_config.get(
@@ -120,17 +117,15 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
             
             self.model_config = {**selected_default_options, **self.model_config}
 
-        schema = vol.Schema(
-            ragent_config_option_schema(
+        schema = ragent_config_option_schema(
                 self.hass,
                 entry.options.get(CONF_SELECTED_LANGUAGE, "en"),
                 self.model_config,
-                vector_db_backend_type,
-                embedding_backend_type,
-                llm_backend_type,
+                entry.data[CONF_VECTOR_DB_BACKEND_TYPE],
+                entry.data[CONF_EMBEDDING_BACKEND_TYPE],
+                entry.data[CONF_LLM_BACKEND_TYPE],
                 self._subentry_type,
             )
-        )
 
         if user_input:
             if not user_input.get(CONF_REFRESH_SYSTEM_PROMPT):
@@ -138,13 +133,13 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
             if user_input.get(CONF_GBNF_GRAMMAR_ENABLED):
                 filename = user_input.get(CONF_GBNF_GRAMMAR_FILE, DEFAULT_GBNF_GRAMMAR_FILE)
-                if not os.path.isfile(os.path.join(os.path.dirname(__file__), filename)):
+                if not os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", filename)):
                     errors["base"] = "missing_gbnf_file"
                     description_placeholders["filename"] = filename
 
             if user_input.get(CONF_IN_CONTEXT_LEARNING_ENABLED):
                 filename = user_input.get(CONF_IN_CONTEXT_LEARNING_FILE, DEFAULT_IN_CONTEXT_LEARNING_FILE)
-                if not os.path.isfile(os.path.join(os.path.dirname(__file__), filename)):
+                if not os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", filename)):
                     errors["base"] = "missing_icl_file"
                     description_placeholders["filename"] = filename
 

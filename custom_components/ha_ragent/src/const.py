@@ -95,11 +95,11 @@ CONF_REMEMBER_NUM_INTERACTIONS = "rag_remember_num_interactions"
 CONF_REQUEST_TIMEOUT = "rag_request_timeout"
 CONF_SELECTED_LANGUAGE = "rag_selected_language"
 
-CONF_TEMPERATURE = 0.7
-CONF_K_TOP = 40
-CONF_P_MIN = 0.1
-CONF_P_TOP = 0.9
-CONF_P_TYPICAL = 1.0
+CONF_TEMPERATURE = "rag_temperature"
+CONF_K_TOP = "rag_k_top"
+CONF_P_MIN = "rag_p_min"
+CONF_P_TOP = "rag_p_top"
+CONF_P_TYPICAL = "rag_p_typical"
 
 PERSONA_PROMPTS = {
     "de": "Du bist \"YAIL\", ein hilfreicher KI-Assistent, der die Geräte in einem Haus steuert. Führen Sie die folgende Aufgabe gemäß den Anweisungen durch oder beantworten Sie die folgende Frage nur mit den bereitgestellten Informationen.",

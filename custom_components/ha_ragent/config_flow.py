@@ -178,7 +178,4 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
     
     @classmethod
     def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
-        return {
-            "conversation": RagentSubentryFlowHandler,
-            "ai_agent": RagentSubentryFlowHandler,
-        }
+        return { "ragent": RagentSubentryFlowHandler }

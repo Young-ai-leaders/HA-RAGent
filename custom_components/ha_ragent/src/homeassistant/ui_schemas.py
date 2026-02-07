@@ -297,54 +297,33 @@ def ragent_config_option_schema(
             description={"suggested_value": options.get(CONF_OLLAMA_KEEP_ALIVE_MIN)},
             default=DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
         ): NumberSelector(NumberSelectorConfig(min=-1, max=1440, step=1, unit_of_measurement=UnitOfTime.MINUTES, mode=NumberSelectorMode.BOX)),
-    }
 
-    if subentry_type == "conversation":
-        apis: list[SelectOptionDict] = [
-            SelectOptionDict(
-                label="No control",
-                value="none",
-            )
-        ]
-        apis.extend(
-            SelectOptionDict(
-                label=api.name,
-                value=api.id,
-            )
-            for api in llm.async_get_apis(hass)
-        )
-        result.update({
-            vol.Optional(
-                CONF_LLM_HASS_API,
-                description={"suggested_value": options.get(CONF_LLM_HASS_API)},
-                default="none",
-            ): SelectSelector(SelectSelectorConfig(options=apis)),
-            vol.Optional(
-                CONF_REFRESH_SYSTEM_PROMPT,
-                description={"suggested_value": options.get(CONF_REFRESH_SYSTEM_PROMPT, DEFAULT_REFRESH_SYSTEM_PROMPT)},
-                default=options.get(CONF_REFRESH_SYSTEM_PROMPT, DEFAULT_REFRESH_SYSTEM_PROMPT),
-            ): BooleanSelector(BooleanSelectorConfig()),
-            vol.Optional(
-                CONF_REMEMBER_CONVERSATION,
-                description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)},
-                default=options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION),
-            ): BooleanSelector(BooleanSelectorConfig()),
-            vol.Optional(
-                CONF_REMEMBER_NUM_INTERACTIONS,
-                description={"suggested_value": options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS)},
-                default=options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS),
-            ): NumberSelector(NumberSelectorConfig(min=0, max=100, mode=NumberSelectorMode.BOX)),
-            vol.Optional(
-                CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
-                description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION)},
-                default=options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION),
-            ): NumberSelector(NumberSelectorConfig(min=0, max=1440, mode=NumberSelectorMode.BOX)),
-            vol.Required(
-                CONF_MAX_TOOL_CALL_ITERATIONS,
-                description={"suggested_value": options.get(CONF_MAX_TOOL_CALL_ITERATIONS)},
-                default=DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-            ): int,
-        })
+        vol.Optional(
+            CONF_REFRESH_SYSTEM_PROMPT,
+            description={"suggested_value": options.get(CONF_REFRESH_SYSTEM_PROMPT, DEFAULT_REFRESH_SYSTEM_PROMPT)},
+            default=options.get(CONF_REFRESH_SYSTEM_PROMPT, DEFAULT_REFRESH_SYSTEM_PROMPT),
+        ): BooleanSelector(BooleanSelectorConfig()),
+        vol.Optional(
+            CONF_REMEMBER_CONVERSATION,
+            description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)},
+            default=options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION),
+        ): BooleanSelector(BooleanSelectorConfig()),
+        vol.Optional(
+            CONF_REMEMBER_NUM_INTERACTIONS,
+            description={"suggested_value": options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS)},
+            default=options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS),
+        ): NumberSelector(NumberSelectorConfig(min=0, max=100, mode=NumberSelectorMode.BOX)),
+        vol.Optional(
+            CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
+            description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION)},
+            default=options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION),
+        ): NumberSelector(NumberSelectorConfig(min=0, max=1440, mode=NumberSelectorMode.BOX)),
+        vol.Required(
+            CONF_MAX_TOOL_CALL_ITERATIONS,
+            description={"suggested_value": options.get(CONF_MAX_TOOL_CALL_ITERATIONS)},
+            default=DEFAULT_MAX_TOOL_CALL_ITERATIONS,
+        ): int,
+    }
 
     global_order = [
         # general
@@ -377,4 +356,4 @@ def ragent_config_option_schema(
 
     result = { k: v for k, v in sorted(result.items(), key=lambda item: global_order.index(item[0]) if item[0] in global_order else 9999) }
 
-    return result
+    return vol.Schema(result)
