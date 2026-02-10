@@ -1,5 +1,5 @@
 {
-  "domain": "HA-RAGent",
+  "domain": "ha_ragent",
   "name": "Home Assistant RAG Agent",
   "version": "0.0.1",
   "codeowners": ["@Young-ai-leaders"],

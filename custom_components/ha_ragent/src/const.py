@@ -1,8 +1,8 @@
 #-----------------------------------------------
 # General constants
 #-----------------------------------------------
-DOMAIN = "HA-RAGent"
-LLM_API_ID = "ha-ragent-api"
+DOMAIN = "ha_ragent"
+LLM_API_ID = "ha_ragent_api"
 INTEGRATION_VERSION = "0.1.0"
 
 #-----------------------------------------------
@@ -28,6 +28,8 @@ ALLOWED_SERVICE_CALL_ARGUMENTS = ["rgb_color", "brightness", "temperature", "hum
 #-----------------------------------------------
 CONF_VECTOR_DB_SECTION = "rag_vector_db_section"
 CONF_VECTOR_DB_BACKEND_TYPE = "rag_vector_db_backend"
+CONF_VECTOR_DB_USERNAME = "rag_vector_db_username"
+CONF_VECTOR_DB_PASSWORD = "rag_vector_db_password"
 
 BACKEND_VECTOR_DB_TYPE_MONGODB = "mongodb"
 

@@ -1,41 +1,77 @@
-from typing import List, Dict
+from typing import Any, Dict, List
 import logging
 from pymongo import MongoClient
+
+from homeassistant.core import HomeAssistant
+from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
 
 from ..db_backends.base_db_backend import ABaseDbBackend
 from ..models.device import Device
 from ..models.device_embedding import DeviceEmbedding
 
+from ..const import (
+    CONF_VECTOR_DB_SECTION,
+    CONF_VECTOR_DB_USERNAME,
+    CONF_VECTOR_DB_PASSWORD
+)
+
 _logger = logging.getLogger(__name__)
 
 class MongoDbBackend(ABaseDbBackend):
-    def __init__(self, host: str, username: str, password: str, port: str = "27017", db_name: str = "homeassistant", collection_name: str = "device_embeddings") -> None:
-        self.mongo_uri = f"mongodb://{username}:{password}@{host}:{port}/?directConnection=true"
-        self.db_name = db_name
-        self.collection_name = collection_name
+    def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
+        super().__init__(hass, client_options)
     
-    def _get_connection(self) -> None:
-        return MongoClient(self.mongo_uri)
+    @staticmethod
+    def get_name(client_options: Dict[str, Any]):
+        return f"DB Backend: MongoDB"
+
+    @staticmethod
+    def _format_url(username: str, password: str, hostname: str, port: str, ssl: bool) -> str:
+        return f"mongodb://{username}:{password}@{hostname}:{port}/?ssl={'true' if ssl else 'false'}&directConnection=true"
+
+    @staticmethod
+    def _get_connection(url: str) -> MongoClient:
+        return MongoClient(url)
         
-    def _get_database(self, connection: MongoClient) -> None:
-        return connection[self.db_name]
+    @staticmethod
+    def _get_database(connection: MongoClient, db_name: str) -> None:
+        return connection[db_name]
     
-    def _get_collection(self, connection: MongoClient) -> None:
-        database = self._get_database(connection)
-        return database[self.collection_name]
-    
-    def _execute_and_verify(self, connection: MongoClient, command: Dict) -> None:
-        result = self._get_database(connection).command(command)
-        if result.get("ok") != 1.0:
+    @staticmethod
+    def _get_collection(connection: MongoClient, db_name: str, collection_name: str) -> None:
+        database = MongoDbBackend._get_database(connection, db_name)
+        return database[collection_name]
+
+    @staticmethod
+    def _execute_and_verify(connection: MongoClient, command: Dict) -> None:
+        result = MongoDbBackend._get_database(connection).command(command).get("ok")
+        if result is None or result != 1.0:
             _logger.warning(f"Command execution failed with result: {result}")
-        
+
+        return result == 1.0
+
+    @staticmethod
+    async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
+        try:
+            url = MongoDbBackend._format_url(
+                username=user_input[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_USERNAME],
+                password=user_input[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_PASSWORD],
+                hostname=user_input[CONF_VECTOR_DB_SECTION][CONF_HOST],
+                port=user_input[CONF_VECTOR_DB_SECTION][CONF_PORT],
+                ssl=user_input[CONF_VECTOR_DB_SECTION][CONF_SSL],
+            )
+            connection = MongoDbBackend._get_connection(url)
+            return None if connection.admin.command("ping")["ok"] == 1.0 else "Failed to connect to MongoDB"
+        except Exception as ex:
+            return str(ex)
+    
     def cleanup_database(self, embedding_length: int) -> None:
         try:
             with self._get_connection() as conn:
                 conn.drop_database(self.db_name)
             
-                self._execute_and_verify(conn, {"create": self.collection_name})
-                self._execute_and_verify(conn, {
+                MongoDbBackend._execute_and_verify(conn, {"create": self.collection_name})
+                MongoDbBackend._execute_and_verify(conn, {
                     "createSearchIndexes": self.collection_name,
                     "indexes": [
                         {

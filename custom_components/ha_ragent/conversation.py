@@ -12,11 +12,7 @@ _logger = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback) -> bool:
     """Set up Local LLM Conversation from a config entry."""
-
     for subentry in entry.subentries.values():
-        if subentry.subentry_type != conversation.DOMAIN:
-            continue
-
         # create one agent entity per conversation subentry
         agent_entity = RAGent(hass, entry, subentry, entry.runtime_data)
 

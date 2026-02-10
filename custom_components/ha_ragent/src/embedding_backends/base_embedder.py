@@ -28,8 +28,8 @@ class ABaseEmbedder(ABC):
     
     @abstractmethod
     def embed_text(self, text: str) -> None:
-        pass
+        raise NotImplementedError()
     
     @abstractmethod
     def embed_devices(self, devices: List[Device]) -> None:
-        pass
+        raise NotImplementedError()

@@ -3,11 +3,9 @@ import logging
 import aiohttp
 import requests
 
-from ..embeddings.base_embedder import ABaseEmbedder
+from ..embedding_backends.base_embedder import ABaseEmbedder
 from ..models.device import Device
 from ..models.device_embedding import DeviceEmbedding
-from ..models.embedding_model import EmbeddingModel
-from ..db_backends.base_db_backend import ABaseDbBackend
 
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
@@ -16,11 +14,6 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from ..const import CONF_EMBEDDING_BACKEND_SECTION, CONF_LLM_BACKEND_SECTION
 
 _logger = logging.getLogger(__name__)
-
-class OllamaEmbeddingModels:
-    small = EmbeddingModel("nomic-embed-text", 768) # 274 MB
-    medium = EmbeddingModel("mxbai-embed-large", 768) # 670 MB
-    large = EmbeddingModel("BGE-M3", 768) # 1.2 GB
     
 class OllamaEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -72,7 +65,7 @@ class OllamaEmbedder(ABaseEmbedder):
         if "embeddings" in data:
             return data["embeddings"][0]
         else:
-            _logger.error(f"Unexpected response: {data}")
+            _logger.error(f"Unexpected response from embedding backend: {data}")
 
     def embed_text(self, text: str) -> None:
         try:

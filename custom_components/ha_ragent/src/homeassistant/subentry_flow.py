@@ -10,7 +10,7 @@ from homeassistant.config_entries import (
     SubentryFlowResult
 ) 
 
-from ..embeddings.base_embedder import ABaseEmbedder
+from ..embedding_backends.base_embedder import ABaseEmbedder
 from ..llm_backends.base_backend import ALlmBaseBackend
 
 from ..const import (
@@ -42,8 +42,8 @@ from ..utils import (
 )
 
 from .ui_schemas import (
-    pick_remote_model_schema,
-    ragent_config_option_schema
+    ui_schema_pick_models,
+    ui_schema_config_options
 )
 
 from .ragent_client import RAGentClient, RAGentConfigEntry
@@ -83,7 +83,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         llm_models = await self._llm_client.async_get_available_models()
         _logger.debug("Available embedding models: %s", embedding_models)
         _logger.debug("Available LLM models: %s", llm_models)
-        schema = pick_remote_model_schema(embedding_models, llm_models)
+        schema = ui_schema_pick_models(embedding_models, llm_models)
 
         if user_input and "result" not in user_input:
             self.model_config.update(user_input)
@@ -117,7 +117,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
             
             self.model_config = {**selected_default_options, **self.model_config}
 
-        schema = ragent_config_option_schema(
+        schema = ui_schema_config_options(
                 self.hass,
                 entry.options.get(CONF_SELECTED_LANGUAGE, "en"),
                 self.model_config,

@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 
 from custom_components.ha_ragent.src.llm_backends.base_backend import ALlmBaseBackend
 
-from .src.homeassistant.ragent_client import RAGentConfigEntry
+from .src.homeassistant.ragent_client import RAGentClient, RAGentConfigEntry
 
 from .src.const import (
     DOMAIN,
@@ -36,6 +36,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     entry.embedding_executor = await hass.async_add_executor_job(create_embedding_client, hass, embedding_backend_type, entry)
     llm_backend_type = entry.data.get(CONF_LLM_BACKEND_TYPE, DEFAULT_LLM_BACKEND_TYPE)
     entry.llm_executor = await hass.async_add_executor_job(create_llm_client, hass, llm_backend_type, entry)
+
+    entry.runtime_data = RAGentClient(hass, {**entry.data, **entry.options})
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

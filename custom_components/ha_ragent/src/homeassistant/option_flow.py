@@ -14,16 +14,15 @@ from ..const import (
     CONF_LLM_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_VECTOR_DB_BACKEND_TYPE,
+    CONF_VECTOR_DB_PASSWORD,
     CONF_VECTOR_DB_SECTION,
-    DEFAULT_LLM_BACKEND_TYPE,
-    DEFAULT_VECTOR_DB_BACKEND_TYPE,
-    DEFAULT_EMBEDDING_BACKEND_TYPE
+    CONF_VECTOR_DB_USERNAME
 )
 
 from ..utils import embedding_backend_to_class, embedding_backend_to_class, llm_backend_to_class
 
 from .ui_schemas import (
-    remote_connection_schema
+    ui_schema_backend_connections
 )
 
 _logger = logging.getLogger(__name__)
@@ -54,10 +53,12 @@ class RagentOptionsFlow(OptionsFlow):
                 errors["base"] = "failed_to_connect"
                 description_placeholders["exception"] = str(connect_err)
 
-        schema = remote_connection_schema(
+        schema = ui_schema_backend_connections(
             vector_db_backend_type=client_config[CONF_VECTOR_DB_BACKEND_TYPE],
             embedding_backend_type=client_config[CONF_EMBEDDING_BACKEND_TYPE],
             llm_backend_type=client_config[CONF_LLM_BACKEND_TYPE],
+            vector_db_username=client_config[CONF_VECTOR_DB_SECTION].get(CONF_VECTOR_DB_USERNAME),
+            vector_db_password=client_config[CONF_VECTOR_DB_SECTION].get(CONF_VECTOR_DB_PASSWORD),
             vector_db_host=client_config[CONF_VECTOR_DB_SECTION].get(CONF_HOST),
             vector_db_port=client_config[CONF_VECTOR_DB_SECTION].get(CONF_PORT),
             vector_db_ssl=client_config[CONF_VECTOR_DB_SECTION].get(CONF_SSL),

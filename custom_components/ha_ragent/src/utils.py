@@ -2,8 +2,8 @@ import socket
 import logging
 from .db_backends.base_db_backend import ABaseDbBackend
 from .db_backends.mongodb_backend import MongoDbBackend
-from .embeddings.base_embedder import ABaseEmbedder
-from .embeddings.ollama_embedder import OllamaEmbedder
+from .embedding_backends.base_embedder import ABaseEmbedder
+from .embedding_backends.ollama_embedder import OllamaEmbedder
 from .llm_backends.base_backend import ALlmBaseBackend
 from .llm_backends.ollama_backend import OllamaBackend
 from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA

@@ -28,6 +28,8 @@ from ..const import (
     CONF_LLM_BACKEND_SECTION,
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
     CONF_VECTOR_DB_BACKEND_TYPE,
+    CONF_VECTOR_DB_USERNAME,
+    CONF_VECTOR_DB_PASSWORD,
     BACKEND_EMBEDDING_TYPE_OPTIONS,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_EMBEDDING_MODEL,
@@ -92,7 +94,7 @@ from .ragent_client import RAGentClient
 
 _logger = logging.getLogger(__name__)
 
-def pick_backend_schema(ventor_db_backend_type=None, embedding_backend_type=None, llm_backend_type=None, selected_language=None) -> vol.Schema:
+def ui_schema_pick_backends(ventor_db_backend_type=None, embedding_backend_type=None, llm_backend_type=None, selected_language=None) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required(
@@ -134,26 +136,32 @@ def pick_backend_schema(ventor_db_backend_type=None, embedding_backend_type=None
         }
     )
 
-def remote_connection_schema(
+def ui_schema_backend_connections(
         vector_db_backend_type: str,
         embedding_backend_type: str, 
-        llm_backend_type: str, 
+        llm_backend_type: str,
+        vector_db_username=None,
+        vector_db_password=None, 
+        vector_db_host=None,
+        vector_db_port=None,
+        vector_db_ssl=None,
         embedding_host=None, 
         embedding_port=None, 
         embedding_ssl=None,
         llm_host=None,
         llm_port=None,
-        llm_ssl=None,
-        vector_db_host=None,
-        vector_db_port=None,
-        vector_db_ssl=None) -> vol.Schema:
-    if llm_backend_type not in BACKEND_LLM_TYPE_OPTIONS:
-        raise AbortFlow("Uknown llm backend type.")
+        llm_ssl=None) -> vol.Schema:
+    if vector_db_backend_type not in BACKEND_VECTOR_DB_TYPE_OPTIONS:
+        raise AbortFlow("Uknown vector db backend type.")
     
     if embedding_backend_type not in BACKEND_EMBEDDING_TYPE_OPTIONS:
         raise AbortFlow("Uknown embedding backend type.")
-        
-    default_port = 11434
+
+    if llm_backend_type not in BACKEND_LLM_TYPE_OPTIONS:
+        raise AbortFlow("Uknown llm backend type.")
+    
+    default_port_mongodb = 27017
+    default_port_ollama = 11434
 
     return vol.Schema(
         {
@@ -162,8 +170,10 @@ def remote_connection_schema(
             ) : section(
                 vol.Schema(
                     {
+                        vol.Optional(CONF_VECTOR_DB_USERNAME, default=vector_db_username if vector_db_username else ""): str,
+                        vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
                         vol.Required(CONF_HOST, default=vector_db_host if vector_db_host else ""): str,
-                        vol.Optional(CONF_PORT, default=vector_db_port if vector_db_port else default_port): int,
+                        vol.Optional(CONF_PORT, default=vector_db_port if vector_db_port else default_port_mongodb): int,
                         vol.Required(CONF_SSL, default=vector_db_ssl if vector_db_ssl else False): bool
                     })
             ),
@@ -173,7 +183,7 @@ def remote_connection_schema(
                 vol.Schema(
                     {
                         vol.Required(CONF_HOST, default=embedding_host if embedding_host else ""): str,
-                        vol.Optional(CONF_PORT, default=embedding_port if embedding_port else default_port): int,
+                        vol.Optional(CONF_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
                         vol.Required(CONF_SSL, default=embedding_ssl if embedding_ssl else False): bool
                     })
             ),
@@ -182,14 +192,14 @@ def remote_connection_schema(
             ) : section(
                 vol.Schema({
                     vol.Required(CONF_HOST, default=llm_host if llm_host else ""): str,
-                    vol.Optional(CONF_PORT, default=llm_port if llm_port else default_port): int,
+                    vol.Optional(CONF_PORT, default=llm_port if llm_port else default_port_ollama): int,
                     vol.Required(CONF_SSL, default=llm_ssl if llm_ssl else False): bool
                 })
             )
         }
     )
 
-def pick_remote_model_schema(embedding_models: list[str], llm_models: list[str], embedding_model: str | None = None, llm_model: str | None = None) -> vol.Schema:
+def ui_schema_pick_models(embedding_models: list[str], llm_models: list[str], embedding_model: str | None = None, llm_model: str | None = None) -> vol.Schema:
     if len(embedding_models) == 0:
         embedding_models = [ "" ]
     if len(llm_models) == 0:
@@ -214,7 +224,7 @@ def pick_remote_model_schema(embedding_models: list[str], llm_models: list[str],
     )
 
 
-def ragent_config_option_schema(
+def ui_schema_config_options(
     hass: HomeAssistant,
     language: str,
     options: dict[str, Any],

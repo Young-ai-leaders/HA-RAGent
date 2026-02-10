@@ -31,8 +31,8 @@ from .src.homeassistant.option_flow import RagentOptionsFlow
 from .src.homeassistant.subentry_flow import RagentSubentryFlowHandler
 
 from .src.homeassistant.ui_schemas import (
-    remote_connection_schema,
-    pick_backend_schema
+    ui_schema_backend_connections,
+    ui_schema_pick_backends
 )
 
 from .src.utils import (
@@ -70,7 +70,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             self.flow_step = "configure_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=pick_backend_schema(), 
+                data_schema=ui_schema_pick_backends(), 
                 last_step=False
             )
             
@@ -82,7 +82,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             self.flow_step = "connect_to_backend"
             return self.async_show_form(
                 step_id="user", 
-                data_schema=remote_connection_schema(
+                data_schema=ui_schema_backend_connections(
                     vector_db_backend_type=self.client_config[CONF_VECTOR_DB_BACKEND_TYPE],
                     embedding_backend_type=self.client_config[CONF_EMBEDDING_BACKEND_TYPE],
                     llm_backend_type=self.client_config[CONF_LLM_BACKEND_TYPE]),
@@ -90,7 +90,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             )
         return self.async_show_form(
             step_id="user", 
-            data_schema=pick_backend_schema(
+            data_schema=ui_schema_pick_backends(
                 ventor_db_backend_type=self.client_config.get(CONF_VECTOR_DB_BACKEND_TYPE),
                 embedding_backend_type=self.client_config.get(CONF_EMBEDDING_BACKEND_TYPE),
                 llm_backend_type=self.client_config.get(CONF_LLM_BACKEND_TYPE),
@@ -111,8 +111,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "invalid_hostname"
                 description_placeholders["exception"] = "The provided hostname could not be resolved to an IP address."
             else:
-                ##connect_err = await vector_db_to_class(self.client_config[CONF_VECTOR_DB_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
-                connect_err = None
+                connect_err = await vector_db_to_class(self.client_config[CONF_VECTOR_DB_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
 
                 if not connect_err:
                     connect_err = await embedding_backend_to_class(self.client_config[CONF_EMBEDDING_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
@@ -128,7 +127,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             
         return self.async_show_form(
             step_id="user", 
-            data_schema=remote_connection_schema(
+            data_schema=ui_schema_backend_connections(
                 vector_db_backend_type=self.client_config[CONF_VECTOR_DB_BACKEND_TYPE],
                 embedding_backend_type=self.client_config[CONF_EMBEDDING_BACKEND_TYPE],
                 llm_backend_type=self.client_config[CONF_LLM_BACKEND_TYPE],
@@ -151,7 +150,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         embedding_backend = self.client_config[CONF_EMBEDDING_BACKEND_TYPE]
         llm_backend = self.client_config[CONF_LLM_BACKEND_TYPE]
 
-        title = "Vect" # vector_db_to_class(vector_db_backend).get_name(self.client_config)
+        title = vector_db_to_class(vector_db_backend).get_name(self.client_config)
         title += " | " + embedding_backend_to_class(embedding_backend).get_name(self.client_config)
         title += " | " + llm_backend_to_class(llm_backend).get_name(self.client_config)
         title += " | Language: " + self.client_config.get(CONF_SELECTED_LANGUAGE, "en") 
