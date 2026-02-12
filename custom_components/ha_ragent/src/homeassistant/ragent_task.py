@@ -8,10 +8,13 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.json import json_loads
 
 from .ragent_entity import RAGentEntity
+from .ragent import RAGent
 
 from ..const import (
     CONF_PROMPT,
+    CONF_SELECTED_LANGUAGE,
     DEFAULT_PROMPT,
+    DEFAULT_SELECTED_LANGUAGE,
 )
 
 from ..models.enums import ResultTypes
@@ -24,14 +27,7 @@ class RAGentTaskEntity(ai_task.AITaskEntity, RAGentEntity):
     def __init__(self, *args, **kwargs) -> None:
         """Initialize Ollama AI Task entity."""
         super().__init__(*args, **kwargs)
-
-        if self.client._supports_vision(self.runtime_options):
-            self._attr_supported_features = (
-                ai_task.AITaskEntityFeature.GENERATE_DATA |
-                ai_task.AITaskEntityFeature.SUPPORT_ATTACHMENTS
-            )
-        else:
-            self._attr_supported_features = ai_task.AITaskEntityFeature.GENERATE_DATA
+        self._attr_supported_features = ai_task.AITaskEntityFeature.GENERATE_DATA
 
     async def _async_generate_data(
         self,
@@ -44,20 +40,32 @@ class RAGentTaskEntity(ai_task.AITaskEntity, RAGentEntity):
 
         try:
             raw_prompt = self.runtime_options.get(CONF_PROMPT, DEFAULT_PROMPT)
+            selected_language = self.runtime_options.get(CONF_SELECTED_LANGUAGE, DEFAULT_SELECTED_LANGUAGE)
 
             message_history = chat_log.content[:]
 
-            if not isinstance(message_history[0], conversation.SystemContent):
-                system_prompt = conversation.SystemContent(content=self.client._generate_system_prompt(raw_prompt, None, self.runtime_options))
+            if not message_history or not isinstance(message_history[0], conversation.SystemContent):
+                system_prompt_content = RAGent.build_prompt_template(selected_language, raw_prompt)
+                system_prompt = conversation.SystemContent(content=system_prompt_content)
                 message_history.insert(0, system_prompt)
-            
-            _logger.debug(f"Generating response for {task.name=}...")
-            generation_result = await self.client._async_generate(message_history, self.entity_id, chat_log, self.runtime_options)
 
-            assistant_message = await anext(generation_result)
-            if not isinstance(assistant_message, conversation.AssistantContent):
-                raise HomeAssistantError("Last content in chat log is not an AssistantContent!")
-            text = assistant_message.content
+            _logger.debug("Generating response for %s...", task.name)
+
+            formatted_messages = []
+            for msg in message_history:
+                if isinstance(msg, conversation.SystemContent):
+                    formatted_messages.append({"role": "system", "content": msg.content})
+                elif isinstance(msg, conversation.UserContent):
+                    formatted_messages.append({"role": "user", "content": msg.content})
+                elif isinstance(msg, conversation.AssistantContent):
+                    formatted_messages.append({"role": "assistant", "content": msg.content or ""})
+
+            llm_backend = self.entry.llm_backend
+            assistant_content = ""
+            async for chunk in llm_backend.async_send_chat_request(formatted_messages):
+                assistant_content += chunk
+
+            text = assistant_content
 
             if not task.structure:
                 return ai_task.GenDataTaskResult(
@@ -79,7 +87,7 @@ class RAGentTaskEntity(ai_task.AITaskEntity, RAGentEntity):
                     raise HomeAssistantError("Error with Local LLM structured response") from err
             elif extraction_method == ResultTypes.TOOL:
                 try:
-                    data = assistant_message.tool_calls[0].tool_args
+                    data = chat_log.content[-1].tool_calls[0].tool_args
                 except (IndexError, AttributeError) as err:
                     _logger.error(
                         "Failed to extract tool arguments from response: %s. Response: %s",

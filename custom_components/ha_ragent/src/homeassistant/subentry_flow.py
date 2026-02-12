@@ -5,13 +5,14 @@ import voluptuous as vol
 
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.config_entries import (
+    ConfigEntry,
     ConfigEntryState,
     ConfigSubentryFlow,
     SubentryFlowResult
-) 
+)
 
-from ..embedding_backends.base_embedder import ABaseEmbedder
-from ..llm_backends.base_backend import ALlmBaseBackend
+from ..backends.embedder.base_backend import ABaseEmbedder
+from ..backends.llm.base_backend import ALlmBaseBackend
 
 from ..const import (
     CONF_VECTOR_DB_BACKEND_TYPE,
@@ -19,8 +20,6 @@ from ..const import (
     CONF_LLM_BACKEND_TYPE,
     CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
-    CONF_GBNF_GRAMMAR_ENABLED,
-    CONF_GBNF_GRAMMAR_FILE,
     CONF_IN_CONTEXT_LEARNING_ENABLED,
     CONF_IN_CONTEXT_LEARNING_FILE,
     CONF_MAX_TOKENS,
@@ -31,7 +30,6 @@ from ..const import (
     CONF_REQUEST_TIMEOUT,
     CONF_SELECTED_LANGUAGE,
 
-    DEFAULT_GBNF_GRAMMAR_FILE,
     DEFAULT_IN_CONTEXT_LEARNING_FILE,
     DEFAULT_OPTIONS,
     DEFAULT_PROMPT,
@@ -46,7 +44,7 @@ from .ui_schemas import (
     ui_schema_config_options
 )
 
-from .ragent_client import RAGentClient, RAGentConfigEntry
+from .ragent import RAGent
 
 _logger = logging.getLogger(__name__)
 
@@ -64,13 +62,13 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
     @property
     def _embedding_client(self) -> ABaseEmbedder:
-        entry: RAGentConfigEntry = self._get_entry()
-        return entry.embedding_executor
+        entry: ConfigEntry = self._get_entry()
+        return entry.embedder_backend
 
     @property
     def _llm_client(self) -> ALlmBaseBackend:
-        entry: RAGentConfigEntry = self._get_entry()
-        return entry.llm_executor
+        entry: ConfigEntry = self._get_entry()
+        return entry.llm_backend
 
     async def async_step_pick_model(
         self, user_input: dict[str, Any] | None = None
@@ -111,7 +109,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
             selected_default_options = {**DEFAULT_OPTIONS}
 
-            selected_default_options[CONF_PROMPT] = RAGentClient.build_prompt_template(
+            selected_default_options[CONF_PROMPT] = RAGent.build_base_prompt_template(
                 selected_language, str(selected_default_options.get(CONF_PROMPT, DEFAULT_PROMPT))
             )
             
@@ -130,12 +128,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         if user_input:
             if not user_input.get(CONF_REFRESH_SYSTEM_PROMPT):
                 errors["base"] = "sys_refresh_caching_enabled"
-
-            if user_input.get(CONF_GBNF_GRAMMAR_ENABLED):
-                filename = user_input.get(CONF_GBNF_GRAMMAR_FILE, DEFAULT_GBNF_GRAMMAR_FILE)
-                if not os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", filename)):
-                    errors["base"] = "missing_gbnf_file"
-                    description_placeholders["filename"] = filename
 
             if user_input.get(CONF_IN_CONTEXT_LEARNING_ENABLED):
                 filename = user_input.get(CONF_IN_CONTEXT_LEARNING_FILE, DEFAULT_IN_CONTEXT_LEARNING_FILE)

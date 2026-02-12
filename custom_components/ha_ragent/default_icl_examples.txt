@@ -1,0 +1,10 @@
+type,request,tool,tool_arguments,response
+light,Turn on the bedroom light,HassTurnOn,{"entity_id":"light.bedroom_1"},I've turned on the bedroom light.
+light,Turn off the living room lights,HassTurnOff,{"entity_id":"light.living_room"},I've turned off the living room lights.
+light,Set the bedroom light to 50% brightness,HassLightSet,{"entity_id":"light.bedroom_1","brightness":128},I've set the bedroom light to 50% brightness.
+fan,Turn on the fan,HassTurnOn,{"entity_id":"fan.bedroom_fan"},I've turned on the fan.
+fan,Turn off the kitchen fan,HassTurnOff,{"entity_id":"fan.kitchen"},I've turned off the kitchen fan.
+speaker,Play music on the bedroom speaker,HassMediaUnpause,{"entity_id":"media_player.bedroom_speaker"},I'm playing music on the bedroom speaker.
+speaker,Pause the living room speaker,HassMediaPause,{"entity_id":"media_player.living_room"},I've paused the living room speaker.
+blinds,Open the bedroom blinds,HassSetPosition,{"entity_id":"cover.bedroom_blinds","position":100},I've opened the bedroom blinds.
+blinds,Close the blinds,HassSetPosition,{"entity_id":"cover.bedroom_blinds","position":0},I've closed the blinds.

@@ -11,8 +11,8 @@ class DeviceEmbedding:
         return {
                 "device_id": self.device.id,
                 "name": self.device.name,
-                "type": self.device.type,
-                "location": self.device.location,
-                "description": self.device.description,
+                "device_type": self.device.device_type,
+                "area_name": self.device.area_name,
+                "device_tags": self.device.device_tags,
                 "vector_embedding": self.vector_embedding
             }    

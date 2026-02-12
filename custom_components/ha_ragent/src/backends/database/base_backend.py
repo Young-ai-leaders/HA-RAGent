@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 
 from homeassistant.core import HomeAssistant
 
-from ..models.device import Device
-from ..models.device_embedding import DeviceEmbedding
+from ...models.device import Device
+from ...models.device_embedding import DeviceEmbedding
 
 class ABaseDbBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -24,13 +24,13 @@ class ABaseDbBackend(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def cleanup_database(self, embedding_length: int) -> None:
-        pass
+    async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+        raise NotImplementedError()
     
     @abstractmethod
-    def save_device_embeddings(self, device_embeddings: List[DeviceEmbedding]) -> None:
-        pass
+    async def async_save_device_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding]) -> None:
+        raise NotImplementedError()
     
     @abstractmethod
-    def retrieve_devices(self, query_embedding: List[float], top_k: int = 10) -> List[Device]:
-        pass
+    async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
+        raise NotImplementedError()

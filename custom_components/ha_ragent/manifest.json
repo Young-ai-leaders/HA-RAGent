@@ -12,6 +12,7 @@
   "requirements": [
       "huggingface-hub>=0.23.0",
       "langchain-core==0.3.9",
-      "pymongo==4.3.3"
+      "pymongo==4.16.0",
+      "voluptuous-openapi>=0.2.0"
   ]
 }

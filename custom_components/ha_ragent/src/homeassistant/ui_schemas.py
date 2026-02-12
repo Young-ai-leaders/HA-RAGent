@@ -30,6 +30,7 @@ from ..const import (
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_VECTOR_DB_USERNAME,
     CONF_VECTOR_DB_PASSWORD,
+    CONF_VECTOR_DB_NAME,
     BACKEND_EMBEDDING_TYPE_OPTIONS,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_EMBEDDING_MODEL,
@@ -37,8 +38,6 @@ from ..const import (
     CONF_LLM_BACKEND_TYPE,
     CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
-    CONF_GBNF_GRAMMAR_ENABLED,
-    CONF_GBNF_GRAMMAR_FILE,
     CONF_IN_CONTEXT_LEARNING_ENABLED,
     CONF_IN_CONTEXT_LEARNING_FILE,
     CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
@@ -82,6 +81,7 @@ from ..const import (
     DEFAULT_P_TYPICAL,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
+    DEFAULT_VECTOR_DB_NAME,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -90,7 +90,7 @@ from ..utils import (
     get_value
 )
 
-from .ragent_client import RAGentClient
+from .ragent import RAGent
 
 _logger = logging.getLogger(__name__)
 
@@ -145,6 +145,7 @@ def ui_schema_backend_connections(
         vector_db_host=None,
         vector_db_port=None,
         vector_db_ssl=None,
+        vector_db_name=None,
         embedding_host=None, 
         embedding_port=None, 
         embedding_ssl=None,
@@ -174,7 +175,8 @@ def ui_schema_backend_connections(
                         vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
                         vol.Required(CONF_HOST, default=vector_db_host if vector_db_host else ""): str,
                         vol.Optional(CONF_PORT, default=vector_db_port if vector_db_port else default_port_mongodb): int,
-                        vol.Required(CONF_SSL, default=vector_db_ssl if vector_db_ssl else False): bool
+                        vol.Required(CONF_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
+                        vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else DEFAULT_VECTOR_DB_NAME): str
                     })
             ),
             vol.Required(
@@ -234,14 +236,32 @@ def ui_schema_config_options(
     subentry_type: str,
 ) -> dict:
 
-    default_prompt = RAGentClient.build_prompt_template(language, DEFAULT_PROMPT)
+    default_prompt = RAGent.build_base_prompt_template(language, DEFAULT_PROMPT)
+
+    llm_api_options = [SelectOptionDict(value="none", label="None")]
+    try:
+        for api in llm.async_get_apis(hass):
+            api_label = getattr(api, "name", None) or api.id
+            llm_api_options.append(SelectOptionDict(value=api.id, label=str(api_label)))
+    except Exception as err:
+        _logger.warning("Failed to load LLM APIs: %s", err)
 
     result: dict = {
+        vol.Optional(
+            CONF_LLM_HASS_API,
+            description={"suggested_value": options.get(CONF_LLM_HASS_API, "none")},
+            default=options.get(CONF_LLM_HASS_API, "none"),
+        ): SelectSelector(SelectSelectorConfig(
+            options=llm_api_options,
+            custom_value=False,
+            multiple=False,
+            mode=SelectSelectorMode.DROPDOWN,
+        )),
         vol.Optional(
             CONF_PROMPT,
             description={"suggested_value": options.get(CONF_PROMPT, default_prompt)},
             default=options.get(CONF_PROMPT, default_prompt),
-        ): TemplateSelector(),
+        ): TextSelector(TextSelectorConfig(multiline=True)),
         vol.Optional(
             CONF_TEMPERATURE,
             description={"suggested_value": options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)},
@@ -349,8 +369,6 @@ def ui_schema_config_options(
         CONF_K_TOP,
         # tool calling/reasoning
         CONF_MAX_TOOL_CALL_ITERATIONS,
-        CONF_GBNF_GRAMMAR_ENABLED,
-        CONF_GBNF_GRAMMAR_FILE,
         # integration specific options
         CONF_REFRESH_SYSTEM_PROMPT,
         CONF_REMEMBER_CONVERSATION,

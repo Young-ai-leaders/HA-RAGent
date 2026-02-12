@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List
+from typing import Any, Dict, List, AsyncGenerator
 
 from homeassistant.core import HomeAssistant
 
@@ -25,5 +25,5 @@ class ALlmBaseBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    def send_request(self, query: str) -> str:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], llm_api = None) -> AsyncGenerator[str, None]:
         raise NotImplementedError()

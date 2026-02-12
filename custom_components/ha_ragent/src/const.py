@@ -2,7 +2,7 @@
 # General constants
 #-----------------------------------------------
 DOMAIN = "ha_ragent"
-LLM_API_ID = "ha_ragent_api"
+RAGENT_LLM_API_ID = "ha_ragent_api"
 INTEGRATION_VERSION = "0.1.0"
 
 #-----------------------------------------------
@@ -17,17 +17,14 @@ DEFAULT_LANGUAGE = "en"
 #-----------------------------------------------
 # Service Tool constants
 #-----------------------------------------------
-SERVICE_TOOL_NAME = "HassCallService"
-SERVICE_TOOL_ALLOWED_SERVICES = ["turn_on", "turn_off", "toggle", "press", "increase_speed", "decrease_speed", "open_cover", "close_cover", "stop_cover", "lock", "unlock", "start", "stop", "return_to_base", "pause", "cancel", "add_item", "set_temperature", "set_humidity", "set_fan_mode", "set_hvac_mode", "set_preset_mode"]
-SERVICE_TOOL_ALLOWED_DOMAINS = ["light", "switch", "button", "fan", "cover", "lock", "media_player", "climate", "vacuum", "todo", "timer", "script"]
 
-ALLOWED_SERVICE_CALL_ARGUMENTS = ["rgb_color", "brightness", "temperature", "humidity", "fan_mode", "hvac_mode", "preset_mode", "item", "duration" ]
 
 #-----------------------------------------------
 # Vector database backend constants
 #-----------------------------------------------
 CONF_VECTOR_DB_SECTION = "rag_vector_db_section"
 CONF_VECTOR_DB_BACKEND_TYPE = "rag_vector_db_backend"
+CONF_VECTOR_DB_NAME = "rag_vector_db_name"
 CONF_VECTOR_DB_USERNAME = "rag_vector_db_username"
 CONF_VECTOR_DB_PASSWORD = "rag_vector_db_password"
 
@@ -38,6 +35,7 @@ BACKEND_VECTOR_DB_TYPE_OPTIONS = [
 ]
 
 DEFAULT_VECTOR_DB_BACKEND_TYPE = BACKEND_VECTOR_DB_TYPE_MONGODB
+DEFAULT_VECTOR_DB_NAME = "ha_ragent_db"
 
 #-----------------------------------------------
 # Embedding backend constants
@@ -73,15 +71,10 @@ DEFAULT_LLM_BACKEND_TYPE = BACKEND_LLM_TYPE_OLLAMA
 # Prompt configuration constants
 #----------------------------------------------
 CONF_CONTEXT_LENGTH = "rag_context_length"
-CONF_GBNF_GRAMMAR_ENABLED = "rag_gbnf_grammar_enabled"
-CONF_GBNF_GRAMMAR_FILE = "rag_gbnf_grammar_file"
 
 CONF_IN_CONTEXT_LEARNING_ENABLED = "rag_in_context_learning_enabled"
 CONF_IN_CONTEXT_LEARNING_FILE = "rag_in_context_learning_file"
 CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES = "rag_in_context_learning_num_examples"
-
-CONF_GBNF_GRAMMAR_ENABLED = "rag_gbnf_grammar_enabled"
-CONF_IN_CONTEXT_LEARNING_ENABLED = "rag_in_context_learning_enabled"
 
 CONF_MAX_TOKENS = "rag_max_tokens"
 CONF_MAX_TOOL_CALL_ITERATIONS = "rag_max_tool_call_iterations"
@@ -139,15 +132,55 @@ DEFAULT_IN_CONTEXT_LEARNING_ENABLED = True
 DEFAULT_IN_CONTEXT_LEARNING_FILE = "default_icl_examples.txt"
 DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES = 3
 
-DEFAULT_GBNF_GRAMMAR_ENABLED = False
-DEFAULT_GBNF_GRAMMAR_FILE = "default_grammar.gbnf"
-
 DEFAULT_MAX_TOKENS = 1000
 DEFAULT_MAX_TOOL_CALL_ITERATIONS = 8
 
 DEFAULT_OLLAMA_JSON_MODE = True
 DEFAULT_OLLAMA_KEEP_ALIVE_MIN = 5
-DEFAULT_PROMPT = "default_prompt"
+DEFAULT_PROMPT = """<persona>
+<current_date>
+
+## Available Devices
+You can control these devices by their entity_id:
+
+{% for device in device_list %}
+- {{ device.name }}: `{{ device.id }}` ({{ device.device_type }}){% if device.area_name %} - {{ device.area_name }}{% endif %}
+{% endfor %}
+
+## Available Tools
+Use these tools to control devices:
+
+{% if tools_list %}
+{{ tools_list }}
+{% endif %}
+
+## How to Control Devices
+
+When a user asks you to control a device:
+1. Find the matching device from the list above by name or area
+2. Use the entity_id (e.g., light.bedroom_1, switch.kitchen_lamp)
+3. Generate ONLY the tool call code block with NO other text
+4. Use this exact format:
+
+```homeassistant
+{"tool": "ToolName", "arguments": {"entity_id": "domain.device_name"}}
+```
+
+Examples of valid tool calls:
+- `{"tool": "HassTurnOn", "arguments": {"entity_id": "light.bedroom"}}` - Turn on a light
+- `{"tool": "HassTurnOff", "arguments": {"entity_id": "fan.kitchen"}}` - Turn off a fan
+- `{"tool": "HassLightSet", "arguments": {"entity_id": "light.bedroom", "brightness": 128}}` - Set brightness
+
+## For Questions
+If the user asks a question (not asking to control something), answer naturally without code blocks.
+
+{% if icl_examples %}
+## Learning Examples
+{{ icl_examples }}
+{% endif %}
+
+<user_instruction>
+"""
 DEFAULT_REFRESH_SYSTEM_PROMPT = False
 DEFAULT_REMEMBER_CONVERSATION = False
 DEFAULT_REMEMBER_NUM_INTERACTIONS = 10
@@ -171,7 +204,6 @@ DEFAULT_OPTIONS = {
     CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
     CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
     CONF_REQUEST_TIMEOUT: DEFAULT_REQUEST_TIMEOUT,
-    CONF_GBNF_GRAMMAR_ENABLED: DEFAULT_GBNF_GRAMMAR_ENABLED,
     CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,

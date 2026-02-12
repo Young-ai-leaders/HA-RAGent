@@ -2,8 +2,10 @@ from typing import Any, Dict, List
 from abc import ABC, abstractmethod
 
 from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigSubentry
 
-from ..models.device import Device
+from ...models.device import Device
+from ...models.device_embedding import DeviceEmbedding
 
 class ABaseEmbedder(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -27,9 +29,9 @@ class ABaseEmbedder(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    def embed_text(self, text: str) -> None:
+    async def async_embed_text(self, config_subentry: dict, text: str) -> List[float]:
         raise NotImplementedError()
     
     @abstractmethod
-    def embed_devices(self, devices: List[Device]) -> None:
+    async def async_embed_devices(self, config_subentry: dict, devices: List[Device]) -> List[DeviceEmbedding]:
         raise NotImplementedError()

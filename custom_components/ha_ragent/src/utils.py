@@ -1,11 +1,11 @@
 import socket
 import logging
-from .db_backends.base_db_backend import ABaseDbBackend
-from .db_backends.mongodb_backend import MongoDbBackend
-from .embedding_backends.base_embedder import ABaseEmbedder
-from .embedding_backends.ollama_embedder import OllamaEmbedder
-from .llm_backends.base_backend import ALlmBaseBackend
-from .llm_backends.ollama_backend import OllamaBackend
+from .backends.database.base_backend import ABaseDbBackend
+from .backends.database.mongodb_backend import MongoDbBackend
+from .backends.embedder.base_backend import ABaseEmbedder
+from .backends.embedder.ollama_backend import OllamaEmbedder
+from .backends.llm.base_backend import ALlmBaseBackend
+from .backends.llm.ollama_backend import OllamaBackend
 from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA
 
 _logger = logging.getLogger(__name__)

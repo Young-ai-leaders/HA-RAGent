@@ -78,7 +78,6 @@
             "error": {
                 "unknown": "An unexpected error occurred",
                 "sys_refresh_caching_enabled": "System prompt refresh must be enabled for prompt caching to work",
-                "missing_gbnf_file": "The GBNF file was not found: {filename}",
                 "missing_icl_file": "The in context learning example file was not found: {filename}"
             },
             "abort": {

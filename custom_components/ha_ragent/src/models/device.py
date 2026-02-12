@@ -6,9 +6,9 @@ from dataclasses import dataclass, asdict
 class Device:
     id: str
     name: str
-    type: str
-    location: str
-    description: str = ""
+    device_type: str
+    area_name: str
+    device_tags: List[str] = None
     capabilities: List[str] = None
     
     def __str__(self):

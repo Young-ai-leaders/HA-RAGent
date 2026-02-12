@@ -19,9 +19,10 @@ from .src.const import (
     CONF_LLM_BACKEND_SECTION,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
+    CONF_VECTOR_DB_NAME,
     CONF_VECTOR_DB_SECTION,
     DOMAIN,
-    LLM_API_ID,
+    RAGENT_LLM_API_ID,
     
     CONF_LLM_BACKEND_TYPE,
     CONF_SELECTED_LANGUAGE,
@@ -64,9 +65,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             case _: return self.async_abort(reason="unknown_step") 
                 
     async def _init_flow_async(self) -> ConfigFlowResult:
-        if not any([x.id == LLM_API_ID for x in llm.async_get_apis(self.hass)]):
-            #llm.async_register_api(self.hass, HomeLLMAPI(self.hass))
-
+        if not any([x.id == RAGENT_LLM_API_ID for x in llm.async_get_apis(self.hass)]):
             self.flow_step = "configure_backend"
             return self.async_show_form(
                 step_id="user", 
@@ -134,6 +133,7 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                 vector_db_host=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_HOST),
                 vector_db_port=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_PORT),
                 vector_db_ssl=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_SSL),
+                vector_db_name=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_VECTOR_DB_NAME),
                 embedding_host=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_HOST),
                 embedding_port=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_PORT),
                 embedding_ssl=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_SSL),

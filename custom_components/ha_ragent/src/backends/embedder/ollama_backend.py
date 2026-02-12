@@ -1,17 +1,19 @@
 from typing import Any, Dict, List
 import logging
 import aiohttp
-import requests
 
-from ..embedding_backends.base_embedder import ABaseEmbedder
-from ..models.device import Device
-from ..models.device_embedding import DeviceEmbedding
+from .base_backend import ABaseEmbedder
+from ...models.device import Device
+from ...models.device_embedding import DeviceEmbedding
 
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from ..const import CONF_EMBEDDING_BACKEND_SECTION, CONF_LLM_BACKEND_SECTION
+from ...const import (
+    CONF_EMBEDDING_BACKEND_SECTION, 
+    CONF_EMBEDDING_MODEL
+)
 
 _logger = logging.getLogger(__name__)
     
@@ -47,9 +49,9 @@ class OllamaEmbedder(ABaseEmbedder):
         session = async_get_clientsession(self.hass)
         async with session.get(
              ABaseEmbedder._format_url(
-                hostname=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_HOST],
-                port=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_PORT],
-                ssl=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_SSL],
+                hostname=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_HOST],
+                port=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_PORT],
+                ssl=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_SSL],
                 path=f"/api/tags"
             ),
             timeout=aiohttp.ClientTimeout(total=5),
@@ -60,26 +62,32 @@ class OllamaEmbedder(ABaseEmbedder):
 
         return [x["name"] for x in models_result["models"] if "embed" in x["name"].lower()]
 
-    def _extract_embedding(self, response: requests.Response) -> List[float]:
-        data = response.json()
-        if "embeddings" in data:
-            return data["embeddings"][0]
-        else:
-            _logger.error(f"Unexpected response from embedding backend: {data}")
-
-    def embed_text(self, text: str) -> None:
+    async def async_embed_text(self, config_subentry: dict, text: str) -> List[float]:
         try:
-            payload = {"model": self.model.model_name, "input": text}
-            response = requests.post(f"{self.ollama_url.removesuffix('/')}/api/embed", json=payload)
-            response.raise_for_status()
-            return self._extract_embedding(response)
+            session = async_get_clientsession(self.hass)
+            url = ABaseEmbedder._format_url(
+                hostname=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_HOST],
+                port=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_PORT],
+                ssl=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_SSL],
+                path="/api/embed"
+            )
+            
+            payload = {
+                "model": config_subentry[CONF_EMBEDDING_MODEL],
+                "input": text
+            }
+            
+            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                response.raise_for_status()
+                data = await response.json()
+                if "embeddings" in data and len(data["embeddings"]) > 0:
+                    return data["embeddings"][0]
+                else:
+                    _logger.error(f"Unexpected response from embedding backend: {data}")
+                    return []
         except Exception as e:
-            _logger.error(e)
+            _logger.error(f"Error embedding text: {e}", exc_info=True)
+            return []
 
-    def embed_devices(self, devices: List[Device]) -> None: 
-        try:
-            self.db_backend.cleanup_database(self.model.embedding_size)
-            embedded_devices = [DeviceEmbedding(device, self.embed_text(str(device))) for device in devices]                
-            self.db_backend.save_device_embeddings(embedded_devices)
-        except Exception as e:
-            _logger.error(e)
+    async def async_embed_devices(self, config_subentry: dict, devices: List[Device]) -> List[DeviceEmbedding]:
+        return [DeviceEmbedding(device=device, vector_embedding=await self.async_embed_text(config_subentry, str(device))) for device in devices]

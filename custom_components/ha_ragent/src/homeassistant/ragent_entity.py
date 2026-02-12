@@ -11,8 +11,6 @@ from homeassistant.const import MATCH_ALL, CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import  device_registry, entity
 
-from .ragent_client import RAGentClient, RAGentConfigEntry
-
 from ..const import (
     DOMAIN,
     CONF_SELECTED_LANGUAGE,
@@ -23,13 +21,12 @@ _logger = logging.getLogger(__name__)
 
 class RAGentEntity(entity.Entity):
     hass: HomeAssistant
-    client: RAGentClient
     entry_id: str
     in_context_examples: Optional[List[Dict[str, str]]]
 
     _attr_has_entity_name = True
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry, client: RAGentClient) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry) -> None:
         self._attr_name = subentry.title
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = device_registry.DeviceInfo(
@@ -42,16 +39,15 @@ class RAGentEntity(entity.Entity):
         self.hass = hass
         self.entry_id = entry.entry_id
         self.subentry_id = subentry.subentry_id
-        self.client = client
 
         # create update handler
         self.async_on_remove(entry.add_update_listener(self._async_update_options))
 
-    async def _async_update_options(self, hass: HomeAssistant, config_entry: RAGentConfigEntry) -> None:
+    async def _async_update_options(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
         for subentry in config_entry.subentries.values():
             # handle subentry updates, but only invoke for this entity
             if subentry.subentry_id == self.subentry_id:
-                await hass.async_add_executor_job(self.client._update_options, self.runtime_options)
+                hass.config_entries.async_update_entry(config_entry, options=self.runtime_options)
 
     @property
     def entry(self) -> ConfigEntry:
