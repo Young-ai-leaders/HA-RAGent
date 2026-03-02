@@ -1,7 +1,55 @@
-class DeviceExtractor:
-    def __init__(self, entry, subentry_id):
-        self.entry = entry
-        self.subentry_id = subentry_id
-        self.subentry = entry.subentries[subentry_id]
+from ..models.device import Device
 
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import area_registry, device_registry, entity_registry, label_registry, llm
+
+class DeviceExtractor:
+    def __init__(self, hass: HomeAssistant):
+        self.hass = hass
+
+    def get_embeddable_devices(self, exposed_entities: list[str]) -> list[Device]:
+        area_reg = area_registry.async_get(self.hass)
+        device_reg = device_registry.async_get(self.hass)
+        entity_reg = entity_registry.async_get(self.hass)
+        label_reg = label_registry.async_get(self.hass)
+        
+        devices = []
+        
+        for entity_id in exposed_entities:
+            state = self.hass.states.get(entity_id)
+            if not state:
+                continue
+
+            friendly_name = state.attributes.get("friendly_name", entity_id)
+            device_type = entity_id.split(".")[0] if "." in entity_id else "unknown"
+
+            area_name = ""
+            entity_entry = entity_reg.async_get(entity_id)
+            if entity_entry:
+                if entity_entry.area_id:
+                    area = area_reg.async_get_area(entity_entry.area_id)
+                    area_name = area.name if area else ""
+                elif entity_entry.device_id:
+                    device = device_reg.async_get(entity_entry.device_id)
+                    if device and device.area_id:
+                        area = area_reg.async_get_area(device.area_id)
+                        area_name = area.name if area else ""
+
+            device_tags = []
+            if entity_entry and entity_entry.labels:
+                for label_id in entity_entry.labels:
+                    label = label_reg.async_get_label(label_id)
+                    if label:
+                        device_tags.append(label.name)
+
+            devices.append(Device(
+                id=entity_id,
+                name=friendly_name,
+                device_type=device_type,
+                area_name=area_name,
+                device_tags=device_tags,
+                capabilities=[],
+            ))
+        
+        return devices
 
