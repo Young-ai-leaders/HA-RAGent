@@ -36,7 +36,7 @@ class MongoDbBackend(ABaseDbBackend):
 
     @staticmethod
     def _format_url(username: str, password: str, hostname: str, port: str, ssl: bool) -> str:
-        return f"mongodb://{username}:{password}@{hostname}:{port}/?ssl={'true' if ssl else 'false'}&directConnection=true"
+        return f"mongodb://{username}:{password}@{hostname}:{port}/?ssl={'true' if ssl else 'false'}"
     
     def _get_connection(self) -> AsyncMongoClient:
         return AsyncMongoClient(self.url)
@@ -69,6 +69,16 @@ class MongoDbBackend(ABaseDbBackend):
                 )
         except Exception as e:
             _logger.error(f"Error dropping collection {collection_name}: {e}")
+            
+    def _doc_to_device(self, doc: Dict[str, Any]) -> Device:
+        return Device(
+            id=doc.get("device_id"),
+            name=doc.get("name"),
+            device_type=doc.get("device_type"),
+            area_name=doc.get("area_name"),
+            capabilities=doc.get("capabilities", []),
+            device_tags=doc.get("device_tags", []),
+        )
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -137,7 +147,6 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
         
-        
     async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
         conn = None
         try:
@@ -168,19 +177,7 @@ class MongoDbBackend(ABaseDbBackend):
             cursor = await collection.aggregate(pipeline)
             results = await cursor.to_list(length=top_k)
 
-            devices = []
-            for doc in results:
-                devices.append(
-                    Device(
-                        id=doc.get("device_id"),
-                        name=doc.get("name"),
-                        device_type=doc.get("device_type"),
-                        area_name=doc.get("area_name"),
-                        capabilities=doc.get("capabilities", []),
-                        device_tags=doc.get("device_tags", []),
-                    )
-                )
-            return devices
+            devices = [self._doc_to_device(doc) for doc in results]s
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
             return []
