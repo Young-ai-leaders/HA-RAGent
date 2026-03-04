@@ -15,17 +15,24 @@ from homeassistant.config_entries import (
 from homeassistant.helpers import llm
 
 from .src.const import (
-    CONF_EMBEDDING_BACKEND_SECTION,
-    CONF_LLM_BACKEND_SECTION,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_VECTOR_DB_NAME,
-    CONF_VECTOR_DB_SECTION,
     DOMAIN,
     RAGENT_LLM_API_ID,
     
     CONF_LLM_BACKEND_TYPE,
     CONF_SELECTED_LANGUAGE,
+    
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
+    CONF_VECTOR_DB_SSL,
+    CONF_EMBEDDING_HOST,
+    CONF_EMBEDDING_PORT,
+    CONF_EMBEDDING_SSL,
+    CONF_LLM_HOST,
+    CONF_LLM_PORT,
+    CONF_LLM_SSL,
 )
 
 from .src.homeassistant.option_flow import RagentOptionsFlow
@@ -102,21 +109,21 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         
         if user_input:
             self.client_config.update(user_input)
-            vector_db_hostname = user_input[CONF_VECTOR_DB_SECTION].get(CONF_HOST)
-            embedding_hostname = user_input[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_HOST)
-            llm_hostname = user_input[CONF_LLM_BACKEND_SECTION].get(CONF_HOST)
+            vector_db_hostname = user_input.get(CONF_VECTOR_DB_HOST)
+            embedding_hostname = user_input.get(CONF_EMBEDDING_HOST)
+            llm_hostname = user_input.get(CONF_LLM_HOST)
 
             if not is_valid_host(vector_db_hostname) or not is_valid_host(embedding_hostname) or not is_valid_host(llm_hostname):
                 errors["base"] = "invalid_hostname"
                 description_placeholders["exception"] = "The provided hostname could not be resolved to an IP address."
             else:
-                connect_err = await vector_db_to_class(self.client_config[CONF_VECTOR_DB_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
+                connect_err = await vector_db_to_class(self.client_config.get(CONF_VECTOR_DB_BACKEND_TYPE)).async_validate_connection(self.hass, self.client_config)
 
                 if not connect_err:
-                    connect_err = await embedding_backend_to_class(self.client_config[CONF_EMBEDDING_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
+                    connect_err = await embedding_backend_to_class(self.client_config.get(CONF_EMBEDDING_BACKEND_TYPE)).async_validate_connection(self.hass, self.client_config)
                 
                 if not connect_err:
-                    connect_err = await llm_backend_to_class(self.client_config[CONF_LLM_BACKEND_TYPE]).async_validate_connection(self.hass, self.client_config)
+                    connect_err = await llm_backend_to_class(self.client_config.get(CONF_LLM_BACKEND_TYPE)).async_validate_connection(self.hass, self.client_config)
 
                 if connect_err:
                     errors["base"] = f"failed_to_connect"
@@ -130,16 +137,16 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                 vector_db_backend_type=self.client_config[CONF_VECTOR_DB_BACKEND_TYPE],
                 embedding_backend_type=self.client_config[CONF_EMBEDDING_BACKEND_TYPE],
                 llm_backend_type=self.client_config[CONF_LLM_BACKEND_TYPE],
-                vector_db_host=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_HOST),
-                vector_db_port=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_PORT),
-                vector_db_ssl=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_SSL),
-                vector_db_name=self.client_config[CONF_VECTOR_DB_SECTION].get(CONF_VECTOR_DB_NAME),
-                embedding_host=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_HOST),
-                embedding_port=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_PORT),
-                embedding_ssl=self.client_config[CONF_EMBEDDING_BACKEND_SECTION].get(CONF_SSL),
-                llm_host=self.client_config[CONF_LLM_BACKEND_SECTION].get(CONF_HOST),
-                llm_port=self.client_config[CONF_LLM_BACKEND_SECTION].get(CONF_PORT),
-                llm_ssl=self.client_config[CONF_LLM_BACKEND_SECTION].get(CONF_SSL)), 
+                vector_db_host=self.client_config[CONF_VECTOR_DB_HOST],
+                vector_db_port=self.client_config[CONF_VECTOR_DB_PORT],
+                vector_db_ssl=self.client_config[CONF_VECTOR_DB_SSL],
+                vector_db_name=self.client_config[CONF_VECTOR_DB_NAME],
+                embedding_host=self.client_config[CONF_EMBEDDING_HOST],
+                embedding_port=self.client_config[CONF_EMBEDDING_PORT],
+                embedding_ssl=self.client_config[CONF_EMBEDDING_SSL],
+                llm_host=self.client_config[CONF_LLM_HOST],
+                llm_port=self.client_config[CONF_LLM_PORT],
+                llm_ssl=self.client_config[CONF_LLM_SSL]), 
             errors=errors,
             description_placeholders=description_placeholders,
             last_step=True

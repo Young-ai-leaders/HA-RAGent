@@ -3,7 +3,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL, CONF_LLM_HASS_API, UnitOfTime
+from homeassistant.const import CONF_LLM_HASS_API, UnitOfTime
 from homeassistant.data_entry_flow import AbortFlow, section
 from homeassistant.helpers import llm
 from homeassistant.helpers.selector import (
@@ -23,9 +23,6 @@ from homeassistant.helpers.selector import (
 )
 
 from ..const import (
-    CONF_VECTOR_DB_SECTION,
-    CONF_EMBEDDING_BACKEND_SECTION,
-    CONF_LLM_BACKEND_SECTION,
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_VECTOR_DB_USERNAME,
@@ -57,6 +54,16 @@ from ..const import (
     CONF_P_MIN,
     CONF_P_TOP,
     CONF_P_TYPICAL,
+    
+    CONF_VECTOR_DB_PORT,
+    CONF_VECTOR_DB_SSL,
+    CONF_LLM_PORT,
+    CONF_LLM_SSL,
+    CONF_EMBEDDING_PORT,
+    CONF_EMBEDDING_SSL,
+    CONF_VECTOR_DB_HOST,
+    CONF_LLM_HOST,
+    CONF_EMBEDDING_HOST,
 
     DEFAULT_EMBEDDING_BACKEND_TYPE,
     DEFAULT_LLM_BACKEND_TYPE,
@@ -153,51 +160,33 @@ def ui_schema_backend_connections(
         llm_port=None,
         llm_ssl=None) -> vol.Schema:
     if vector_db_backend_type not in BACKEND_VECTOR_DB_TYPE_OPTIONS:
-        raise AbortFlow("Uknown vector db backend type.")
+        raise AbortFlow(reason="unknown_vector_db_backend_type")
     
     if embedding_backend_type not in BACKEND_EMBEDDING_TYPE_OPTIONS:
-        raise AbortFlow("Uknown embedding backend type.")
+        raise AbortFlow(reason="unknown_embedding_backend_type")
 
     if llm_backend_type not in BACKEND_LLM_TYPE_OPTIONS:
-        raise AbortFlow("Uknown llm backend type.")
+        raise AbortFlow(reason="unknown_llm_backend_type")
     
     default_port_mongodb = 27017
     default_port_ollama = 11434
 
     return vol.Schema(
         {
-            vol.Required(
-                CONF_VECTOR_DB_SECTION
-            ) : section(
-                vol.Schema(
-                    {
-                        vol.Optional(CONF_VECTOR_DB_USERNAME, default=vector_db_username if vector_db_username else ""): str,
-                        vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
-                        vol.Required(CONF_HOST, default=vector_db_host if vector_db_host else ""): str,
-                        vol.Optional(CONF_PORT, default=vector_db_port if vector_db_port else default_port_mongodb): int,
-                        vol.Required(CONF_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
-                        vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else DEFAULT_VECTOR_DB_NAME): str
-                    })
-            ),
-            vol.Required(
-                CONF_EMBEDDING_BACKEND_SECTION
-            ) : section(
-                vol.Schema(
-                    {
-                        vol.Required(CONF_HOST, default=embedding_host if embedding_host else ""): str,
-                        vol.Optional(CONF_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
-                        vol.Required(CONF_SSL, default=embedding_ssl if embedding_ssl else False): bool
-                    })
-            ),
-            vol.Required(
-                CONF_LLM_BACKEND_SECTION
-            ) : section(
-                vol.Schema({
-                    vol.Required(CONF_HOST, default=llm_host if llm_host else ""): str,
-                    vol.Optional(CONF_PORT, default=llm_port if llm_port else default_port_ollama): int,
-                    vol.Required(CONF_SSL, default=llm_ssl if llm_ssl else False): bool
-                })
-            )
+            vol.Optional(CONF_VECTOR_DB_USERNAME, default=vector_db_username if vector_db_username else ""): str,
+            vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
+            vol.Required(CONF_VECTOR_DB_HOST, default=vector_db_host if vector_db_host else ""): str,
+            vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else DEFAULT_VECTOR_DB_NAME): str,
+            vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else default_port_mongodb): int,
+            vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
+
+            vol.Required(CONF_EMBEDDING_HOST, default=embedding_host if embedding_host else ""): str,
+            vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
+            vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl else False): bool,
+
+            vol.Required(CONF_LLM_HOST, default=llm_host if llm_host else ""): str,
+            vol.Optional(CONF_LLM_PORT, default=llm_port if llm_port else default_port_ollama): int,
+            vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl else False): bool
         }
     )
 
@@ -235,8 +224,7 @@ def ui_schema_config_options(
     llm_backend_type: str, 
     subentry_type: str,
 ) -> dict:
-
-    default_prompt = RAGent.build_base_prompt_template(language, DEFAULT_PROMPT)
+    default_prompt = RAGent.build_base_prompt_template(hass, language, DEFAULT_PROMPT)
 
     llm_api_options = [SelectOptionDict(value="none", label="None")]
     try:

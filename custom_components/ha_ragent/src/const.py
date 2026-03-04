@@ -22,11 +22,13 @@ DEFAULT_LANGUAGE = "en"
 #-----------------------------------------------
 # Vector database backend constants
 #-----------------------------------------------
-CONF_VECTOR_DB_SECTION = "rag_vector_db_section"
 CONF_VECTOR_DB_BACKEND_TYPE = "rag_vector_db_backend"
 CONF_VECTOR_DB_NAME = "rag_vector_db_name"
 CONF_VECTOR_DB_USERNAME = "rag_vector_db_username"
 CONF_VECTOR_DB_PASSWORD = "rag_vector_db_password"
+CONF_VECTOR_DB_HOST = "rag_vector_db_host"
+CONF_VECTOR_DB_PORT = "rag_vector_db_port"
+CONF_VECTOR_DB_SSL = "rag_vector_db_ssl"
 
 BACKEND_VECTOR_DB_TYPE_MONGODB = "mongodb"
 
@@ -40,9 +42,11 @@ DEFAULT_VECTOR_DB_NAME = "ha_ragent_db"
 #-----------------------------------------------
 # Embedding backend constants
 #-----------------------------------------------
-CONF_EMBEDDING_BACKEND_SECTION = "rag_embedding_backend_section"
 CONF_EMBEDDING_BACKEND_TYPE = "rag_embedding_backend"
 CONF_EMBEDDING_MODEL = "rag_embedding_model"
+CONF_EMBEDDING_HOST = "rag_embedding_host"
+CONF_EMBEDDING_PORT = "rag_embedding_port"
+CONF_EMBEDDING_SSL = "rag_embedding_ssl"
 
 BACKEND_EMBEDDING_TYPE_OLLAMA = "ollama"
 
@@ -55,9 +59,11 @@ DEFAULT_EMBEDDING_BACKEND_TYPE = BACKEND_EMBEDDING_TYPE_OLLAMA
 #-----------------------------------------------
 # Chat backend constants
 #-----------------------------------------------
-CONF_LLM_BACKEND_SECTION = "rag_llm_backend_section"
 CONF_LLM_BACKEND_TYPE = "rag_llm_backend"
 CONF_LLM_MODEL = "rag_llm_model"
+CONF_LLM_HOST = "rag_llm_host"
+CONF_LLM_PORT = "rag_llm_port"
+CONF_LLM_SSL = "rag_llm_ssl"
 
 BACKEND_LLM_TYPE_OLLAMA = "ollama"
 

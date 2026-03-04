@@ -11,8 +11,10 @@ from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ...const import (
-    CONF_EMBEDDING_BACKEND_SECTION, 
-    CONF_EMBEDDING_MODEL
+    CONF_EMBEDDING_MODEL,
+    CONF_EMBEDDING_HOST,
+    CONF_EMBEDDING_PORT,
+    CONF_EMBEDDING_SSL
 )
 
 _logger = logging.getLogger(__name__)
@@ -32,9 +34,9 @@ class OllamaEmbedder(ABaseEmbedder):
             session = async_get_clientsession(hass)
             response = await session.get(
                 ABaseEmbedder._format_url(
-                    hostname=user_input[CONF_EMBEDDING_BACKEND_SECTION][CONF_HOST],
-                    port=user_input[CONF_EMBEDDING_BACKEND_SECTION][CONF_PORT],
-                    ssl=user_input[CONF_EMBEDDING_BACKEND_SECTION][CONF_SSL],
+                    hostname=user_input.get(CONF_EMBEDDING_HOST),
+                    port=user_input.get(CONF_EMBEDDING_PORT),
+                    ssl=user_input.get(CONF_EMBEDDING_SSL),
                     path=f"/api/tags"
                 ),
                 timeout=aiohttp.ClientTimeout(total=5),
@@ -49,9 +51,9 @@ class OllamaEmbedder(ABaseEmbedder):
         session = async_get_clientsession(self.hass)
         async with session.get(
              ABaseEmbedder._format_url(
-                hostname=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_HOST],
-                port=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_PORT],
-                ssl=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_SSL],
+                hostname=self.client_options.get(CONF_EMBEDDING_HOST),
+                port=self.client_options.get(CONF_EMBEDDING_PORT),
+                ssl=self.client_options.get(CONF_EMBEDDING_SSL),
                 path=f"/api/tags"
             ),
             timeout=aiohttp.ClientTimeout(total=5),
@@ -66,9 +68,9 @@ class OllamaEmbedder(ABaseEmbedder):
         try:
             session = async_get_clientsession(self.hass)
             url = ABaseEmbedder._format_url(
-                hostname=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_HOST],
-                port=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_PORT],
-                ssl=self.client_options[CONF_EMBEDDING_BACKEND_SECTION][CONF_SSL],
+                hostname=self.client_options.get(CONF_EMBEDDING_HOST),
+                port=self.client_options.get(CONF_EMBEDDING_PORT),
+                ssl=self.client_options.get(CONF_EMBEDDING_SSL),
                 path="/api/embed"
             )
             

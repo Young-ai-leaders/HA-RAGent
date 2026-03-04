@@ -10,8 +10,10 @@ from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
 
 from ...const import (
-    CONF_VECTOR_DB_SECTION,
     CONF_VECTOR_DB_NAME,
+    CONF_VECTOR_DB_HOST,
+    CONF_VECTOR_DB_PORT,
+    CONF_VECTOR_DB_SSL,
     CONF_VECTOR_DB_USERNAME,
     CONF_VECTOR_DB_PASSWORD
 )
@@ -21,13 +23,13 @@ _logger = logging.getLogger(__name__)
 class MongoDbBackend(ABaseDbBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
-        self.db_name = self.client_options[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_NAME]
+        self.db_name = self.client_options.get(CONF_VECTOR_DB_NAME)
         self.url = MongoDbBackend._format_url(
-            username=self.client_options[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_USERNAME],
-            password=self.client_options[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_PASSWORD],
-            hostname=self.client_options[CONF_VECTOR_DB_SECTION][CONF_HOST],
-            port=self.client_options[CONF_VECTOR_DB_SECTION][CONF_PORT],
-            ssl=self.client_options[CONF_VECTOR_DB_SECTION][CONF_SSL],
+            username=self.client_options.get(CONF_VECTOR_DB_USERNAME),
+            password=self.client_options.get(CONF_VECTOR_DB_PASSWORD),
+            hostname=self.client_options.get(CONF_VECTOR_DB_HOST),
+            port=self.client_options.get(CONF_VECTOR_DB_PORT),
+            ssl=self.client_options.get(CONF_VECTOR_DB_SSL),
         )
     
     @staticmethod
@@ -85,11 +87,11 @@ class MongoDbBackend(ABaseDbBackend):
         conn = None
         try:
             url = MongoDbBackend._format_url(
-                username=user_input[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_USERNAME],
-                password=user_input[CONF_VECTOR_DB_SECTION][CONF_VECTOR_DB_PASSWORD],
-                hostname=user_input[CONF_VECTOR_DB_SECTION][CONF_HOST],
-                port=user_input[CONF_VECTOR_DB_SECTION][CONF_PORT],
-                ssl=user_input[CONF_VECTOR_DB_SECTION][CONF_SSL],
+                username=user_input.get(CONF_VECTOR_DB_USERNAME),
+                password=user_input.get(CONF_VECTOR_DB_PASSWORD),
+                hostname=user_input.get(CONF_VECTOR_DB_HOST),
+                port=user_input.get(CONF_VECTOR_DB_PORT),
+                ssl=user_input.get(CONF_VECTOR_DB_SSL),
             )
             connection = AsyncMongoClient(url)
             result = await connection.admin.command("ping")
@@ -177,7 +179,7 @@ class MongoDbBackend(ABaseDbBackend):
             cursor = await collection.aggregate(pipeline)
             results = await cursor.to_list(length=top_k)
 
-            devices = [self._doc_to_device(doc) for doc in results]s
+            devices = [self._doc_to_device(doc) for doc in results]
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
             return []

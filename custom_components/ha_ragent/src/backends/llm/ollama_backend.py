@@ -16,8 +16,10 @@ except ImportError:
 
 from .base_backend import ALlmBaseBackend
 from ...const import (
-    CONF_LLM_BACKEND_SECTION, 
     CONF_LLM_MODEL,
+    CONF_LLM_HOST,
+    CONF_LLM_PORT,
+    CONF_LLM_SSL,
     CONF_TEMPERATURE,
     CONF_MAX_TOKENS,
 )
@@ -39,9 +41,9 @@ class OllamaBackend(ALlmBaseBackend):
             session = async_get_clientsession(hass)
             response = await session.get(
                 ALlmBaseBackend._format_url(
-                    hostname=user_input[CONF_LLM_BACKEND_SECTION][CONF_HOST],
-                    port=user_input[CONF_LLM_BACKEND_SECTION][CONF_PORT],
-                    ssl=user_input[CONF_LLM_BACKEND_SECTION][CONF_SSL],
+                    hostname=user_input.get(CONF_LLM_HOST),
+                    port=user_input.get(CONF_LLM_PORT),
+                    ssl=user_input.get(CONF_LLM_SSL),
                     path=f"/api/tags"
                 ),
                 timeout=aiohttp.ClientTimeout(total=5),
@@ -56,9 +58,9 @@ class OllamaBackend(ALlmBaseBackend):
         session = async_get_clientsession(self.hass)
         async with session.get(
              ALlmBaseBackend._format_url(
-                hostname=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_HOST],
-                port=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_PORT],
-                ssl=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_SSL],
+                hostname=self.client_options.get(CONF_LLM_HOST),
+                port=self.client_options.get(CONF_LLM_PORT),
+                ssl=self.client_options.get(CONF_LLM_SSL),
                 path=f"/api/tags"
             ),
             timeout=aiohttp.ClientTimeout(total=5),
@@ -73,9 +75,9 @@ class OllamaBackend(ALlmBaseBackend):
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self.hass)
         url = ALlmBaseBackend._format_url(
-            hostname=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_HOST],
-            port=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_PORT],
-            ssl=self.client_options[CONF_LLM_BACKEND_SECTION][CONF_SSL],
+            hostname=self.client_options.get(CONF_LLM_HOST),
+            port=self.client_options.get(CONF_LLM_PORT),
+            ssl=self.client_options.get(CONF_LLM_SSL),
             path="/api/chat"
         )
 
