@@ -1,18 +1,14 @@
 import logging
-import asyncio
 
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
-from homeassistant.helpers import area_registry, device_registry, entity_registry, label_registry, llm
 
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.homeassistant.device_extractor import DeviceExtractor
-
-from custom_components.ha_ragent.src.homeassistant.ragent import RAGent
 
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
@@ -26,8 +22,6 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_LLM_BACKEND_TYPE,    
 )
 
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.device import Device
 from custom_components.ha_ragent.src.utils import vector_db_to_class, embedding_backend_to_class, llm_backend_to_class
 
 _logger = logging.getLogger(__name__)

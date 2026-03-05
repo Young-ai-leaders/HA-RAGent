@@ -1,6 +1,10 @@
+import asyncio
+import time
 from typing import Any, Dict, List
 import logging
-from pymongo import AsyncMongoClient
+from pymongo import AsyncMongoClient, WriteConcern
+from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.asynchronous.collection import AsyncCollection
 
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
@@ -43,35 +47,26 @@ class MongoDbBackend(ABaseDbBackend):
     def _get_connection(self) -> AsyncMongoClient:
         return AsyncMongoClient(self.url)
         
-    def _get_database(self, connection: AsyncMongoClient):
+    def _get_database(self, connection: AsyncMongoClient) -> AsyncDatabase:
         return connection[self.db_name]
     
-    def _get_collection(self, connection: AsyncMongoClient, collection_name: str):
+    def _get_collection(self, connection: AsyncMongoClient, collection_name: str) -> AsyncCollection:
         database = self._get_database(connection)
         return database[collection_name]
 
-    async def _async_execute_and_verify(self, connection: AsyncMongoClient, command: Dict) -> bool:
-        result = await self._get_database(connection).command(command)
+    async def _async_execute_and_verify(self, database: AsyncDatabase, command: Dict) -> bool:
+        result = await database.command(command)
         return result.get("ok") == 1.0
 
     async def _async_database_exists(self, connection: AsyncMongoClient) -> bool:
         db_names = await connection.list_database_names()
         return self.db_name in db_names
     
-    async def _async_drop_collection(self, connection: AsyncMongoClient, collection_name: str) -> None:
-        try:
-            database = self._get_database(connection)
-            collection_names = await database.list_collection_names()
-            if collection_name in collection_names:
-                await database.drop_collection(collection_name)
-                _logger.info(
-                    "Collection %s dropped from database %s",
-                    collection_name,
-                    self.db_name,
-                )
-        except Exception as e:
-            _logger.error(f"Error dropping collection {collection_name}: {e}")
-            
+    async def _async_collection_exists(self, connection: AsyncMongoClient, collection_name: str) -> bool:
+        database = self._get_database(connection)
+        collection_names = await database.list_collection_names()
+        return collection_name in collection_names
+
     def _doc_to_device(self, doc: Dict[str, Any]) -> Device:
         return Device(
             id=doc.get("device_id"),
@@ -95,7 +90,7 @@ class MongoDbBackend(ABaseDbBackend):
             )
             connection = AsyncMongoClient(url)
             result = await connection.admin.command("ping")
-            return None if result.get("ok") == 1.0 else "Failed to connect to MongoDB"
+            return None if result.get("ok") == 1.0 else "Failed to connect to MongoDB."
         except Exception as ex:
             return str(ex)
         finally:
@@ -104,13 +99,18 @@ class MongoDbBackend(ABaseDbBackend):
     
     async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         conn = None
-        try:            
+        try:                        
             conn = self._get_connection()
-            await self._async_drop_collection(conn, collection_name)
+            database = self._get_database(conn)
+            temp_collection_name = f"{collection_name}_temp"
+            
+            result = await self._async_execute_and_verify(database, {"create": temp_collection_name})
+            if not result:
+                _logger.warning(f"Collection {collection_name} creation failed.")
+                return
 
-            await self._async_execute_and_verify(conn, {"create": collection_name})
-            await self._async_execute_and_verify(conn, {
-                "createSearchIndexes": collection_name,
+            result = await self._async_execute_and_verify(database, {
+                "createSearchIndexes": temp_collection_name,
                 "indexes": [
                     {
                         "name": "vector_search_index",
@@ -128,6 +128,24 @@ class MongoDbBackend(ABaseDbBackend):
                     }
                 ]
             })
+            if not result:
+                _logger.warning(f"Vector search index creation failed for collection {collection_name}")
+                return
+            
+            wc = WriteConcern(w="majority", wtimeout=5000)
+            result = await self._async_execute_and_verify(
+                conn.admin, 
+                {
+                    "renameCollection": f"{self.db_name}.{temp_collection_name}",
+                    "to": f"{self.db_name}.{collection_name}",
+                    "dropTarget": True,
+                    "writeConcern": wc.document
+                }
+            )
+            if not result:
+                _logger.warning(f"Renaming collection {temp_collection_name} to {collection_name} failed.")
+                return
+            
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting database: {e}", exc_info=True)
@@ -151,6 +169,8 @@ class MongoDbBackend(ABaseDbBackend):
         
     async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
         conn = None
+        devices = []
+
         try:
             conn = self._get_connection()
             collection = self._get_collection(conn, collection_name)
@@ -178,11 +198,12 @@ class MongoDbBackend(ABaseDbBackend):
 
             cursor = await collection.aggregate(pipeline)
             results = await cursor.to_list(length=top_k)
-
+            
             devices = [self._doc_to_device(doc) for doc in results]
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
-            return []
         finally:
             if conn:
                 await conn.close()
+                
+        return devices
