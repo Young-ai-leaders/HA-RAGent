@@ -224,7 +224,7 @@ def ui_schema_config_options(
     llm_backend_type: str, 
     subentry_type: str,
 ) -> dict:
-    default_prompt = RAGent.build_base_prompt_template(hass, language, DEFAULT_PROMPT)
+    default_prompt = RAGent.build_base_prompt_template(language, DEFAULT_PROMPT)
 
     llm_api_options = [SelectOptionDict(value="none", label="None")]
     try:

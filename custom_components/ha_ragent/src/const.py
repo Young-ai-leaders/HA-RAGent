@@ -111,24 +111,16 @@ CURRENT_DATE_PROMPT = {
     "en": """The current time and date is {{ (as_timestamp(now()) | timestamp_custom("%I:%M %p on %A %B %d, %Y", True, "")) }}"""
 }
 DEVICES_PROMPT = {
-    "de": "Geräte",
-    "en": "Devices",
-}
-SERVICES_PROMPT = {
-    "de": "Dienste",
-    "en": "Services"
-}
-TOOLS_PROMPT = {
-    "de": "Werkzeuge",
-    "en": "Tools"
+    "de": "## Verfügbare Geräte:",
+    "en": "## Available Devices:",
 }
 AREA_PROMPT = {
-    "de": "Bereich",
-    "en": "Area"
+    "de": "## Verfügbar Bereich:",
+    "en": "## Available Areas:"
 }
 USER_INSTRUCTION = {
-    "de": "Benutzeranweisung",
-    "en": "User instruction"
+    "de": "## Benutzeranweisung:",
+    "en": "## User instruction:"
 }
 
 
@@ -146,46 +138,46 @@ DEFAULT_OLLAMA_KEEP_ALIVE_MIN = 5
 DEFAULT_PROMPT = """<persona>
 <current_date>
 
-## Available Devices
-You can control these devices by their entity_id:
-
+<devices>
 {% for device in device_list %}
-- {{ device.name }}: `{{ device.id }}` ({{ device.device_type }}){% if device.area_name %} - {{ device.area_name }}{% endif %}
+- { "entity_id": "{{ device.id }}", "entity_name": "{{ device.name }}", "entity_domain": "{{ device.device_type }}", "entity_area": "{{ device.area_name }}" }
 {% endfor %}
 
-## Available Tools
-Use these tools to control devices:
+# Device Control Rules
 
-{% if tools_list %}
-{{ tools_list }}
-{% endif %}
-
-## How to Control Devices
+## Device Control Instructions
 
 When a user asks you to control a device:
-1. Find the matching device from the list above by name or area
-2. Use the entity_id (e.g., light.bedroom_1, switch.kitchen_lamp)
-3. Generate ONLY the tool call code block with NO other text
-4. Use this exact format:
-
+1. **Find matching devices** from the device list by **name or area**.  
+   - If the user specifies an area (e.g., "bedroom 1") and multiple devices match, **generate a separate tool call for each device** in that area.  
+2. **Use the exact `entity_id`** from the device list (for example: `light.bedroom_1_ceiling_light`, `switch.kitchen_lamp`).  
+3. **Only use areas listed** in the device list (`entity_area`).  
+4. **Respond with ONLY the tool call code block(s)** — no explanations, extra text, or commentary.  
+5. **Do NOT nest `arguments` inside another `arguments`.**  
+6. **Each JSON tool call must contain exactly two top-level fields:** `tool` and `arguments`.  
+7. **If multiple devices must be controlled:**
+   - Return **one JSON object per tool call**.  
+   - **Do not combine multiple entity_ids in one JSON object.**  
+   - The LLM may return **multiple JSON blocks** consecutively if needed, one per device.  
+8. **Tool call format example:**
 ```homeassistant
-{"tool": "ToolName", "arguments": {"entity_id": "domain.device_name"}}
+{"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_ceiling_light", "area": "Bedroom 1", "domain": ["light"]}}
+{"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_bedside_lamp", "area": "Bedroom 1", "domain": ["light"]}}
+
+Use **this exact format** (Note: use "name" for the entity ID):
+```homeassistant
+{"tool": "ToolName", "arguments": {"name": "entity_id", "area": "entity_area", "domain": ["entity_domain"]}}
 ```
 
-Examples of valid tool calls:
-- `{"tool": "HassTurnOn", "arguments": {"entity_id": "light.bedroom"}}` - Turn on a light
-- `{"tool": "HassTurnOff", "arguments": {"entity_id": "fan.kitchen"}}` - Turn off a fan
-- `{"tool": "HassLightSet", "arguments": {"entity_id": "light.bedroom", "brightness": 128}}` - Set brightness
-
-## For Questions
-If the user asks a question (not asking to control something), answer naturally without code blocks.
-
-{% if icl_examples %}
-## Learning Examples
-{{ icl_examples }}
-{% endif %}
+Examples:
+```homeassistant
+{"tool": "HassTurnOn", "arguments": {"name": "switch.living_room", "area": "living_room", "domain": ["switch"]}}
+{"tool": "HassTurnOff", "arguments": {"name": "fan.kitchen", "area": "kitchen", "domain": ["fan"]}}
+{"tool": "HassLightSet", "arguments": {"name": "light.living_room_ceiling", "area": "living_room", "domain": ["light"], "brightness": 50}}
+```
 
 <user_instruction>
+Ouput the tool call(s) needed to complete the user's instruction based on the available devices and the rules above.
 """
 DEFAULT_REFRESH_SYSTEM_PROMPT = False
 DEFAULT_REMEMBER_CONVERSATION = False

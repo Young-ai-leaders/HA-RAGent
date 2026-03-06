@@ -94,6 +94,9 @@ class OllamaBackend(ALlmBaseBackend):
             try:
                 tools = []
                 for tool in llm_api.tools:
+                    if tool.name == "GetLiveContext":
+                        continue
+
                     tool_def = {
                         "type": "function",
                         "function": {

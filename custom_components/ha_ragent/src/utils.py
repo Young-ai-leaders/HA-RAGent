@@ -1,5 +1,6 @@
 import socket
 import logging
+from typing import List, Any
 from .backends.database.base_backend import ABaseDbBackend
 from .backends.database.mongodb_backend import MongoDbBackend
 from .backends.embedder.base_backend import ABaseEmbedder
@@ -49,3 +50,5 @@ def llm_backend_to_class(backend_type: str) -> ALlmBaseBackend:
     }
     return backend_to_class.get(backend_type)
 
+def get_placeholder_translation(translations: List[str], selected_language: str) -> str:
+    return translations.get(selected_language, translations["en"])
