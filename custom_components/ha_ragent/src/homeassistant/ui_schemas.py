@@ -40,14 +40,11 @@ from ..const import (
     CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
-    CONF_OLLAMA_JSON_MODE,
     CONF_OLLAMA_KEEP_ALIVE_MIN,
     CONF_PROMPT,
-    CONF_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
     CONF_REMEMBER_NUM_INTERACTIONS,
-    CONF_REQUEST_TIMEOUT,
     CONF_SELECTED_LANGUAGE,
     CONF_TEMPERATURE,
     CONF_K_TOP,
@@ -73,13 +70,10 @@ from ..const import (
     DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-    DEFAULT_OLLAMA_JSON_MODE,
     DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
     DEFAULT_PROMPT,
-    DEFAULT_REFRESH_SYSTEM_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
-    DEFAULT_REQUEST_TIMEOUT,
     DEFAULT_SELECTED_LANGUAGE,
     DEFAULT_TEMPERATURE,
     DEFAULT_K_TOP,
@@ -226,7 +220,7 @@ def ui_schema_config_options(
 ) -> dict:
     default_prompt = RAGent.build_base_prompt_template(language, DEFAULT_PROMPT)
 
-    llm_api_options = [SelectOptionDict(value="none", label="None")]
+    llm_api_options = [SelectOptionDict(value="none", label="No Control")]
     try:
         for api in llm.async_get_apis(hass):
             api_label = getattr(api, "name", None) or api.id
@@ -261,11 +255,6 @@ def ui_schema_config_options(
             default=DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
         ): BooleanSelector(BooleanSelectorConfig()),
         vol.Required(
-            CONF_IN_CONTEXT_LEARNING_FILE,
-            description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_FILE)},
-            default=DEFAULT_IN_CONTEXT_LEARNING_FILE,
-        ): str,
-        vol.Required(
             CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
             description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES)},
             default=DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
@@ -275,52 +264,36 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_MAX_TOKENS)},
             default=DEFAULT_MAX_TOKENS,
         ): NumberSelector(NumberSelectorConfig(min=1, max=8192, step=1)),
-        vol.Required(
-            CONF_CONTEXT_LENGTH,
-            description={"suggested_value": options.get(CONF_CONTEXT_LENGTH)},
-            default=DEFAULT_CONTEXT_LENGTH,
-        ): NumberSelector(NumberSelectorConfig(min=512, max=1_048_576, step=512)),
-        vol.Required(
-            CONF_K_TOP,
-            description={"suggested_value": options.get(CONF_K_TOP)},
-            default=DEFAULT_K_TOP,
-        ): NumberSelector(NumberSelectorConfig(min=1, max=256, step=1)),
-        vol.Required(
-            CONF_P_TOP,
-            description={"suggested_value": options.get(CONF_P_TOP)},
-            default=DEFAULT_P_TOP,
-        ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
-         vol.Required(
-            CONF_P_MIN,
-            description={"suggested_value": options.get(CONF_P_MIN)},
-            default=DEFAULT_P_MIN,
-        ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
-        vol.Required(
-            CONF_P_TYPICAL,
-            description={"suggested_value": options.get(CONF_P_TYPICAL)},
-            default=DEFAULT_P_TYPICAL,
-        ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
-        vol.Required(
-            CONF_OLLAMA_JSON_MODE,
-            description={"suggested_value": options.get(CONF_OLLAMA_JSON_MODE)},
-            default=DEFAULT_OLLAMA_JSON_MODE,
-        ): BooleanSelector(BooleanSelectorConfig()),
-        vol.Required(
-            CONF_REQUEST_TIMEOUT,
-            description={"suggested_value": options.get(CONF_REQUEST_TIMEOUT)},
-            default=DEFAULT_REQUEST_TIMEOUT,
-        ): NumberSelector(NumberSelectorConfig(min=5, max=900, step=1, unit_of_measurement=UnitOfTime.SECONDS, mode=NumberSelectorMode.BOX)),
-        vol.Required(
-            CONF_OLLAMA_KEEP_ALIVE_MIN,
-            description={"suggested_value": options.get(CONF_OLLAMA_KEEP_ALIVE_MIN)},
-            default=DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
-        ): NumberSelector(NumberSelectorConfig(min=-1, max=1440, step=1, unit_of_measurement=UnitOfTime.MINUTES, mode=NumberSelectorMode.BOX)),
-
-        vol.Optional(
-            CONF_REFRESH_SYSTEM_PROMPT,
-            description={"suggested_value": options.get(CONF_REFRESH_SYSTEM_PROMPT, DEFAULT_REFRESH_SYSTEM_PROMPT)},
-            default=options.get(CONF_REFRESH_SYSTEM_PROMPT, DEFAULT_REFRESH_SYSTEM_PROMPT),
-        ): BooleanSelector(BooleanSelectorConfig()),
+        # vol.Required(
+        #     CONF_CONTEXT_LENGTH,
+        #     description={"suggested_value": options.get(CONF_CONTEXT_LENGTH)},
+        #     default=DEFAULT_CONTEXT_LENGTH,
+        # ): NumberSelector(NumberSelectorConfig(min=512, max=1_048_576, step=512)),
+        # vol.Required(
+        #     CONF_K_TOP,
+        #     description={"suggested_value": options.get(CONF_K_TOP)},
+        #     default=DEFAULT_K_TOP,
+        # ): NumberSelector(NumberSelectorConfig(min=1, max=256, step=1)),
+        # vol.Required(
+        #     CONF_P_TOP,
+        #     description={"suggested_value": options.get(CONF_P_TOP)},
+        #     default=DEFAULT_P_TOP,
+        # ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
+        #  vol.Required(
+        #     CONF_P_MIN,
+        #     description={"suggested_value": options.get(CONF_P_MIN)},
+        #     default=DEFAULT_P_MIN,
+        # ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
+        # vol.Required(
+        #     CONF_P_TYPICAL,
+        #     description={"suggested_value": options.get(CONF_P_TYPICAL)},
+        #     default=DEFAULT_P_TYPICAL,
+        # ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
+        # vol.Required(
+        #     CONF_OLLAMA_KEEP_ALIVE_MIN,
+        #     description={"suggested_value": options.get(CONF_OLLAMA_KEEP_ALIVE_MIN)},
+        #     default=DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
+        # ): NumberSelector(NumberSelectorConfig(min=-1, max=1440, step=1, unit_of_measurement=UnitOfTime.MINUTES, mode=NumberSelectorMode.BOX)),
         vol.Optional(
             CONF_REMEMBER_CONVERSATION,
             description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)},
@@ -358,7 +331,6 @@ def ui_schema_config_options(
         # tool calling/reasoning
         CONF_MAX_TOOL_CALL_ITERATIONS,
         # integration specific options
-        CONF_REFRESH_SYSTEM_PROMPT,
         CONF_REMEMBER_CONVERSATION,
         CONF_REMEMBER_NUM_INTERACTIONS,
         CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
@@ -367,7 +339,6 @@ def ui_schema_config_options(
         CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
         # backend specific options
         CONF_OLLAMA_KEEP_ALIVE_MIN,
-        CONF_OLLAMA_JSON_MODE,
     ]
 
     result = { k: v for k, v in sorted(result.items(), key=lambda item: global_order.index(item[0]) if item[0] in global_order else 9999) }

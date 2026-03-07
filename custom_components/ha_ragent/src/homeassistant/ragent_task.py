@@ -3,9 +3,12 @@ from __future__ import annotations
 from json import JSONDecodeError
 import logging
 
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.components import ai_task, conversation
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.util.json import json_loads
+from homeassistant.const import CONF_LLM_HASS_API
 
 from .ragent_entity import RAGentEntity
 from .ragent import RAGent
@@ -24,10 +27,13 @@ _logger = logging.getLogger(__name__)
 class RAGentTaskEntity(ai_task.AITaskEntity, RAGentEntity):
     """Ollama AI Task entity."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry) -> None:
         """Initialize Ollama AI Task entity."""
-        super().__init__(*args, **kwargs)
-        self._attr_supported_features = ai_task.AITaskEntityFeature.GENERATE_DATA
+        super().__init__(hass, entry, subentry)
+        if subentry.data.get(CONF_LLM_HASS_API):
+            self._attr_supported_features = (
+                conversation.ConversationEntityFeature.CONTROL
+            )
 
     async def _async_generate_data(
         self,

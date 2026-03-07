@@ -71,10 +71,10 @@ class MongoDbBackend(ABaseDbBackend):
         return Device(
             id=doc.get("device_id"),
             name=doc.get("name"),
-            device_type=doc.get("device_type"),
+            domain=doc.get("domain"),
             area_name=doc.get("area_name"),
-            capabilities=doc.get("capabilities", []),
             device_tags=doc.get("device_tags", []),
+            services=doc.get("services", [])
         )
 
     @staticmethod
@@ -99,18 +99,16 @@ class MongoDbBackend(ABaseDbBackend):
     
     async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         conn = None
-        try:                        
+        try:
             conn = self._get_connection()
             database = self._get_database(conn)
-            temp_collection_name = f"{collection_name}_temp"
-            
-            result = await self._async_execute_and_verify(database, {"create": temp_collection_name})
-            if not result:
-                _logger.warning(f"Collection {collection_name} creation failed.")
-                return
+
+            if await self._async_collection_exists(conn, collection_name):
+                await database.drop_collection(collection_name)
+            await database.create_collection(collection_name)
 
             result = await self._async_execute_and_verify(database, {
-                "createSearchIndexes": temp_collection_name,
+                "createSearchIndexes": collection_name,
                 "indexes": [
                     {
                         "name": "vector_search_index",
@@ -131,21 +129,7 @@ class MongoDbBackend(ABaseDbBackend):
             if not result:
                 _logger.warning(f"Vector search index creation failed for collection {collection_name}")
                 return
-            
-            wc = WriteConcern(w="majority", wtimeout=5000)
-            result = await self._async_execute_and_verify(
-                conn.admin, 
-                {
-                    "renameCollection": f"{self.db_name}.{temp_collection_name}",
-                    "to": f"{self.db_name}.{collection_name}",
-                    "dropTarget": True,
-                    "writeConcern": wc.document
-                }
-            )
-            if not result:
-                _logger.warning(f"Renaming collection {temp_collection_name} to {collection_name} failed.")
-                return
-            
+
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting database: {e}", exc_info=True)
@@ -188,10 +172,10 @@ class MongoDbBackend(ABaseDbBackend):
                     "$project": {
                         "device_id": 1,
                         "name": 1,
-                        "device_type": 1,
+                        "domain": 1,
                         "area_name": 1,
-                        "capabilities": 1,
-                        "device_tags": 1
+                        "device_tags": 1,
+                        "services": 1
                     }
                 }
             ]

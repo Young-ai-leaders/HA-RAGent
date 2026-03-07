@@ -7,7 +7,7 @@ from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
 from .backends.llm.ollama_backend import OllamaBackend
-from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA
+from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA, DEVICE_ATTRIBUTES_TO_EXCLUDE
 
 _logger = logging.getLogger(__name__)
 
@@ -52,3 +52,6 @@ def llm_backend_to_class(backend_type: str) -> ALlmBaseBackend:
 
 def get_placeholder_translation(translations: List[str], selected_language: str) -> str:
     return translations.get(selected_language, translations["en"])
+
+def clean_device_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in attributes.items() if k not in DEVICE_ATTRIBUTES_TO_EXCLUDE}

@@ -1,13 +1,28 @@
+import logging
 from ..models.device import Device
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry, label_registry, llm
 
+from ..const import (
+    DOMAIN
+)
+
+_logger = logging.getLogger(__name__)
+
 class DeviceExtractor:
     def __init__(self, hass: HomeAssistant):
         self.hass = hass
 
-    def get_embeddable_devices(self, exposed_entities: list[str]) -> list[Device]:
+    async def _async_get_services_for_domain(self, target_domain: str):
+        services = self.hass.services.async_services()
+
+        if target_domain not in services:
+            return []
+
+        return [service_name for service_name in services[target_domain]]
+
+    async def async_get_embeddable_devices(self, exposed_entities: list[str]) -> list[Device]:
         area_reg = area_registry.async_get(self.hass)
         device_reg = device_registry.async_get(self.hass)
         entity_reg = entity_registry.async_get(self.hass)
@@ -21,7 +36,7 @@ class DeviceExtractor:
                 continue
 
             friendly_name = state.attributes.get("friendly_name", entity_id)
-            device_type = entity_id.split(".")[0] if "." in entity_id else "unknown"
+            domain = entity_id.split(".")[0] if "." in entity_id else "unknown"
 
             area_name = ""
             entity_entry = entity_reg.async_get(entity_id)
@@ -42,13 +57,15 @@ class DeviceExtractor:
                     if label:
                         device_tags.append(label.name)
 
+            services = await self._async_get_services_for_domain(domain)
+
             devices.append(Device(
                 id=entity_id,
                 name=friendly_name,
-                device_type=device_type,
+                domain=[domain],
                 area_name=area_name,
                 device_tags=device_tags,
-                capabilities=[],
+                services=services
             ))
         
         return devices

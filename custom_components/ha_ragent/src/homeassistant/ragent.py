@@ -21,14 +21,12 @@ from ..models.device import Device
 
 from ..const import (
     CONF_PROMPT,
-    CONF_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_TEMPERATURE,
     CONF_MAX_TOKENS,
     DEFAULT_PROMPT,
-    DEFAULT_REFRESH_SYSTEM_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
@@ -38,12 +36,14 @@ from ..const import (
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
     DEVICES_PROMPT,
-    AREA_PROMPT,
-    USER_INSTRUCTION
+    AREAS_PROMPT,
+    USER_INSTRUCTION,
+    DEVICE_CONTROL_PROMPT
 )
 
 from ..utils import (
-    get_placeholder_translation
+    get_placeholder_translation,
+    clean_device_attributes
 )
 
 _logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             template = Template(template_str, self.hass)
             rendered = template.async_render({
                 "device_list": devices,
-                "tools_list": tools,
+                "area_list": list(set(device.area_name for device in devices if device.area_name)),
                 "icl_examples": icl_examples
             })
             return rendered
@@ -110,7 +110,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             _logger.error("Template rendering error: %s", e, exc_info=True)
             raise e
 
-    async def _async_get_message_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, retrieved_devices: List[Device]) -> List[conversation.Content]:
+    async def _async_get_message_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, devices: List[Device]) -> List[conversation.Content]:
         """Build the prompt for the LLM, including retrieved device context."""
         raw_prompt = self.runtime_options.get(CONF_PROMPT, DEFAULT_PROMPT)
         remember_conversation = self.runtime_options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)
@@ -118,7 +118,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         try:
             prompt_template = RAGent.build_base_prompt_template(user_input.language, raw_prompt)
-            system_prompt_content = await self._async_render_template(prompt_template, retrieved_devices, [], [])
+            system_prompt_content = await self._async_render_template(prompt_template, devices, [], [])
             system_prompt = conversation.SystemContent(content=system_prompt_content)
         except Exception as err:
             _logger.error("Error rendering prompt: %s", err, exc_info=True)
@@ -164,10 +164,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     json_str = content[first_brace:last_brace + 1]
                     tool_json = json.loads(json_str)
                     
+                    parameters = tool_json.get("arguments", {})
+                    if "device_class" in parameters:
+                        parameters["domain"] = parameters.pop("device_class")
+
                     parsed_calls.append({
                         "name": tool_json.get("tool"),
-                        "parameters": tool_json.get("arguments", {})
+                        "parameters": parameters
                     })
+
                     _logger.debug("Parsed tool call from homeassistant block: %s", tool_json)
             except (json.JSONDecodeError, AttributeError) as e:
                 _logger.warning("Failed to parse homeassistant block JSON: %s", e)
@@ -193,7 +198,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 elif isinstance(msg, conversation.ToolResultContent):
                     formatted_messages.append({"role": "TOOL", "content": "{" + f"name: {msg.tool_name}, result: {msg.tool_result}" + "}"})
 
-            last_generation_had_tool_calls = False
             tool_calls_in_iteration = []
             try:
                 _logger.info(f"Sending prompt to LLM (Iteration {idx + 1}/{max_tool_call_iterations}).")
@@ -221,10 +225,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 
                 if tool_calls_in_iteration and len(tool_calls_in_iteration) > 0:
                     _logger.info("Executing %d tool calls", len(tool_calls_in_iteration))
-                    last_generation_had_tool_calls = True
                     
                     for tool_call in tool_calls_in_iteration:
-                        _logger.error(tool_call)
                         tool_name = tool_call.get("name")
                         tool_args = tool_call.get("parameters", {})
                         _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
@@ -262,37 +264,26 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 tool_result=f"Tool '{tool_name}' failed with error: {str(tool_err)}"
                             )
                             message_history.append(tool_result_msg)
-                else:
-                    last_generation_had_tool_calls = False
                     
             except Exception as err:
-                _logger.exception(f"There was a problem talking to the backend: {err}")
+                _logger.error(f"There was a problem talking to the backend: {err}")
                 intent_response = intent.IntentResponse(language=user_input.language)
                 intent_response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, f"Sorry, there was a problem talking to the backend.")
                 return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-            if not last_generation_had_tool_calls:
+            if not llm_api or not tool_calls_in_iteration or len(tool_calls_in_iteration) == 0:
                 break
 
             if idx == max_tool_call_iterations - 1 and max_tool_call_iterations > 0 and tool_calls_in_iteration:
                 intent_response = intent.IntentResponse(language=user_input.language)
-                intent_response.async_set_error(
-                    intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
-                    f"Sorry, I ran out of attempts to handle your request",
-                )
-                return ConversationResult(
-                    response=intent_response, conversation_id=user_input.conversation_id
-                )
+                intent_response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, f"Sorry, I ran out of attempts to handle your request")
+                return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
             
-        # generate intent response to Home Assistant
         intent_response = intent.IntentResponse(language=user_input.language)
         if len(tool_calls) > 0:
             str_tools = [f"{input.tool_name}({', '.join(str(x) for x in input.tool_args.values())})" for input, response in tool_calls]
             tools_str = '\n'.join(str_tools)
-            intent_response.async_set_card(
-                title="Changes",
-                content=f"Ran the following tools:\n{tools_str}"
-            )
+            intent_response.async_set_card(title="Changes", content=f"Ran the following tools:\n{tools_str}")
 
         has_speech = False
         for i in range(1, len(message_history)):
@@ -306,9 +297,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_speech("I don't have anything to say right now")
             _logger.debug(message_history)
 
-        return ConversationResult(
-            response=intent_response, conversation_id=user_input.conversation_id
-        )
+        return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
         
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
@@ -320,7 +309,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             ):
                 llm_api: llm.APIInstance | None = None
 
-                if self.runtime_options.get(CONF_LLM_HASS_API):
+                if self.runtime_options.get(CONF_LLM_HASS_API) != "none":
                     try:
                         llm_api = await llm.async_get_api(
                             self.hass,
@@ -348,7 +337,17 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant devices.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                message_history = await self._async_get_message_history(chat_log, user_input, retrieved_devices)
+                device_list = []
+                for device in retrieved_devices:
+                    st = self.hass.states.get(device.id)
+                    if st is None:
+                        continue
+
+                    device.state = st.state
+                    device.attributes = clean_device_attributes(st.attributes)
+                    device_list.append(device)
+
+                message_history = await self._async_get_message_history(chat_log, user_input, device_list)
                 if not message_history:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Template rendering failed.")
@@ -356,7 +355,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 
                 return await self._async_prompt_model(llm_api, user_input, message_history)
         except Exception as err:
-            _logger.exception("Unexpected error in async_process: %s", err)
+            _logger.error("Unexpected error in async_process: %s", err)
             intent_response = intent.IntentResponse(language=user_input.language)
             intent_response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, f"Sorry, an unexpected error occurred.")
             return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
@@ -367,7 +366,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         prompt_template = prompt_template.replace("<persona>", get_placeholder_translation(PERSONA_PROMPTS, selected_language))
         prompt_template = prompt_template.replace("<current_date>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<devices>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<area>", get_placeholder_translation(AREA_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<areas>", get_placeholder_translation(AREAS_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<user_instruction>", get_placeholder_translation(USER_INSTRUCTION, selected_language))
         
         return prompt_template

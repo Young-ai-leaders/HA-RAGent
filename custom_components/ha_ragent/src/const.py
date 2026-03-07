@@ -85,15 +85,12 @@ CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES = "rag_in_context_learning_num_examples"
 CONF_MAX_TOKENS = "rag_max_tokens"
 CONF_MAX_TOOL_CALL_ITERATIONS = "rag_max_tool_call_iterations"
 
-CONF_OLLAMA_JSON_MODE = "rag_ollama_json_mode"
 CONF_OLLAMA_KEEP_ALIVE_MIN = "rag_ollama_keep_alive_min"
 CONF_PROMPT = "rag_prompt"
-CONF_REFRESH_SYSTEM_PROMPT = "rag_refresh_system_prompt"
 
 CONF_REMEMBER_CONVERSATION = "rag_remember_conversation"
 CONF_REMEMBER_CONVERSATION_TIME_MINUTES = "rag_remember_conversation_time_minutes"
 CONF_REMEMBER_NUM_INTERACTIONS = "rag_remember_num_interactions"
-CONF_REQUEST_TIMEOUT = "rag_request_timeout"
 CONF_SELECTED_LANGUAGE = "rag_selected_language"
 
 CONF_TEMPERATURE = "rag_temperature"
@@ -114,15 +111,51 @@ DEVICES_PROMPT = {
     "de": "## Verfügbare Geräte:",
     "en": "## Available Devices:",
 }
-AREA_PROMPT = {
+AREAS_PROMPT = {
     "de": "## Verfügbar Bereich:",
     "en": "## Available Areas:"
+}
+DEVICE_CONTROL_PROMPT = {
+    "de": """## Geräte Steuerungsanweisungen:
+Wenn du ein Gerät steuerst folge diesen Anweisungen:
+1. Geräteauflösung
+   - Suchkriterien: Identifiziere Zielgeräte anhand des exakten Namens oder des angegebenen Bereichs.
+   - Bereichserweiterung: Wenn ein Benutzer einen Bereich anspricht (z. B. „Wohnzimmer“), musst du jedes Gerät in diesem Bereich identifizieren und für jedes einzelne einen eigenen Tool-Aufruf erzeugen.
+   - ID-Zuordnung: Verwende ausschließlich die **entity_id** (z. B. `light.desk_lamp`), die in der Geräteliste angegeben ist.
+2. **Struktur der Tool-Aufrufe**
+   - Atomarität: Jede Geräteaktion muss ein eigener, unabhängiger Tool-Aufruf sein.
+   - Kein Batching: Kombiniere niemals mehrere **entity_ids** in einem einzigen JSON-Objekt.
+   - Parameterbereinigung: Nimm die **device_class** nicht in den Tool-Aufruf auf. Verwende nur die erforderlichen Argumente (**name**, **area**, **domain**).
+3. **Strenges Ausgabeformat**
+   - Gib **ein gültiges JSON-Objekt pro Tool-Aufruf** oder eine **Textantwort für den Benutzer** zurück.
+   - Halte ein **1:1-Verhältnis** zwischen der Anzahl der Zielgeräte und der Anzahl der erzeugten Tool-Aufrufe ein.""",
+
+    "en": """## Device Control Instructions:
+When controlling a device follow these steps:
+1. Device Resolution
+    - Search Criteria: Identify target devices using the exact name or the specified area.
+    - Area Expansion: If a user targets an area (e.g., "Living Room"), you must identify every device within that area and generate a dedicated tool call for each one.
+    - ID Mapping: Use only the entity_id (e.g., light.desk_lamp) provided in the device list.
+2. Tool Call Structure
+    - Atomicity: Every device action must be its own independent tool call.
+    - No Batching: Never combine multiple entity_ids into a single JSON object.
+    - Parameter Stripping: Do not include the device_class in the tool call. Only use the required arguments (name, area, domain).
+    - To execute multiple tool calls in one response use a format like this
+        ```homeassistant {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_ceiling_light", "area": "Bedroom 1", "domain": ["light"]}} ```
+        ```homeassistant {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_bedside_lamp", "area": "Bedroom 1", "domain": ["light"]}} ```
+3. Strict Output Format
+    3.1 Answering with tool calls:
+        - Return ```homeassistant <JSON_OBJECT>``` for each tool call, where JSON_OBJECT contains the tool name and arguments.
+        - When the task is completed and no further tool calls are needed, return a clear text response to the user indicating that the action has been completed.
+    3.2 Answering with text:
+        - If the user's request cannot be fulfilled with tool calls alone, provide a clear and concise text response to the user."""
 }
 USER_INSTRUCTION = {
     "de": "## Benutzeranweisung:",
     "en": "## User instruction:"
 }
 
+DEVICE_ATTRIBUTES_TO_EXCLUDE = ["frindly_name", "persistent", "supported_features"]
 
 DEFAULT_CONTEXT_LENGTH = 4096
 
@@ -140,49 +173,21 @@ DEFAULT_PROMPT = """<persona>
 
 <devices>
 {% for device in device_list %}
-- { "entity_id": "{{ device.id }}", "entity_name": "{{ device.name }}", "entity_domain": "{{ device.device_type }}", "entity_area": "{{ device.area_name }}" }
+- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "services": {{ device.services | tojson }}  "device_class": ["{{ device.domain | tojson }}"], "state": {{ device.state }}, "attributes": {{ device.attributes | tojson }} }
 {% endfor %}
 
-# Device Control Rules
+<areas>
+{% for area in area_list %}
+- "{{ area }}"
+{% endfor %}
 
-## Device Control Instructions
-
-When a user asks you to control a device:
-1. **Find matching devices** from the device list by **name or area**.  
-   - If the user specifies an area (e.g., "bedroom 1") and multiple devices match, **generate a separate tool call for each device** in that area.  
-2. **Use the exact `entity_id`** from the device list (for example: `light.bedroom_1_ceiling_light`, `switch.kitchen_lamp`).  
-3. **Only use areas listed** in the device list (`entity_area`).  
-4. **Respond with ONLY the tool call code block(s)** — no explanations, extra text, or commentary.  
-5. **Do NOT nest `arguments` inside another `arguments`.**  
-6. **Each JSON tool call must contain exactly two top-level fields:** `tool` and `arguments`.  
-7. **If multiple devices must be controlled:**
-   - Return **one JSON object per tool call**.  
-   - **Do not combine multiple entity_ids in one JSON object.**  
-   - The LLM may return **multiple JSON blocks** consecutively if needed, one per device.  
-8. **Tool call format example:**
-```homeassistant
-{"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_ceiling_light", "area": "Bedroom 1", "domain": ["light"]}}
-{"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_bedside_lamp", "area": "Bedroom 1", "domain": ["light"]}}
-
-Use **this exact format** (Note: use "name" for the entity ID):
-```homeassistant
-{"tool": "ToolName", "arguments": {"name": "entity_id", "area": "entity_area", "domain": ["entity_domain"]}}
-```
-
-Examples:
-```homeassistant
-{"tool": "HassTurnOn", "arguments": {"name": "switch.living_room", "area": "living_room", "domain": ["switch"]}}
-{"tool": "HassTurnOff", "arguments": {"name": "fan.kitchen", "area": "kitchen", "domain": ["fan"]}}
-{"tool": "HassLightSet", "arguments": {"name": "light.living_room_ceiling", "area": "living_room", "domain": ["light"], "brightness": 50}}
-```
+<device_control_prompt>
 
 <user_instruction>
-Ouput the tool call(s) needed to complete the user's instruction based on the available devices and the rules above.
 """
-DEFAULT_REFRESH_SYSTEM_PROMPT = False
+
 DEFAULT_REMEMBER_CONVERSATION = False
 DEFAULT_REMEMBER_NUM_INTERACTIONS = 10
-DEFAULT_REQUEST_TIMEOUT = 60
 DEFAULT_SELECTED_LANGUAGE = "en"
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_K_TOP = 40
@@ -201,8 +206,6 @@ DEFAULT_OPTIONS = {
     CONF_P_MIN: DEFAULT_P_MIN,
     CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
     CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
-    CONF_REQUEST_TIMEOUT: DEFAULT_REQUEST_TIMEOUT,
-    CONF_REFRESH_SYSTEM_PROMPT: DEFAULT_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
     CONF_IN_CONTEXT_LEARNING_ENABLED: DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
@@ -210,5 +213,4 @@ DEFAULT_OPTIONS = {
     CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES: DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     CONF_CONTEXT_LENGTH: DEFAULT_CONTEXT_LENGTH,
     CONF_OLLAMA_KEEP_ALIVE_MIN: DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
-    CONF_OLLAMA_JSON_MODE: DEFAULT_OLLAMA_JSON_MODE
 }

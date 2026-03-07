@@ -71,7 +71,7 @@ class OllamaBackend(ALlmBaseBackend):
 
         return [x["name"] for x in models_result["models"] if "embed" not in x["name"].lower()]
 
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], llm_api = None) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools = None) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self.hass)
         url = ALlmBaseBackend._format_url(
@@ -89,38 +89,7 @@ class OllamaBackend(ALlmBaseBackend):
             "num_predict": config_subentry[CONF_MAX_TOKENS],
         }
 
-        # Add tools in OpenAI format if LLM API is available
-        if llm_api and HAS_VOLUPTUOUS_OPENAPI:
-            try:
-                tools = []
-                for tool in llm_api.tools:
-                    if tool.name == "GetLiveContext":
-                        continue
 
-                    tool_def = {
-                        "type": "function",
-                        "function": {
-                            "name": tool.name,
-                            "description": tool.description or "",
-                        }
-                    }
-                    # Add parameters if available
-                    if hasattr(tool, 'parameters') and tool.parameters:
-                        try:
-                            tool_def["function"]["parameters"] = convert(tool.parameters, custom_serializer=llm_api.custom_serializer)
-                        except Exception as param_err:
-                            _logger.debug("Could not convert parameters for tool %s: %s", tool.name, param_err)
-                            tool_def["function"]["parameters"] = {}
-                    else:
-                        tool_def["function"]["parameters"] = {}
-                    
-                    tools.append(tool_def)
-                
-                if tools:
-                    payload["tools"] = tools
-                    _logger.info("Added %d tools to Ollama request", len(tools))
-            except Exception as err:
-                _logger.warning("Failed to format tools for Ollama: %s", err)
         
         try:
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=None, sock_connect=30)) as response:

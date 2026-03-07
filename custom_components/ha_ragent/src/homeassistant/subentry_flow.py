@@ -25,9 +25,7 @@ from ..const import (
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
-    CONF_REFRESH_SYSTEM_PROMPT,
     CONF_REMEMBER_NUM_INTERACTIONS,
-    CONF_REQUEST_TIMEOUT,
     CONF_SELECTED_LANGUAGE,
 
     DEFAULT_IN_CONTEXT_LEARNING_FILE,
@@ -124,9 +122,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
             )
 
         if user_input:
-            if not user_input.get(CONF_REFRESH_SYSTEM_PROMPT):
-                errors["base"] = "sys_refresh_caching_enabled"
-
             if user_input.get(CONF_IN_CONTEXT_LEARNING_ENABLED):
                 filename = user_input.get(CONF_IN_CONTEXT_LEARNING_FILE, DEFAULT_IN_CONTEXT_LEARNING_FILE)
                 if not os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", filename)):
@@ -138,7 +133,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
                 CONF_MAX_TOOL_CALL_ITERATIONS,
                 CONF_CONTEXT_LENGTH,
                 CONF_MAX_TOKENS,
-                CONF_REQUEST_TIMEOUT,
              ):
                 if key in user_input:
                     user_input[key] = try_parse_int(user_input[key], user_input.get(key) or 0)
@@ -147,9 +141,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
                 try:
                     schema(user_input)
                     self.model_config.update(user_input)
-
-                    if self.model_config.get(CONF_LLM_HASS_API) == "none":
-                        self.model_config.pop(CONF_LLM_HASS_API, None)
                     
                     return await self.async_step_finish()
                 except Exception:

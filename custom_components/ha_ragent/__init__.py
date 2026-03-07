@@ -67,7 +67,7 @@ async def _async_embed_all_exposed_devices(hass: HomeAssistant, entry: ConfigEnt
                 await entry.vector_db_backend.async_reset_database(dict(subentry.data), collection_name, embedding_len)
                 _logger.debug(f"Collection reset done. Starting embedding job for subentry {subentry_id} (collection: {collection_name}).")
                 
-                device_list = DeviceExtractor(hass).get_embeddable_devices(exposed_entities)
+                device_list = await DeviceExtractor(hass).async_get_embeddable_devices(exposed_entities)
                 device_embeddings = await entry.embedder_backend.async_embed_devices(dict(subentry.data), device_list)
 
                 if device_embeddings:
