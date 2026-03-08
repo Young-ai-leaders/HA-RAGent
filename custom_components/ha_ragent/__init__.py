@@ -1,10 +1,10 @@
 import logging
 
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
+from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
@@ -26,21 +26,21 @@ from custom_components.ha_ragent.src.utils import vector_db_to_class, embedding_
 
 _logger = logging.getLogger(__name__)
 
-PLATFORMS = (Platform.CONVERSATION, Platform.AI_TASK)
+PLATFORMS = (Platform.CONVERSATION,)
 
-def _create_vector_db_client(hass: HomeAssistant, vector_db_backend_type: str, entry: ConfigEntry) -> ABaseDbBackend:
+def _create_vector_db_client(hass: HomeAssistant, vector_db_backend_type: str, entry: RAGentConfigEntry) -> ABaseDbBackend:
     _logger.debug("Creating Vector DB client of type %s", vector_db_backend_type)
     return vector_db_to_class(vector_db_backend_type)(hass, dict(entry.options))
 
-def _create_embedding_client(hass: HomeAssistant, embedding_backend_type: str, entry: ConfigEntry) -> ABaseEmbedder:
+def _create_embedding_client(hass: HomeAssistant, embedding_backend_type: str, entry: RAGentConfigEntry) -> ABaseEmbedder:
     _logger.debug("Creating Embedding client of type %s", embedding_backend_type)
     return embedding_backend_to_class(embedding_backend_type)(hass, dict(entry.options))
 
-def _create_llm_client(hass: HomeAssistant, llm_backend_type: str, entry: ConfigEntry) -> ALlmBaseBackend:
+def _create_llm_client(hass: HomeAssistant, llm_backend_type: str, entry: RAGentConfigEntry) -> ALlmBaseBackend:
     _logger.debug("Creating LLM client of type %s", llm_backend_type)
     return llm_backend_to_class(llm_backend_type)(hass, dict(entry.options))
 
-async def _async_embed_all_exposed_devices(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_embed_all_exposed_devices(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
     _logger.info("===== DEVICE EMBEDDING FUNCTION CALLED =====")
     try:
         _logger.debug("Device embedding function starting, checking for subentries")
@@ -72,11 +72,7 @@ async def _async_embed_all_exposed_devices(hass: HomeAssistant, entry: ConfigEnt
 
                 if device_embeddings:
                     _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
-                    await entry.vector_db_backend.async_save_device_embeddings(
-                        dict(subentry.data),
-                        collection_name,
-                        device_embeddings,
-                    )
+                    await entry.vector_db_backend.async_save_device_embeddings(dict(subentry.data), collection_name, device_embeddings)
                     _logger.debug(f"Finished embedding all exposed devices for subentry {subentry_id} ({len(device_embeddings)} devices)")
                 else:
                     _logger.warning("No devices to embed for subentry %s", subentry_id)
@@ -88,10 +84,10 @@ async def _async_embed_all_exposed_devices(hass: HomeAssistant, entry: ConfigEnt
     finally:
         _logger.info("===== DEVICE EMBEDDING FUNCTION FINISHED =====")
 
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     """Set up HA Ragent from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry
@@ -117,10 +113,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
     
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: RAGentConfigEntry) -> bool:
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
-    
+
+    await entry.vector_db_backend.async_cleanup_database()
     hass.data[DOMAIN].pop(entry.entry_id)
     return True
 

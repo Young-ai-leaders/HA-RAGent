@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 import voluptuous as vol
+from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_LLM_HASS_API, UnitOfTime
@@ -170,7 +171,7 @@ def ui_schema_backend_connections(
             vol.Optional(CONF_VECTOR_DB_USERNAME, default=vector_db_username if vector_db_username else ""): str,
             vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
             vol.Required(CONF_VECTOR_DB_HOST, default=vector_db_host if vector_db_host else ""): str,
-            vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else DEFAULT_VECTOR_DB_NAME): str,
+            vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else f"{DEFAULT_VECTOR_DB_NAME}_{uuid4()}"): str,
             vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else default_port_mongodb): int,
             vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
 

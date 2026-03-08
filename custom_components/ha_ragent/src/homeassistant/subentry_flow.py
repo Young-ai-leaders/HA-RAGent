@@ -5,12 +5,12 @@ import voluptuous as vol
 
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.config_entries import (
-    ConfigEntry,
     ConfigEntryState,
     ConfigSubentryFlow,
     SubentryFlowResult
 )
 
+from .ragent_config_entry import RAGentConfigEntry
 from ..backends.embedder.base_backend import ABaseEmbedder
 from ..backends.llm.base_backend import ALlmBaseBackend
 
@@ -60,12 +60,12 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
 
     @property
     def _embedding_client(self) -> ABaseEmbedder:
-        entry: ConfigEntry = self._get_entry()
+        entry: RAGentConfigEntry = self._get_entry()
         return entry.embedder_backend
 
     @property
     def _llm_client(self) -> ALlmBaseBackend:
-        entry: ConfigEntry = self._get_entry()
+        entry: RAGentConfigEntry = self._get_entry()
         return entry.llm_backend
 
     async def async_step_pick_model(

@@ -6,10 +6,12 @@ from typing import List, Any, Optional, Dict, Literal
 from homeassistant.components import conversation
 from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import MATCH_ALL, CONF_LLM_HASS_API
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import  device_registry, entity
+
+from .ragent_config_entry import RAGentConfigEntry
 
 from ..const import (
     DOMAIN,
@@ -26,7 +28,7 @@ class RAGentEntity(entity.Entity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: RAGentConfigEntry, subentry: ConfigSubentry) -> None:
         self._attr_name = subentry.title
         self._attr_unique_id = subentry.subentry_id
         self._attr_device_info = device_registry.DeviceInfo(
@@ -43,14 +45,13 @@ class RAGentEntity(entity.Entity):
         # create update handler
         self.async_on_remove(entry.add_update_listener(self._async_update_options))
 
-    async def _async_update_options(self, hass: HomeAssistant, config_entry: ConfigEntry) -> None:
+    async def _async_update_options(self, hass: HomeAssistant, config_entry: RAGentConfigEntry) -> None:
         for subentry in config_entry.subentries.values():
-            # handle subentry updates, but only invoke for this entity
             if subentry.subentry_id == self.subentry_id:
                 hass.config_entries.async_update_entry(config_entry, options=self.runtime_options)
 
     @property
-    def entry(self) -> ConfigEntry:
+    def entry(self) -> RAGentConfigEntry:
         try:
             return self.hass.data[DOMAIN][self.entry_id]
         except KeyError as ex:

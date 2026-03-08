@@ -9,10 +9,11 @@ from homeassistant.config_entries import (
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
-    ConfigEntry,
     ConfigSubentryFlow
 )
 from homeassistant.helpers import llm
+
+from .src.homeassistant.ragent_config_entry import RAGentConfigEntry
 
 from .src.const import (
     CONF_VECTOR_DB_BACKEND_TYPE,
@@ -175,13 +176,13 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         )
     
     @classmethod
-    def async_supports_options_flow(cls, config_entry: ConfigEntry) -> bool:
+    def async_supports_options_flow(cls, config_entry: RAGentConfigEntry) -> bool:
         return True
 
     @staticmethod
-    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+    def async_get_options_flow(config_entry: RAGentConfigEntry) -> OptionsFlow:
         return RagentOptionsFlow()
     
     @classmethod
-    def async_get_supported_subentry_types(cls, config_entry: ConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
+    def async_get_supported_subentry_types(cls, config_entry: RAGentConfigEntry) -> dict[str, type[ConfigSubentryFlow]]:
         return { "ragent": RagentSubentryFlowHandler }

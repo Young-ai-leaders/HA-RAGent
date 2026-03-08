@@ -1,10 +1,10 @@
 import aiohttp
 import json
 import logging
-from typing import Any, Dict, List, AsyncGenerator, Optional
+from typing import Any, Dict, List, AsyncGenerator
 
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
+from homeassistant.helpers.llm import APIInstance
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 try:
@@ -71,7 +71,7 @@ class OllamaBackend(ALlmBaseBackend):
 
         return [x["name"] for x in models_result["models"] if "embed" not in x["name"].lower()]
 
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools = None) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[Dict]) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self.hass)
         url = ALlmBaseBackend._format_url(
@@ -89,7 +89,9 @@ class OllamaBackend(ALlmBaseBackend):
             "num_predict": config_subentry[CONF_MAX_TOKENS],
         }
 
-
+        if tools and len(tools) > 0:
+            payload["tools"] = tools
+            _logger.info("Added %d tools to Ollama request", len(tools))
         
         try:
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=None, sock_connect=30)) as response:

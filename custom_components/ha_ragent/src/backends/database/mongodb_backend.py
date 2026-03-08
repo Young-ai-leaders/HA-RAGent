@@ -126,6 +126,18 @@ class MongoDbBackend(ABaseDbBackend):
         finally:
             if conn:
                 await conn.close()
+
+    async def async_cleanup_database(self) -> None:
+        conn = None
+        try:
+            conn = self._get_connection()
+            conn.drop_database(self.db_name)
+            _logger.info(f"Database cleanup for {self.db_name} successful.")
+        except Exception as e:
+            _logger.error(f"Error cleaning up database: {e}", exc_info=True)
+        finally:
+            if conn:
+                await conn.close()
     
     async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         conn = None

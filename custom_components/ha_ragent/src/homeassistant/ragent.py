@@ -3,20 +3,28 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any, List, Tuple
-from .ragent_entity import RAGentEntity
+from typing import Any, List, Tuple, Dict
+
+try:
+    from voluptuous_openapi import convert
+    HAS_VOLUPTUOUS_OPENAPI = True
+except ImportError:
+    HAS_VOLUPTUOUS_OPENAPI = False
+    convert = None
 
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
 from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.components import conversation
-from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
 from homeassistant.exceptions import TemplateError, HomeAssistantError
 from homeassistant.helpers import chat_session, intent, llm
 from homeassistant.helpers.template import Template
-from homeassistant.helpers.llm import ToolInput
+from homeassistant.helpers.llm import ToolInput, APIInstance
 
+from .ragent_entity import RAGentEntity
+from .ragent_config_entry import RAGentConfigEntry
 from ..models.device import Device
 
 from ..const import (
@@ -50,7 +58,7 @@ _logger = logging.getLogger(__name__)
 
 class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
     """RAG-based conversation agent for Home Assistant."""
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, subentry: ConfigSubentry) -> None:
+    def __init__(self, hass: HomeAssistant, entry: RAGentConfigEntry, subentry: ConfigSubentry) -> None:
         super().__init__(hass, entry, subentry)
 
     async def async_added_to_hass(self) -> None:
@@ -150,12 +158,45 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         
         return message_history
 
+    def _get_tool_list(self, llm_api: APIInstance) -> List[Dict]:
+        if not llm_api or not HAS_VOLUPTUOUS_OPENAPI:
+            return []
+
+        tools = []
+        try:
+            for tool in llm_api.tools:
+                if tool.name == "GetLiveContext":
+                    continue
+
+                tool_def = {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description or "",
+                    }
+                }
+
+                if hasattr(tool, 'parameters') and tool.parameters:
+                    try:
+                        tool_def["function"]["parameters"] = convert(tool.parameters, custom_serializer=llm_api.custom_serializer)
+                    except Exception as param_err:
+                        _logger.debug("Could not convert parameters for tool %s: %s", tool.name, param_err)
+                        tool_def["function"]["parameters"] = {}
+                else:
+                    tool_def["function"]["parameters"] = {}
+                
+                tools.append(tool_def)
+        except Exception as err:
+            _logger.warning("Failed to format tools for Ollama: %s", err)
+
+        return tools
+
     def _parse_tool_calls(self, response_text: str) -> List[dict]:
         """Parse tool calls from LLM response."""
         parsed_calls = []
         
         _logger.debug("Parsing tool calls from LLM response.")
-        homeassistant_pattern = r'<homeassistant>\s*(.*?)\s*</homeassistant>'
+        homeassistant_pattern = r'```homeassistant\s*(.*?)\s*```'
         for match in re.finditer(homeassistant_pattern, response_text, re.DOTALL):
             try:
                 content = match.group(1).strip()
@@ -210,7 +251,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 _logger.debug("Full prompt sent to the LLM:\n%s", "\n".join(full_prompt))
                 
                 assistant_content = ""
-                async for chunk in self.entry.llm_backend.async_send_chat_request(dict(self.subentry.data), formatted_messages, llm_api):
+
+                tool_list = self._get_tool_list(llm_api)
+                async for chunk in self.entry.llm_backend.async_send_chat_request(dict(self.subentry.data), formatted_messages, tool_list):
                     assistant_content += chunk
 
                 _logger.debug("LLM response: %s", assistant_content)
@@ -232,9 +275,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                         tool_args = tool_call.get("parameters", {})
                         _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
                         
+                        tool_input = ToolInput(tool_name=tool_name, tool_args=tool_args)
                         try:
                             if llm_api:
-                                tool_input = ToolInput(tool_name=tool_name, tool_args=tool_args)
                                 tool_result = await llm_api.async_call_tool(tool_input)
                                 _logger.debug(f"Tool result: {tool_result}.")
                                 

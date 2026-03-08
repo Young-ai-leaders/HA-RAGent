@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, AsyncGenerator
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.llm import APIInstance
 
 class ALlmBaseBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -25,5 +26,5 @@ class ALlmBaseBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], llm_api = None) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[Dict]) -> AsyncGenerator[str, None]:
         raise NotImplementedError()

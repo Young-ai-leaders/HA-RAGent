@@ -24,6 +24,10 @@ class ABaseDbBackend(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    async def async_cleanup_database(self) -> None:
+        raise NotImplementedError()
+
+    @abstractmethod
     async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         raise NotImplementedError()
     
