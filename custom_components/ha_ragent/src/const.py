@@ -141,14 +141,17 @@ When controlling a device follow these steps:
     - No Batching: Never combine multiple entity_ids into a single JSON object.
     - Parameter Stripping: Do not include the device_class in the tool call. Only use the required arguments (name, area, domain).
     - To execute multiple tool calls in one response use a format like this
-        ```homeassistant {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_ceiling_light", "area": "Bedroom 1", "domain": ["light"]}} ```
-        ```homeassistant {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_bedside_lamp", "area": "Bedroom 1", "domain": ["light"]}} ```
+        <homeassistant> {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_ceiling_light", "area": "Bedroom 1", "domain": ["light"]}} </homeassistant>
+        <homeassistant> {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_bedside_lamp", "area": "Bedroom 1", "domain": ["light"]}} </homeassistant>
 3. Strict Output Format
     3.1 Answering with tool calls:
-        - Return ```homeassistant <JSON_OBJECT>``` for each tool call, where JSON_OBJECT contains the tool name and arguments.
+        - Return a valid JSON object for each tool call.
+        - Encapsulate each JSON object within <homeassistant> </homeassistant> tags to clearly delineate tool calls from text responses.
         - When the task is completed and no further tool calls are needed, return a clear text response to the user indicating that the action has been completed.
     3.2 Answering with text:
-        - If the user's request cannot be fulfilled with tool calls alone, provide a clear and concise text response to the user."""
+        - If the user's request cannot be fulfilled with tool calls alone, provide a clear and concise text response to the user.
+        - Always use the friendly_name attribute when referring to devices in text responses, never the entity_id.
+        - Do not include the room if it is part of the device's friendly name to avoid redundancy (e.g., "Living Room Lamp" instead of "Living Room Living Room Lamp")."""
 }
 USER_INSTRUCTION = {
     "de": "## Benutzeranweisung:",

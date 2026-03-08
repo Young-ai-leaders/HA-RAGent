@@ -249,16 +249,16 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)},
             default=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
         ): NumberSelector(NumberSelectorConfig(min=0.0, max=2.0, step=0.05, mode=NumberSelectorMode.BOX)),
-        vol.Required(
-            CONF_IN_CONTEXT_LEARNING_ENABLED,
-            description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_ENABLED)},
-            default=DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
-        ): BooleanSelector(BooleanSelectorConfig()),
-        vol.Required(
-            CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-            description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES)},
-            default=DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-        ): NumberSelector(NumberSelectorConfig(min=1, max=16, step=1)),
+        # vol.Required(
+        #     CONF_IN_CONTEXT_LEARNING_ENABLED,
+        #     description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_ENABLED)},
+        #     default=DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
+        # ): BooleanSelector(BooleanSelectorConfig()),
+        # vol.Required(
+        #     CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
+        #     description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES)},
+        #     default=DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
+        # ): NumberSelector(NumberSelectorConfig(min=1, max=16, step=1)),
         vol.Required(
             CONF_MAX_TOKENS,
             description={"suggested_value": options.get(CONF_MAX_TOKENS)},
@@ -294,21 +294,21 @@ def ui_schema_config_options(
         #     description={"suggested_value": options.get(CONF_OLLAMA_KEEP_ALIVE_MIN)},
         #     default=DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
         # ): NumberSelector(NumberSelectorConfig(min=-1, max=1440, step=1, unit_of_measurement=UnitOfTime.MINUTES, mode=NumberSelectorMode.BOX)),
-        vol.Optional(
-            CONF_REMEMBER_CONVERSATION,
-            description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)},
-            default=options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION),
-        ): BooleanSelector(BooleanSelectorConfig()),
-        vol.Optional(
-            CONF_REMEMBER_NUM_INTERACTIONS,
-            description={"suggested_value": options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS)},
-            default=options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS),
-        ): NumberSelector(NumberSelectorConfig(min=0, max=100, mode=NumberSelectorMode.BOX)),
-        vol.Optional(
-            CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
-            description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION)},
-            default=options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION),
-        ): NumberSelector(NumberSelectorConfig(min=0, max=1440, mode=NumberSelectorMode.BOX)),
+        # vol.Optional(
+        #     CONF_REMEMBER_CONVERSATION,
+        #     description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)},
+        #     default=options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION),
+        # ): BooleanSelector(BooleanSelectorConfig()),
+        # vol.Optional(
+        #     CONF_REMEMBER_NUM_INTERACTIONS,
+        #     description={"suggested_value": options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS)},
+        #     default=options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS),
+        # ): NumberSelector(NumberSelectorConfig(min=0, max=100, mode=NumberSelectorMode.BOX)),
+        # vol.Optional(
+        #     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
+        #     description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION)},
+        #     default=options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION),
+        # ): NumberSelector(NumberSelectorConfig(min=0, max=1440, mode=NumberSelectorMode.BOX)),
         vol.Required(
             CONF_MAX_TOOL_CALL_ITERATIONS,
             description={"suggested_value": options.get(CONF_MAX_TOOL_CALL_ITERATIONS)},

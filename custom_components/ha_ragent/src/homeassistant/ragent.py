@@ -154,7 +154,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         """Parse tool calls from LLM response."""
         parsed_calls = []
         
-        homeassistant_pattern = r'```homeassistant\s*\n(.*?)\n```'
+        _logger.debug("Parsing tool calls from LLM response.")
+        homeassistant_pattern = r'<homeassistant>\s*(.*?)\s*</homeassistant>'
         for match in re.finditer(homeassistant_pattern, response_text, re.DOTALL):
             try:
                 content = match.group(1).strip()
