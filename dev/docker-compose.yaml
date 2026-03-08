@@ -1,15 +1,16 @@
 services:
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:2025.8
+    image: ghcr.io/home-assistant/home-assistant:2026.2.3
     container_name: homeassistant
     restart: unless-stopped
     ports:
       - "8123:8123"
     volumes:
       - ./containers/config:/config
+      - ../custom_components/ha_ragent:/config/custom_components/ha_ragent
   
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.17.7
     container_name: ollama
     restart: unless-stopped
     ports:
@@ -22,16 +23,17 @@ services:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu] # Uncomment if using GPU
+              capabilities: [gpu]
     
   mongo:
-    image: mongo:7.0
+    image: mongodb/mongodb-atlas-local:latest
     container_name: mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: mongodb
+      MONGODB_INITDB_ROOT_USERNAME: admin
+      MONGODB_INITDB_ROOT_PASSWORD: mongodb
     volumes:
-      - ./containers/mongodb:/data/db
+      - ./containers/mongodb/db:/data/db
+      - ./containers/mongodb/config:/data/configdb

@@ -1,0 +1,201 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "Configure HA RAGent",
+                "description": "Choose which vector database, embedding and LLM backends to use for this integration, then provide connection details (host, port, SSL) for the model APIs.",
+                "data": {
+                    "rag_vector_db_backend": "Vector database backend",
+                    "rag_embedding_backend": "Embedding backend",
+                    "rag_llm_backend": "LLM backend",
+                    "rag_selected_language": "Language",
+
+                    "vector_db_section": "Vector Database Settings",
+                    "rag_vector_db_username": "Database Username",
+                    "rag_vector_db_password": "Database Password",
+                    "rag_vector_db_host": "Vector DB Hostname",
+                    "rag_vector_db_port": "Vector DB Port",
+                    "rag_vector_db_ssl": "Use HTTPS",
+                    "rag_vector_db_name": "Database Name",
+
+                    "embedding_section": "Embedding Backend Settings",
+                    "rag_embedding_host": "Embedding Hostname",
+                    "rag_embedding_port": "Embedding Port",
+                    "rag_embedding_ssl": "Use HTTPS",
+                    "rag_embedding_model": "Embedding Model",
+
+                    "llm_section": "LLM Backend Settings",
+                    "rag_llm_host": "LLM Hostname",
+                    "rag_llm_port": "LLM Port",
+                    "rag_llm_ssl": "Use HTTPS",
+                    "rag_llm_model": "LLM Model"
+                    },
+                "data_description": {
+                    "rag_vector_db_backend": "Choose which vector database backend to use",
+                    "rag_embedding_backend": "Choose which embedding backend to use",
+                    "rag_llm_backend": "Choose which LLM backend to use",
+                    "rag_selected_language": "Select the UI language",
+                    "rag_vector_db_username": "Optional username for the vector database",
+                    "rag_vector_db_password": "Optional password for the vector database",
+                    "rag_vector_db_name": "Name of the vector database to use",
+                    "rag_vector_db_host": "Hostname or IP for the vector database",
+                    "rag_vector_db_port": "Port for the vector database",
+                    "rag_vector_db_ssl": "Enable HTTPS for vector database",
+                    "rag_embedding_model": "Model to use with the embedding backend",
+                    "rag_embedding_host": "Hostname or IP for embedding API",
+                    "rag_embedding_port": "Port for embedding API",
+                    "rag_embedding_ssl": "Enable HTTPS for embedding backend",
+                    "rag_llm_model": "Model to use with the LLM backend",
+                    "rag_llm_host": "Hostname or IP for LLM API",
+                    "rag_llm_port": "Port for LLM API",
+                    "rag_llm_ssl": "Enable HTTPS for LLM backend"
+                }
+            }
+        },
+        "error": {
+            "unknown_step": "Unknown configuration step",
+            "already_configured": "This integration is already configured",
+            "invalid_hostname": "The provided hostname was invalid. Please ensure you only provide the domain or IP address and not the full API endpoint.",
+            "failed_to_connect": "Failed to connect to the remote API: {exception}"
+        },
+        "abort": {
+            "unknown_step": "Unknown configuration step encountered",
+            "already_configured": "HA RAGent is already configured",
+            "entry_not_loaded": "Configuration entry is not loaded",
+            "unknown_vector_db_backend_type": "Unknown vector database backend type",
+            "unknown_embedding_backend_type": "Unknown embedding backend type",
+            "unknown_llm_backend_type": "Unknown LLM backend type"
+        }
+    },
+    "config_subentries": {
+        "ragent": {
+            "initiate_flow": {
+                "user": "Add AI RAGent",
+                "reconfigure": "Reconfigure AI RAGent"
+            },
+            "entry_type": "AI RAGent",
+            "step": {
+                "pick_model": {
+                    "title": "Pick Models",
+                    "description": "Select the embedding and LLM models to use for this AI RAGent.",
+                    "data": {
+                        "rag_embedding_model": "Embedding Model",
+                        "rag_llm_model": "LLM Model"
+                    }
+                },
+                "model_parameters": {
+                    "title": "Configure Model Parameters",
+                    "description": "Configure the model parameters and behavior for the AI RAGent.",
+                    "data": {
+                        "rag_prompt": "System Prompt",
+                        "rag_temperature": "Temperature",
+                        "rag_in_context_learning_enabled": "Enable In Context Learning (ICL)",
+                        "rag_in_context_learning_file": "ICL Examples File",
+                        "rag_in_context_learning_num_examples": "Number of ICL Examples",
+                        "rag_max_tokens": "Maximum Tokens",
+                        "rag_context_length": "Context Length",
+                        "rag_k_top": "Top K",
+                        "rag_p_top": "Top P",
+                        "rag_p_min": "Min P",
+                        "rag_p_typical": "Typical P",
+                        "rag_ollama_json_mode": "Ollama JSON Mode",
+                        "rag_request_timeout": "Request Timeout",
+                        "rag_ollama_keep_alive_min": "Ollama Keep Alive",
+                        "rag_max_tool_call_iterations": "Maximum Tool Call Iterations",
+                        "rag_refresh_system_prompt": "Refresh System Prompt",
+                        "rag_remember_conversation": "Remember Conversation",
+                        "rag_remember_num_interactions": "Number of Interactions to Remember",
+                        "rag_remember_conversation_time_minutes": "Conversation Memory Time (minutes)",
+                        "rag_llm_hass_api": "LLM API"
+                    },
+                    "data_description": {
+                        "rag_prompt": "The system prompt that defines the behavior and personality of the assistant",
+                        "rag_in_context_learning_enabled": "Enable in-context learning examples to improve model responses",
+                        "rag_in_context_learning_file": "Filename for the in-context learning examples",
+                        "rag_refresh_system_prompt": "Re-fetch the system prompt every request (required for prompt caching)",
+                        "rag_remember_conversation": "Store past conversation context",
+                        "rag_remember_num_interactions": "How many past interactions to remember",
+                        "rag_remember_conversation_time_minutes": "Time window (minutes) for remembering conversation",
+                        "rag_llm_hass_api": "Select a Home Assistant LLM API provider"
+                    }
+                }
+            },
+            "error": {
+                "unknown": "An unexpected error occurred",
+                "sys_refresh_caching_enabled": "System prompt refresh must be enabled for prompt caching to work",
+                "missing_icl_file": "The in context learning example file was not found: {filename}"
+            },
+            "abort": {
+                "reconfigure_successful": "Successfully updated model options",
+                "entry_not_loaded": "Configuration entry is not loaded"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "HA RAGent Options",
+                "description": "Update connection details for the APIs hosting the models.",
+                "data": {
+                    "rag_vector_db_username": "Database Username",
+                    "rag_vector_db_password": "Database Password",
+                    "rag_vector_db_host": "Vector DB Hostname",
+                    "rag_vector_db_port": "Vector DB Port",
+                    "rag_vector_db_ssl": "Use HTTPS",
+                    "rag_vector_db_name": "Database Name",
+                    "rag_embedding_host": "Embedding Hostname",
+                    "rag_embedding_port": "Embedding Port",
+                    "rag_embedding_ssl": "Use HTTPS",
+                    "rag_llm_host": "LLM Hostname",
+                    "rag_llm_port": "LLM Port",
+                    "rag_llm_ssl": "Use HTTPS"
+                },
+                "data_description": {
+                    "rag_vector_db_username": "Optional username for the vector database",
+                    "rag_vector_db_password": "Optional password for the vector database",
+                    "rag_vector_db_name": "Name of the vector database to use",
+                    "rag_vector_db_host": "Hostname or IP for the vector database",
+                    "rag_vector_db_port": "Port for the vector database",
+                    "rag_vector_db_ssl": "Enable HTTPS for vector database",
+                    "rag_embedding_host": "Hostname or IP for embedding API",
+                    "rag_embedding_port": "Port for embedding API",
+                    "rag_embedding_ssl": "Enable HTTPS for embedding backend",
+                    "rag_llm_host": "Hostname or IP for LLM API",
+                    "rag_llm_port": "Port for LLM API",
+                    "rag_llm_ssl": "Enable HTTPS for LLM backend"
+                }
+            }
+        },
+        "error": {
+            "failed_to_connect": "Failed to connect to the remote API: {exception}",
+            "invalid_hostname": "The provided hostname was invalid. Please ensure you only provide the domain or IP address and not the full API endpoint."
+        }
+    },
+    "selector": {
+        "rag_vector_db_backend": {
+            "name": "Vector database backend",
+            "options": {
+                "mongodb": "MongoDB"
+            }
+        },
+        "rag_embedding_backend": {
+            "name": "Embedding backend",
+            "options": {
+                "ollama": "Ollama"
+            }
+        },
+        "rag_llm_backend": {
+            "name": "LLM backend",
+            "options": {
+                "ollama": "Ollama"
+            }
+        },
+        "rag_selected_language": {
+            "name": "Language",
+            "options": {
+                "en": "English",
+                "de": "German"
+            }
+        }
+    }
+}
