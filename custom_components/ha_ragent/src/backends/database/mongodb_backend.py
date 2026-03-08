@@ -42,7 +42,7 @@ class MongoDbBackend(ABaseDbBackend):
 
     @staticmethod
     def _format_url(username: str, password: str, hostname: str, port: str, ssl: bool) -> str:
-        return f"mongodb://{username}:{password}@{hostname}:{port}/?ssl={'true' if ssl else 'false'}"
+        return f"mongodb://{username}:{password}@{hostname}:{port}/?ssl={'true' if ssl else 'false'}&directConnection=true"
     
     def _get_connection(self) -> AsyncMongoClient:
         return AsyncMongoClient(self.url)
