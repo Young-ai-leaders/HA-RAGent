@@ -1,5 +1,6 @@
 import socket
 import logging
+import json
 from typing import List, Any
 from .backends.database.base_backend import ABaseDbBackend
 from .backends.database.mongodb_backend import MongoDbBackend
@@ -7,7 +8,7 @@ from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
 from .backends.llm.ollama_backend import OllamaBackend
-from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA, DEVICE_ATTRIBUTES_TO_EXCLUDE
+from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA, DEVICE_ATTRIBUTES_TO_EXCLUDE, DEVICE_ATTRIBUTES_MAX_JSON_LENGTH
 
 _logger = logging.getLogger(__name__)
 
@@ -59,7 +60,11 @@ def clean_device_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
         if key in DEVICE_ATTRIBUTES_TO_EXCLUDE:
             cleaned_attributes.pop(key)
 
-        if isinstance(value, str) and len(value) > 100:
-            cleaned_attributes[key] = value[:100] + "..."
+        try:
+            json_value = json.dumps(value)
+            if len(json_value) > DEVICE_ATTRIBUTES_MAX_JSON_LENGTH:
+                cleaned_attributes.pop(key)
+        except (TypeError, OverflowError):
+            cleaned_attributes.pop(key)
 
     return cleaned_attributes

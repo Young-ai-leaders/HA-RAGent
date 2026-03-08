@@ -158,7 +158,8 @@ USER_INSTRUCTION = {
     "en": "## User instruction:"
 }
 
-DEVICE_ATTRIBUTES_TO_EXCLUDE = ["frindly_name", "persistent", "supported_features"]
+DEVICE_ATTRIBUTES_TO_EXCLUDE = ["friendly_name", "persistent", "supported_features"]
+DEVICE_ATTRIBUTES_MAX_JSON_LENGTH = 100
 
 DEFAULT_CONTEXT_LENGTH = 4096
 
