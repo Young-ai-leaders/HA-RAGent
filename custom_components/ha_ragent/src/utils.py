@@ -54,4 +54,11 @@ def get_placeholder_translation(translations: List[str], selected_language: str)
     return translations.get(selected_language, translations["en"])
 
 def clean_device_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in attributes.items() if k not in DEVICE_ATTRIBUTES_TO_EXCLUDE}
+    for key, value in attributes.items():
+        if key in DEVICE_ATTRIBUTES_TO_EXCLUDE:
+            attributes.pop(key)
+
+        if isinstance(value, str) and len(value) > 100:
+            attributes[key] = value[:100] + "..."
+
+    return attributes
