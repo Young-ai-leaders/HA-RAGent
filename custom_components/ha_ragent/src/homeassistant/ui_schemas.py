@@ -47,6 +47,7 @@ from ..const import (
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_SELECTED_LANGUAGE,
+    CONF_ENABLE_MODEL_THINKING,
     CONF_TEMPERATURE,
     CONF_K_TOP,
     CONF_P_MIN,
@@ -81,6 +82,7 @@ from ..const import (
     DEFAULT_P_MIN,
     DEFAULT_P_TOP,
     DEFAULT_P_TYPICAL,
+    DEFAULT_ENABLE_MODEL_THINKING,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_NAME,
@@ -265,11 +267,11 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_MAX_TOKENS)},
             default=DEFAULT_MAX_TOKENS,
         ): NumberSelector(NumberSelectorConfig(min=1, max=8192, step=1)),
-        # vol.Required(
-        #     CONF_CONTEXT_LENGTH,
-        #     description={"suggested_value": options.get(CONF_CONTEXT_LENGTH)},
-        #     default=DEFAULT_CONTEXT_LENGTH,
-        # ): NumberSelector(NumberSelectorConfig(min=512, max=1_048_576, step=512)),
+        vol.Required(
+            CONF_CONTEXT_LENGTH,
+            description={"suggested_value": options.get(CONF_CONTEXT_LENGTH)},
+            default=DEFAULT_CONTEXT_LENGTH,
+        ): NumberSelector(NumberSelectorConfig(min=512, max=1_048_576, step=512)),
         # vol.Required(
         #     CONF_K_TOP,
         #     description={"suggested_value": options.get(CONF_K_TOP)},
@@ -315,12 +317,18 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_MAX_TOOL_CALL_ITERATIONS)},
             default=DEFAULT_MAX_TOOL_CALL_ITERATIONS,
         ): int,
+        vol.Optional(
+            CONF_ENABLE_MODEL_THINKING,
+            description={"suggested_value": options.get(CONF_ENABLE_MODEL_THINKING, DEFAULT_ENABLE_MODEL_THINKING)},
+            default=options.get(CONF_ENABLE_MODEL_THINKING, DEFAULT_ENABLE_MODEL_THINKING),
+        ): BooleanSelector(BooleanSelectorConfig()),
     }
 
     global_order = [
         # general
         CONF_LLM_HASS_API,
         CONF_PROMPT,
+        CONF_ENABLE_MODEL_THINKING,
         CONF_CONTEXT_LENGTH,
         CONF_MAX_TOKENS,
         # sampling parameters

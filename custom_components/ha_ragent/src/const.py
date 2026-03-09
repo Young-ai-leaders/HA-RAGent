@@ -88,6 +88,8 @@ CONF_MAX_TOOL_CALL_ITERATIONS = "rag_max_tool_call_iterations"
 CONF_OLLAMA_KEEP_ALIVE_MIN = "rag_ollama_keep_alive_min"
 CONF_PROMPT = "rag_prompt"
 
+CONF_ENABLE_MODEL_THINKING = "rag_enable_model_thinking"
+
 CONF_REMEMBER_CONVERSATION = "rag_remember_conversation"
 CONF_REMEMBER_CONVERSATION_TIME_MINUTES = "rag_remember_conversation_time_minutes"
 CONF_REMEMBER_NUM_INTERACTIONS = "rag_remember_num_interactions"
@@ -190,6 +192,7 @@ DEFAULT_PROMPT = """<persona>
 <user_instruction>
 """
 
+DEFAULT_ENABLE_MODEL_THINKING = False
 DEFAULT_REMEMBER_CONVERSATION = False
 DEFAULT_REMEMBER_NUM_INTERACTIONS = 10
 DEFAULT_SELECTED_LANGUAGE = "en"

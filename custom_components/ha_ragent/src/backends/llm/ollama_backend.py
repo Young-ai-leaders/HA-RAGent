@@ -16,6 +16,8 @@ except ImportError:
 
 from .base_backend import ALlmBaseBackend
 from ...const import (
+    CONF_CONTEXT_LENGTH,
+    CONF_ENABLE_MODEL_THINKING,
     CONF_LLM_MODEL,
     CONF_LLM_HOST,
     CONF_LLM_PORT,
@@ -85,7 +87,9 @@ class OllamaBackend(ALlmBaseBackend):
             "model": config_subentry[CONF_LLM_MODEL],
             "messages": messages,
             "stream": True,
+            "think": config_subentry[CONF_ENABLE_MODEL_THINKING],
             "temperature": config_subentry[CONF_TEMPERATURE],
+            "num_ctx": config_subentry[CONF_CONTEXT_LENGTH],
             "num_predict": config_subentry[CONF_MAX_TOKENS],
         }
 
