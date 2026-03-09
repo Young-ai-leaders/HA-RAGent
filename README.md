@@ -1,4 +1,4 @@
-<img src="https://raw.github.com/Young-ai-leaders/HA-RAGent/main/images/logo.png" alt="HA-RAGent logo" title="HA-RAGent" align="right" height="80" />
+<img src="https://raw.github.com/Young-ai-leaders/HA-RAGent/main/custom_components/ha_ragent/brand/logo.png" alt="HA-RAGent logo" title="HA-RAGent" align="right" height="80" />
 
 # HA-RAGent (Home Assistant Retrieval‑Augmented‑Generation Agent)
 HA‑RAGent is a custom component that wraps an LLM and a vector database to let you talk to your smart home. Instead of hard‑coding every possible command, the agent embeds your question, looks up the most relevant devices, and then either replies in natural language or emits “tool calls” that turn into real service calls inside Home Assistant.
