@@ -4,13 +4,12 @@
   "after_dependencies": ["assist_pipeline"],
   "codeowners": ["@Young-ai-leaders"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["conversation"],
   "documentation": "https://github.com/Young-ai-leaders/HA-RAGent",
-  "issue_tracker": "https://github.com/Young-ai-leaders/HA-RAGent/issues",
   "integration_type": "service",
   "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/Young-ai-leaders/HA-RAGent/issues",
   "requirements": [
-      "huggingface-hub>=0.23.0",
       "langchain-core==0.3.9",
       "pymongo==4.16.0",
       "voluptuous-openapi>=0.2.0"
