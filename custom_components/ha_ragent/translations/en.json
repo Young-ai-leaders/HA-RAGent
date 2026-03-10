@@ -87,35 +87,22 @@
                     "title": "Configure Model Parameters",
                     "description": "Configure the model parameters and behavior for the AI RAGent.",
                     "data": {
+                        "llm_hass_api": "LLM Home Assistant API",
                         "rag_prompt": "System Prompt",
+                        "rag_enable_model_thinking": "Enable Model Thinking",
                         "rag_temperature": "Temperature",
-                        "rag_in_context_learning_enabled": "Enable In Context Learning (ICL)",
-                        "rag_in_context_learning_file": "ICL Examples File",
-                        "rag_in_context_learning_num_examples": "Number of ICL Examples",
                         "rag_max_tokens": "Maximum Tokens",
                         "rag_context_length": "Context Length",
-                        "rag_k_top": "Top K",
-                        "rag_p_top": "Top P",
-                        "rag_p_min": "Min P",
-                        "rag_p_typical": "Typical P",
-                        "rag_ollama_json_mode": "Ollama JSON Mode",
-                        "rag_request_timeout": "Request Timeout",
-                        "rag_ollama_keep_alive_min": "Ollama Keep Alive",
                         "rag_max_tool_call_iterations": "Maximum Tool Call Iterations",
-                        "rag_refresh_system_prompt": "Refresh System Prompt",
-                        "rag_remember_conversation": "Remember Conversation",
-                        "rag_remember_num_interactions": "Number of Interactions to Remember",
-                        "rag_remember_conversation_time_minutes": "Conversation Memory Time (minutes)",
                         "rag_llm_hass_api": "LLM API"
                     },
                     "data_description": {
                         "rag_prompt": "The system prompt that defines the behavior and personality of the assistant",
-                        "rag_in_context_learning_enabled": "Enable in-context learning examples to improve model responses",
-                        "rag_in_context_learning_file": "Filename for the in-context learning examples",
-                        "rag_refresh_system_prompt": "Re-fetch the system prompt every request (required for prompt caching)",
-                        "rag_remember_conversation": "Store past conversation context",
-                        "rag_remember_num_interactions": "How many past interactions to remember",
-                        "rag_remember_conversation_time_minutes": "Time window (minutes) for remembering conversation",
+                        "rag_enable_model_thinking": "Show internal model 'thinking' steps in responses (debug feature)",
+                        "rag_temperature": "Sampling temperature; higher = more random, lower = more deterministic",
+                        "rag_max_tokens": "Maximum number of tokens the model may generate per response",
+                        "rag_context_length": "How many past messages to include in the model context window",
+                        "rag_max_tool_call_iterations": "Limit on how many times the agent may call external tools per request",
                         "rag_llm_hass_api": "Select a Home Assistant LLM API provider"
                     }
                 }
@@ -173,25 +160,21 @@
     },
     "selector": {
         "rag_vector_db_backend": {
-            "name": "Vector database backend",
             "options": {
                 "mongodb": "MongoDB"
             }
         },
         "rag_embedding_backend": {
-            "name": "Embedding backend",
             "options": {
                 "ollama": "Ollama"
             }
         },
         "rag_llm_backend": {
-            "name": "LLM backend",
             "options": {
                 "ollama": "Ollama"
             }
         },
         "rag_selected_language": {
-            "name": "Language",
             "options": {
                 "en": "English",
                 "de": "German"

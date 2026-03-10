@@ -1,6 +1,15 @@
 {
     "name": "Home Assistant RAG Agent",    
+    "description": "A Home Assistant integration providing a Retrieval-Augmented Generation (RAG) AI agent with configurable backends.",
     "homeassistant": "2026.3.0",
-    "content_in_root": false,
-    "render_readme": true
+    "render_readme": true,
+    "topics": [
+        "ai",
+        "assistant",
+        "chatbot",
+        "vector-database",
+        "llm"
+    ],
+    "zip_release": true,
+    "filename": "ha_ragent.zip"
 } 
