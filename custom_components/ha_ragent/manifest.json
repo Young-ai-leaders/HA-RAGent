@@ -1,12 +1,13 @@
 {
   "domain": "ha_ragent",
   "name": "Home Assistant RAG Agent",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "codeowners": ["@Young-ai-leaders"],
   "config_flow": true,
   "dependencies": [],
   "after_dependencies": ["assist_pipeline"],
   "documentation": "https://github.com/Young-ai-leaders/HA-RAGent",
+  "issue_tracker": "https://github.com/Young-ai-leaders/HA-RAGent/issues",
   "integration_type": "service",
   "iot_class": "local_polling",
   "requirements": [
