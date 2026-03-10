@@ -4,6 +4,7 @@ import json
 from typing import List, Any
 from .backends.database.base_backend import ABaseDbBackend
 from .backends.database.mongodb_backend import MongoDbBackend
+from .backends.database.chromadb_backend import ChromaDbBackend
 from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
@@ -35,7 +36,8 @@ def try_parse_int(value: str, default: int = 0) -> int:
 
 def vector_db_to_class(vector_db_type: str) -> ABaseDbBackend:
     backend_to_class = {
-        BACKEND_VECTOR_DB_TYPE_MONGODB: MongoDbBackend
+        BACKEND_VECTOR_DB_TYPE_MONGODB: MongoDbBackend,
+        BACKEND_VECTOR_DB_TYPE_CHROMA: ChromaDbBackend,
     }
     return backend_to_class.get(vector_db_type)
 
