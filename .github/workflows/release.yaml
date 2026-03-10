@@ -1,8 +1,9 @@
 name: Release
 on:
-    push:
-        tags:
-            - "v*.*.*"
+  release:
+    types:
+      - published
+      
 jobs:
   release_zip_file:
     name: Run automations to build latest release
