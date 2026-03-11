@@ -9,7 +9,14 @@ from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
 from .backends.llm.ollama_backend import OllamaBackend
-from .const import BACKEND_VECTOR_DB_TYPE_MONGODB, BACKEND_EMBEDDING_TYPE_OLLAMA, BACKEND_LLM_TYPE_OLLAMA, DEVICE_ATTRIBUTES_TO_EXCLUDE, DEVICE_ATTRIBUTES_MAX_JSON_LENGTH
+from .const import (
+    BACKEND_VECTOR_DB_TYPE_MONGODB, 
+    BACKEND_VECTOR_DB_TYPE_CHROMA,
+    BACKEND_EMBEDDING_TYPE_OLLAMA, 
+    BACKEND_LLM_TYPE_OLLAMA, 
+    DEVICE_ATTRIBUTES_TO_EXCLUDE, 
+    DEVICE_ATTRIBUTES_MAX_JSON_LENGTH
+)
 
 _logger = logging.getLogger(__name__)
 

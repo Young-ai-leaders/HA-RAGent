@@ -161,7 +161,8 @@
     "selector": {
         "rag_vector_db_backend": {
             "options": {
-                "mongodb": "MongoDB"
+                "mongodb": "MongoDB",
+                "chromadb": "ChromaDB"
             }
         },
         "rag_embedding_backend": {
