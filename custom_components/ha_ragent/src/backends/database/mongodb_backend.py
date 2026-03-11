@@ -38,7 +38,7 @@ class MongoDbBackend(ABaseDbBackend):
     
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
-        return f"DB Backend: MongoDB"
+        return f"DB: MongoDB"
 
     @staticmethod
     def _format_url(username: str, password: str, hostname: str, port: str, ssl: bool) -> str:
@@ -131,7 +131,7 @@ class MongoDbBackend(ABaseDbBackend):
         conn = None
         try:
             conn = self._get_connection()
-            conn.drop_database(self.db_name)
+            await conn.drop_database(self.db_name)
             _logger.info(f"Database cleanup for {self.db_name} successful.")
         except Exception as e:
             _logger.error(f"Error cleaning up database: {e}", exc_info=True)

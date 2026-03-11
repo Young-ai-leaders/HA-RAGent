@@ -137,25 +137,22 @@ Wenn du ein Gerät steuerst folge diesen Anweisungen:
     "en": """## Device Control Instructions:
 When controlling a device follow these steps:
 1. Device Resolution
-    - Search Criteria: Identify target devices using the exact name or the specified area.
-    - Area Expansion: If a user targets an area (e.g., "Living Room"), you must identify every device within that area and generate a dedicated tool call for each one.
-    - ID Mapping: Use only the entity_id (e.g., light.desk_lamp) provided in the device list.
+    - **Identification:** Target devices using the exact name or specific domain within an area.
+    - **Area Filtering:** If an area is named (e.g., "Kitchen"), only call tools for devices matching the user’s intent (e.g., "lights").
+    - **Mapping:** Use only `entity_id` for tool calls.
 2. Tool Call Structure
-    - Atomicity: Every device action must be its own independent tool call.
-    - No Batching: Never combine multiple entity_ids into a single JSON object.
-    - Parameter Stripping: Do not include the device_class in the tool call. Only use the required arguments (name, area, domain).
-    - To execute multiple tool calls in one response use a format like this
-        ```homeassistant {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_ceiling_light", "area": "Bedroom 1", "domain": ["light"]}} ```
-        ```homeassistant {"tool": "HassTurnOff", "arguments": {"name": "light.bedroom_1_bedside_lamp", "area": "Bedroom 1", "domain": ["light"]}} ```
+    - **Constraints:** Use provided tools only. No "invented" tools.
+    - **Atomicity:** One tool call per device. Do not batch multiple entity_ids into one object.
+    - **Parameters:** Include only `name`, `area`, and `domain`. Strip `device_class`.
+    - **Multi-Call:** Provide multiple tool calls by repeating blocks in one response.
 3. Strict Output Format
     3.1 Answering with tool calls:
-        - Return a valid JSON object for each tool call.
-        - Encapsulate each JSON object within ```homeassistant ``` tags to clearly delineate tool calls from text responses.
-        - When the task is completed and no further tool calls are needed, return a clear text response to the user indicating that the action has been completed.
+        - **Format:** Must be valid JSON wrapped in `homeassistant` tags.
+        - **Status Updates:** Provide a clear, conversational text confirmation to the user once all actions are finished.
     3.2 Answering with text:
-        - If the user's request cannot be fulfilled with tool calls alone, provide a clear and concise text response to the user.
-        - Always use the friendly_name attribute when referring to devices in text responses, never the entity_id.
-        - Do not include the room if it is part of the device's friendly name to avoid redundancy (e.g., "Living Room Lamp" instead of "Living Room Living Room Lamp")."""
+        - **Text-Only Responses:** Use for unfulfillable requests.
+        - **Naming:** Always use `friendly_name` in text. Never use `entity_id`.
+        - **Deduplication:** Omit the room name if it is already part of the `friendly_name`."""
 }
 USER_INSTRUCTION = {
     "de": "## Benutzeranweisung:",
@@ -181,12 +178,7 @@ DEFAULT_PROMPT = """<persona>
 
 <devices>
 {% for device in device_list %}
-- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "services": {{ device.services | tojson }}  "device_class": ["{{ device.domain | tojson }}"], "state": {{ device.state }}, "attributes": {{ device.attributes | tojson }} }
-{% endfor %}
-
-<areas>
-{% for area in area_list %}
-- "{{ area }}"
+- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "services": {{ device.services | tojson }}  "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
 {% endfor %}
 
 <device_control_prompt>

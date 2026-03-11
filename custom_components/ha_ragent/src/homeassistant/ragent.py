@@ -16,7 +16,7 @@ from homeassistant.components.conversation import ConversationInput, Conversatio
 from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, JsonObjectType
 from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
 from homeassistant.exceptions import TemplateError, HomeAssistantError
 from homeassistant.helpers import chat_session, intent, llm
@@ -32,14 +32,10 @@ from ..const import (
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
-    CONF_TEMPERATURE,
-    CONF_MAX_TOKENS,
     DEFAULT_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-    DEFAULT_TEMPERATURE,
-    DEFAULT_MAX_TOKENS,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
@@ -220,6 +216,23 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 _logger.warning("Failed to parse homeassistant block JSON: %s", e)
 
         return parsed_calls
+    
+    def _parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, List[str]]:
+        """Parse tool results from LLM response."""
+        data = tool_result.get("data", {})
+        success = data.get("success", [])
+        failed = data.get("failed", [])
+        tool_result = {}
+        
+        success_ids = [x["id"] for x in success if x.get("type") == "entity"]
+        if success_ids:
+            tool_result["success"] = success_ids
+
+        failed_ids = [x["id"] for x in failed if x.get("type") == "entity"]
+        if failed_ids:
+            tool_result["failed"] = failed_ids
+
+        return tool_result
 
     async def _async_prompt_model(self, llm_api: llm.APIInstance, user_input: ConversationInput, message_history: List[conversation.Content]) -> ConversationResult:
         """Process a prompt through the RAGent."""
@@ -287,7 +300,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                     agent_id=user_input.agent_id,
                                     tool_call_id=tool_input.id,
                                     tool_name=tool_name,
-                                    tool_result=tool_result
+                                    tool_result=self._parse_tool_results(tool_result)
                                 )
                                 message_history.append(tool_result_msg)
                             else:
