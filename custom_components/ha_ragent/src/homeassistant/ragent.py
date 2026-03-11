@@ -28,10 +28,12 @@ from .ragent_config_entry import RAGentConfigEntry
 from ..models.device import Device
 
 from ..const import (
+    CONF_NUM_DEVICES_TO_EXTRACT,
     CONF_PROMPT,
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
+    DEFAULT_NUM_DEVICES_TO_EXTRACT,
     DEFAULT_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
@@ -388,7 +390,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                retrieved_devices = await self._async_retrieve_devices(query_embedding, n_devices=10)
+                retrieved_devices = await self._async_retrieve_devices(query_embedding, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
                 if not retrieved_devices:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant devices.")

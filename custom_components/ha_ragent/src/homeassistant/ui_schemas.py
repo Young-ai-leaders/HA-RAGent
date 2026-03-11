@@ -53,6 +53,7 @@ from ..const import (
     CONF_P_MIN,
     CONF_P_TOP,
     CONF_P_TYPICAL,
+    CONF_NUM_DEVICES_TO_EXTRACT,
     
     CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_SSL,
@@ -86,6 +87,7 @@ from ..const import (
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_NAME,
+    DEFAULT_NUM_DEVICES_TO_EXTRACT,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -322,6 +324,11 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_ENABLE_MODEL_THINKING, DEFAULT_ENABLE_MODEL_THINKING)},
             default=options.get(CONF_ENABLE_MODEL_THINKING, DEFAULT_ENABLE_MODEL_THINKING),
         ): BooleanSelector(BooleanSelectorConfig()),
+        vol.Required(
+            CONF_NUM_DEVICES_TO_EXTRACT,
+            description={"suggested_value": options.get(CONF_NUM_DEVICES_TO_EXTRACT)},
+            default=DEFAULT_NUM_DEVICES_TO_EXTRACT,
+        ): int,
     }
 
     global_order = [
@@ -329,6 +336,7 @@ def ui_schema_config_options(
         CONF_LLM_HASS_API,
         CONF_PROMPT,
         CONF_ENABLE_MODEL_THINKING,
+        CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_CONTEXT_LENGTH,
         CONF_MAX_TOKENS,
         # sampling parameters
@@ -346,8 +354,6 @@ def ui_schema_config_options(
         CONF_IN_CONTEXT_LEARNING_ENABLED,
         CONF_IN_CONTEXT_LEARNING_FILE,
         CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-        # backend specific options
-        CONF_OLLAMA_KEEP_ALIVE_MIN,
     ]
 
     result = { k: v for k, v in sorted(result.items(), key=lambda item: global_order.index(item[0]) if item[0] in global_order else 9999) }
