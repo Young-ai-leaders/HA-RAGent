@@ -8,7 +8,7 @@ services:
     volumes:
       - ./containers/config:/config
       - ../custom_components/ha_ragent:/config/custom_components/ha_ragent
-  
+
   ollama:
     image: ollama/ollama:0.17.7
     container_name: ollama
@@ -24,9 +24,9 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    
+
   mongo:
-    image: mongodb/mongodb-atlas-local:latest
+    image: mongodb/mongodb-atlas-local:7.0.9
     container_name: mongodb
     restart: unless-stopped
     ports:
@@ -37,3 +37,12 @@ services:
     volumes:
       - ./containers/mongodb/db:/data/db
       - ./containers/mongodb/config:/data/configdb
+
+  chromadb:
+    image: chromadb/chroma:1.5.5
+    container_name: chromadb
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./containers/chromadb:/data

@@ -10,16 +10,14 @@ class ABaseDbBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         self.hass = hass
         self.client_options = client_options
-    
-    @staticmethod
-    def _format_url(username: str, password: str, hostname: str, port: str, ssl: bool) -> str:
-        raise NotImplementedError()
 
     @staticmethod
+    @abstractmethod
     def get_name(client_options: dict[str, Any]):
         raise NotImplementedError()
     
     @staticmethod
+    @abstractmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
         raise NotImplementedError()
 

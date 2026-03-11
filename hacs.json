@@ -1,6 +1,7 @@
 {
     "name": "Home Assistant RAG Agent",    
     "homeassistant": "2026.3.0",
+    "hide_default_branch": true,
     "render_readme": true,
     "zip_release": true,
     "filename": "ha_ragent.zip"

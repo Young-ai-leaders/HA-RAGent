@@ -53,6 +53,7 @@ from ..const import (
     CONF_P_MIN,
     CONF_P_TOP,
     CONF_P_TYPICAL,
+    CONF_NUM_DEVICES_TO_EXTRACT,
     
     CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_SSL,
@@ -86,6 +87,10 @@ from ..const import (
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_NAME,
+    DEFAULT_NUM_DEVICES_TO_EXTRACT,
+    
+    BACKEND_VECTOR_DB_TYPE_MONGODB,
+    BACKEND_VECTOR_DB_TYPE_CHROMA,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -166,26 +171,38 @@ def ui_schema_backend_connections(
         raise AbortFlow(reason="unknown_llm_backend_type")
     
     default_port_mongodb = 27017
+    default_port_chroma = 8000
     default_port_ollama = 11434
 
-    return vol.Schema(
-        {
+    if vector_db_backend_type == BACKEND_VECTOR_DB_TYPE_MONGODB:
+        vector_default_port = default_port_mongodb
+    elif vector_db_backend_type == BACKEND_VECTOR_DB_TYPE_CHROMA:
+        vector_default_port = default_port_chroma
+
+    schema = {}
+    
+    if vector_db_backend_type == BACKEND_VECTOR_DB_TYPE_MONGODB:
+        schema.update({
             vol.Optional(CONF_VECTOR_DB_USERNAME, default=vector_db_username if vector_db_username else ""): str,
             vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
-            vol.Required(CONF_VECTOR_DB_HOST, default=vector_db_host if vector_db_host else ""): str,
-            vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else f"{DEFAULT_VECTOR_DB_NAME}_{uuid4()}"): str,
-            vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else default_port_mongodb): int,
-            vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
+        })
+    
+    schema.update({
+        vol.Required(CONF_VECTOR_DB_HOST, default=vector_db_host if vector_db_host else ""): str,
+        vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else f"{DEFAULT_VECTOR_DB_NAME}_{uuid4()}"): str,
+        vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else vector_default_port): int,
+        vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
 
-            vol.Required(CONF_EMBEDDING_HOST, default=embedding_host if embedding_host else ""): str,
-            vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
-            vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl else False): bool,
+        vol.Required(CONF_EMBEDDING_HOST, default=embedding_host if embedding_host else ""): str,
+        vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
+        vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl else False): bool,
 
-            vol.Required(CONF_LLM_HOST, default=llm_host if llm_host else ""): str,
-            vol.Optional(CONF_LLM_PORT, default=llm_port if llm_port else default_port_ollama): int,
-            vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl else False): bool
-        }
-    )
+        vol.Required(CONF_LLM_HOST, default=llm_host if llm_host else ""): str,
+        vol.Optional(CONF_LLM_PORT, default=llm_port if llm_port else default_port_ollama): int,
+        vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl else False): bool
+    })
+
+    return vol.Schema(schema)
 
 def ui_schema_pick_models(embedding_models: list[str], llm_models: list[str], embedding_model: str | None = None, llm_model: str | None = None) -> vol.Schema:
     if len(embedding_models) == 0:
@@ -322,6 +339,11 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_ENABLE_MODEL_THINKING, DEFAULT_ENABLE_MODEL_THINKING)},
             default=options.get(CONF_ENABLE_MODEL_THINKING, DEFAULT_ENABLE_MODEL_THINKING),
         ): BooleanSelector(BooleanSelectorConfig()),
+        vol.Required(
+            CONF_NUM_DEVICES_TO_EXTRACT,
+            description={"suggested_value": options.get(CONF_NUM_DEVICES_TO_EXTRACT)},
+            default=DEFAULT_NUM_DEVICES_TO_EXTRACT,
+        ): int,
     }
 
     global_order = [
@@ -329,6 +351,7 @@ def ui_schema_config_options(
         CONF_LLM_HASS_API,
         CONF_PROMPT,
         CONF_ENABLE_MODEL_THINKING,
+        CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_CONTEXT_LENGTH,
         CONF_MAX_TOKENS,
         # sampling parameters
@@ -346,8 +369,6 @@ def ui_schema_config_options(
         CONF_IN_CONTEXT_LEARNING_ENABLED,
         CONF_IN_CONTEXT_LEARNING_FILE,
         CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-        # backend specific options
-        CONF_OLLAMA_KEEP_ALIVE_MIN,
     ]
 
     result = { k: v for k, v in sorted(result.items(), key=lambda item: global_order.index(item[0]) if item[0] in global_order else 9999) }

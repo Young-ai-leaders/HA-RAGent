@@ -118,6 +118,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     device_extractor = DeviceExtractor(hass, entry)
+    
     if hass.is_running:
         hass.async_create_task(device_extractor.async_embed_all_exposed_devices())
     else:
@@ -134,8 +135,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: RAGentConfigEntry) -> b
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
 
-    await entry.vector_db_backend.async_cleanup_database()
     hass.data[DOMAIN].pop(entry.entry_id)
     return True
 
-
+async def async_remove_entry(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
+    await entry.vector_db_backend.async_cleanup_database()
