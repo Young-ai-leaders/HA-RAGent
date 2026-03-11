@@ -151,9 +151,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         # log the system prompt for debugging
         if message_history and len(message_history) > 0:
             msg = message_history[0]
-            if isinstance(msg, conversation.SystemContent):
-                _logger.debug("System prompt:\n%s", msg.content)
-        
         return message_history
 
     def _get_tool_list(self, llm_api: APIInstance) -> List[Dict]:
