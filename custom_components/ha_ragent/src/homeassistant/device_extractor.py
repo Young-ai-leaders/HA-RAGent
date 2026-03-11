@@ -1,9 +1,12 @@
 import logging
+
 from ..models.device import Device
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry, label_registry, llm
+from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
+from .ragent_config_entry import RAGentConfigEntry
 from ..const import (
     DOMAIN
 )
@@ -11,27 +14,29 @@ from ..const import (
 _logger = logging.getLogger(__name__)
 
 class DeviceExtractor:
-    def __init__(self, hass: HomeAssistant):
-        self.hass = hass
+    def __init__(self, hass: HomeAssistant, entry: RAGentConfigEntry):
+        self._hass = hass
+        self._entry = entry
+
 
     async def _async_get_services_for_domain(self, target_domain: str):
-        services = self.hass.services.async_services()
+        services = self._hass.services.async_services()
 
         if target_domain not in services:
             return []
 
         return [service_name for service_name in services[target_domain]]
 
-    async def async_get_embeddable_devices(self, exposed_entities: list[str]) -> list[Device]:
-        area_reg = area_registry.async_get(self.hass)
-        device_reg = device_registry.async_get(self.hass)
-        entity_reg = entity_registry.async_get(self.hass)
-        label_reg = label_registry.async_get(self.hass)
+    async def _async_get_embeddable_devices(self, exposed_entities: list[str]) -> list[Device]:
+        area_reg = area_registry.async_get(self._hass)
+        device_reg = device_registry.async_get(self._hass)
+        entity_reg = entity_registry.async_get(self._hass)
+        label_reg = label_registry.async_get(self._hass)
         
         devices = []
         
         for entity_id in exposed_entities:
-            state = self.hass.states.get(entity_id)
+            state = self._hass.states.get(entity_id)
             if not state:
                 continue
 
@@ -69,4 +74,48 @@ class DeviceExtractor:
             ))
         
         return devices
+    
+    async def async_embed_all_exposed_devices(self) -> None:
+        _logger.info("===== DEVICE EMBEDDING FUNCTION CALLED =====")
+        try:
+            _logger.debug("Device embedding function starting, checking for subentries")
+            if not hasattr(self._entry, "subentries") or not self._entry.subentries:
+                _logger.debug("No subentries found in config entry! Cannot embed devices.")
+                return
+
+            _logger.debug(f"Found {len(self._entry.subentries)} subentries to process.")
+
+            all_entities = list(self._hass.states.async_entity_ids())
+            exposed_entities = [entity_id for entity_id in all_entities if async_should_expose(self._hass, "conversation", entity_id)]
+            _logger.debug(f"Device embedding starting: {len(all_entities)} total entities, {len(exposed_entities)} exposed to conversation.")
+
+            if not exposed_entities:
+                _logger.warning("No entities are exposed to Conversation. Skipping embedding and preserving existing vectors.")
+                return
+
+            for subentry_id, subentry in self._entry.subentries.items():
+                try:
+                    collection_name = f"devices_{subentry_id}"
+                    embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
+                    
+                    _logger.debug(f"Preparing collection reset for subentry {subentry_id} (collection: {collection_name}, embedding_len: {embedding_len}).")
+                    await self._entry.vector_db_backend.async_reset_database(dict(subentry.data), collection_name, embedding_len)
+                    _logger.debug(f"Collection reset done. Starting embedding job for subentry {subentry_id} (collection: {collection_name}).")
+                    
+                    device_list = await self._async_get_embeddable_devices(exposed_entities)
+                    device_embeddings = await self._entry.embedder_backend.async_embed_devices(dict(subentry.data), device_list)
+
+                    if device_embeddings:
+                        _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
+                        await self._entry.vector_db_backend.async_save_device_embeddings(dict(subentry.data), collection_name, device_embeddings)
+                        _logger.debug(f"Finished embedding all exposed devices for subentry {subentry_id} ({len(device_embeddings)} devices)")
+                    else:
+                        _logger.warning("No devices to embed for subentry %s", subentry_id)
+                except Exception as err:
+                    _logger.error(f"Error in background embedding job for subentry {subentry_id}: {err}", exc_info=True)
+                    continue
+        except Exception as err:
+            _logger.error("Error in background embedding job: %s", err, exc_info=True)
+        finally:
+            _logger.info("===== DEVICE EMBEDDING FUNCTION FINISHED =====")
 

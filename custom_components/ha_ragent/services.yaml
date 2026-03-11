@@ -1,0 +1,13 @@
+preload_models:
+  name: Preload Agent
+  target:
+    entity:
+      domain: conversation
+      integration: ha_ragent
+
+unload_models:
+  name: Unload Agent
+  target:
+    entity:
+      domain: conversation
+      integration: ha_ragent

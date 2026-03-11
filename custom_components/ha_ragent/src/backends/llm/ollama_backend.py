@@ -34,7 +34,7 @@ class OllamaBackend(ALlmBaseBackend):
 
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
-        return f"LLM Backend: Ollama"
+        return f"LLM: Ollama"
     
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -55,6 +55,14 @@ class OllamaBackend(ALlmBaseBackend):
         except Exception as ex:
             return str(ex)
     
+    async def async_preload_model(self, config_subentry: dict) -> None:
+        async for _ in self.async_send_chat_request(config_subentry, [{"role": "system", "content": "Preloading model with a test embedding request."}], [], keep_alive=-1):
+            pass
+    
+    async def async_unload_model(self, config_subentry: dict) -> None:
+        async for _ in self.async_send_chat_request(config_subentry, [{"role": "system", "content": "Unloading model with a test embedding request."}], [], keep_alive=0):
+            pass
+    
     async def async_get_available_models(self) -> List[str]:
         headers = {}
         session = async_get_clientsession(self.hass)
@@ -73,7 +81,7 @@ class OllamaBackend(ALlmBaseBackend):
 
         return [x["name"] for x in models_result["models"] if "embed" not in x["name"].lower()]
 
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[Dict]) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[Dict], **kwargs) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self.hass)
         url = ALlmBaseBackend._format_url(
@@ -92,6 +100,10 @@ class OllamaBackend(ALlmBaseBackend):
             "num_ctx": config_subentry[CONF_CONTEXT_LENGTH],
             "num_predict": config_subentry[CONF_MAX_TOKENS],
         }
+        
+        if "keep_alive" in kwargs:
+                payload["keep_alive"] = kwargs["keep_alive"]
+                payload.pop("messages")
 
         if tools and len(tools) > 0:
             payload["tools"] = tools

@@ -22,6 +22,14 @@ class ALlmBaseBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
+    async def async_preload_model(self, config_subentry: dict) -> None:
+        raise NotImplementedError()
+    
+    @abstractmethod
+    async def async_unload_model(self, config_subentry: dict) -> None:
+        raise NotImplementedError()
+    
+    @abstractmethod
     async def async_get_available_models(self) -> List[str]:
         raise NotImplementedError()
     

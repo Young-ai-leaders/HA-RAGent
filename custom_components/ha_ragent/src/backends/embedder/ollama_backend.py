@@ -25,7 +25,7 @@ class OllamaEmbedder(ABaseEmbedder):
     
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
-        return f"Embedding Backend: Ollama"
+        return f"Embedder: Ollama"
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -46,6 +46,12 @@ class OllamaEmbedder(ABaseEmbedder):
         except Exception as ex:
             return str(ex)
     
+    async def async_preload_model(self, config_subentry: dict) -> None:
+        await self.async_embed_text(config_subentry, "Preloading model with a test embedding request.", keep_alive=-1)  
+    
+    async def async_unload_model(self, config_subentry: dict) -> None:
+        await self.async_embed_text(config_subentry, "Unloading model with a test embedding request.", keep_alive=0)
+    
     async def async_get_available_models(self) -> List[str]:
         headers = {}
         session = async_get_clientsession(self.hass)
@@ -64,7 +70,7 @@ class OllamaEmbedder(ABaseEmbedder):
 
         return [x["name"] for x in models_result["models"] if "embed" in x["name"].lower()]
 
-    async def async_embed_text(self, config_subentry: dict, text: str) -> List[float]:
+    async def async_embed_text(self, config_subentry: dict, text: str, **kwargs) -> List[float]:
         try:
             session = async_get_clientsession(self.hass)
             url = ABaseEmbedder._format_url(
@@ -79,13 +85,19 @@ class OllamaEmbedder(ABaseEmbedder):
                 "input": text
             }
             
+            if "keep_alive" in kwargs:
+                payload["keep_alive"] = kwargs["keep_alive"]
+                payload.pop("input")
+            
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=30)) as response:
                 response.raise_for_status()
                 data = await response.json()
+                
                 if "embeddings" in data and len(data["embeddings"]) > 0:
                     return data["embeddings"][0]
                 else:
-                    _logger.error(f"Unexpected response from embedding backend: {data}")
+                    if "keep_alive" not in kwargs:
+                        _logger.error(f"Unexpected response from embedding backend: {data}")
                     return []
         except Exception as e:
             _logger.error(f"Error embedding text: {e}", exc_info=True)

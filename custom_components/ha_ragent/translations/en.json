@@ -180,5 +180,27 @@
                 "de": "German"
             }
         }
+    },
+    "services": {
+        "preload_models": {
+            "name": "Preload Models",
+            "description": "Preloads models for a specific integration instance.",
+            "fields": {
+                "entry_id": {
+                "name": "Integration Entry",
+                "description": "Select which instance to preload."
+                }
+            }
+        },
+        "unload_models": {
+            "name": "Unload Models",
+            "description": "Unloads models to free up resources for a specific integration instance.",
+            "fields": {
+                "entry_id": {
+                "name": "Integration Entry",
+                "description": "Select which instance to unload."
+                }
+            }
+        }
     }
 }
