@@ -118,6 +118,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     device_extractor = DeviceExtractor(hass, entry)
+    
     if hass.is_running:
         hass.async_create_task(device_extractor.async_embed_all_exposed_devices())
     else:

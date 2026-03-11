@@ -31,27 +31,27 @@ class ChromaDbBackend(ABaseDbBackend):
         return "DB: ChromaDB"
 
     @staticmethod
+    def _validate_connection(client_options: dict[str, Any]) -> Optional[str]:
+        host = client_options.get(CONF_VECTOR_DB_HOST)
+        port = client_options.get(CONF_VECTOR_DB_PORT)
+        ssl = client_options.get(CONF_VECTOR_DB_SSL)
+
+        settings = Settings(
+            chroma_api_impl="chromadb.api.fastapi.FastAPI",
+            chroma_server_host=host,
+            chroma_server_http_port=port,
+            chroma_server_ssl_enabled=ssl,
+        )
+        client = Client(settings=settings)
+        client.list_collections()
+        return None
+
+    @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
         try:
-            host = user_input.get(CONF_VECTOR_DB_HOST)
-            port = user_input.get(CONF_VECTOR_DB_PORT)
-            ssl = user_input.get(CONF_VECTOR_DB_SSL)
-
-            if host:
-                settings = Settings(
-                    chroma_api_impl="chromadb.api.fastapi.FastAPI",
-                    chroma_server_host=host,
-                    chroma_server_http_port=port,
-                    chroma_server_ssl_enabled=ssl,
-                )
-                client = Client(settings=settings)
-            else:
-                client = Client()
-
-            client.list_collections()
-            return None
+            return await hass.async_add_executor_job(ChromaDbBackend._validate_connection, user_input)
         except Exception as e:
-            return str(e)
+            _logger.error(f"Error validating ChromaDB connection: {e}", exc_info=True)
 
     def _get_client(self) -> Client:
         if self._client is None:
@@ -95,6 +95,7 @@ class ChromaDbBackend(ABaseDbBackend):
                 metadatas=[meta],
                 embeddings=[emb.vector_embedding],
             )
+        _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
 
     def _query_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
         client = self._get_client()
@@ -110,20 +111,14 @@ class ChromaDbBackend(ABaseDbBackend):
             client = self._get_client()
             if self._collection_exists(client, collection_name):
                 client.delete_collection(collection_name)
-
-            while self._collection_exists(client, collection_name):
-                _logger.debug("Waiting for Chroma collection %s to be deleted...", collection_name)
-                time.sleep(0.5)
+                time.sleep(1)
 
             client.create_collection(collection_name)
-            
-            while not self._collection_exists(client, collection_name):
-                _logger.debug("Waiting for Chroma collection %s to be created...", collection_name)
-                time.sleep(0.5)
+            _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting Chroma collection: {e}", exc_info=True)
-
-    async def async_cleanup_database(self) -> None:
+    
+    def _cleanup_database(self):
         try:
             client = self._get_client()
             for col in client.list_collections():
@@ -132,17 +127,21 @@ class ChromaDbBackend(ABaseDbBackend):
         except Exception as e:
              _logger.error(f"Error cleaning up database: {e}", exc_info=True)
 
+    async def async_cleanup_database(self) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._cleanup_database)
+        except Exception as e:
+             _logger.error(f"Error cleaning up database: {e}", exc_info=True)
+
     async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         try:
             await self.hass.async_add_executor_job(self._reset_collection, collection_name)
-            _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting database: {e}", exc_info=True)
 
     async def async_save_device_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
-            _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
         except Exception as e:
              _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
 
