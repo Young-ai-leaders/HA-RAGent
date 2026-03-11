@@ -116,6 +116,10 @@ class ChromaDbBackend(ABaseDbBackend):
                 time.sleep(0.5)
 
             client.create_collection(collection_name)
+            
+            while not self._collection_exists(client, collection_name):
+                _logger.debug("Waiting for Chroma collection %s to be created...", collection_name)
+                time.sleep(0.5)
         except Exception as e:
             _logger.error(f"Error resetting Chroma collection: {e}", exc_info=True)
 
