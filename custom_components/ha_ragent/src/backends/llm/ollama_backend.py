@@ -74,12 +74,12 @@ class OllamaBackend(ALlmBaseBackend):
             model_result = await response.json()
 
         capabilities = model_result.get("capabilities", [])
-        is_tool = "tool" in capabilities
+        is_tool = "tools" in capabilities
         is_embedding = "embedding" in capabilities
 
         return {
             "name": model_name,
-            "is_tool": is_tool,
+            "supports_tools": is_tool,
             "is_embedding": is_embedding
         }
     
@@ -112,7 +112,7 @@ class OllamaBackend(ALlmBaseBackend):
         for info in infos:
             if isinstance(info, Exception):
                 continue
-            if info.get("is_tool", True):
+            if info.get("supports_tools", True):
                 available.append(info["name"])
 
         return available
