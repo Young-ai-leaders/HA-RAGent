@@ -24,14 +24,14 @@ _logger = logging.getLogger(__name__)
 class ChromaDbBackend(ABaseDbBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
-        settings = Settings(
+        self._settings = Settings(
                 chroma_api_impl="chromadb.api.fastapi.FastAPI",
                 chroma_server_host=self.client_options.get(CONF_VECTOR_DB_HOST),
                 chroma_server_http_port=self.client_options.get(CONF_VECTOR_DB_PORT),
                 chroma_server_ssl_enabled=self.client_options.get(CONF_VECTOR_DB_SSL),
             )
             
-        self._client = Client(settings=settings)
+        self._client = None
 
     @staticmethod
     def get_name(client_options: dict[str, Any]):
@@ -59,13 +59,18 @@ class ChromaDbBackend(ABaseDbBackend):
             return await hass.async_add_executor_job(ChromaDbBackend._validate_connection, user_input)
         except Exception as e:
             _logger.error(f"Error validating ChromaDB connection: {e}", exc_info=True)
+
+    def _get_client(self) -> Client:
+        if self._client is None:
+            self._client = Client(settings=self._settings)
+        return self._client
     
     def _collection_exists(self, client: Client, collection_name: str) -> bool:
         collections = [col.name for col in client.list_collections()]
         return collection_name in collections
     
     def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding]):
-        collection = self._client.get_or_create_collection(name=collection_name)
+        collection = self._get_client().get_or_create_collection(name=collection_name)
 
         metadatas = []
         for emb in device_embeddings:
@@ -78,7 +83,7 @@ class ChromaDbBackend(ABaseDbBackend):
         _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
 
     def _query_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
-        collection = self._client.get_collection(name=collection_name)
+        collection = self._get_client().get_collection(name=collection_name)
         return collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
@@ -87,20 +92,20 @@ class ChromaDbBackend(ABaseDbBackend):
 
     def _reset_collection(self, collection_name: str):
         try:
-            if self._collection_exists(self._client, collection_name):
-                self._client.delete_collection(collection_name)
+            if self._collection_exists(self._get_client(), collection_name):
+                self._get_client().delete_collection(collection_name)
                 time.sleep(1)
 
-            self._client.create_collection(collection_name)
+            self._get_client().create_collection(collection_name)
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting Chroma collection: {e}", exc_info=True)
     
     def _cleanup_database(self):
         try:
-            for col in self._client.list_collections():
-                self._client.delete_collection(col.name)
-            _logger.info(f"Database cleanup for {self._client} successful.")
+            for col in self._get_client().list_collections():
+                self._get_client().delete_collection(col.name)
+            _logger.info(f"Database cleanup for {self._get_client()} successful.")
         except Exception as e:
              _logger.error(f"Error cleaning up database: {e}", exc_info=True)
 

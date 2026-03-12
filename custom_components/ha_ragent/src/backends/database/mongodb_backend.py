@@ -67,35 +67,32 @@ class MongoDbBackend(ABaseDbBackend):
         collection_names = await database.list_collection_names()
         return collection_name in collection_names
     
-    async def _async_init_database(self, conn: AsyncMongoClient, database: AsyncDatabase, collection_name: str, embedding_length: int) -> bool:
-        if await self._async_collection_exists(conn, collection_name):
-            return False
+    async def _async_init_database(self, conn: AsyncMongoClient, database: AsyncDatabase, collection_name: str, embedding_length: int) -> None:
+        if not await self._async_collection_exists(conn, collection_name):
+            await database.create_collection(collection_name)
 
-        await database.create_collection(collection_name)
-    
-        result = await self._async_execute_and_verify(database, {
-            "createSearchIndexes": collection_name,
-            "indexes": [
-                {
-                    "name": "vector_search_index",
-                    "type": "vectorSearch",
-                    "definition": {
-                        "fields": [
-                            {
-                                "path": "vector_embedding",
-                                "type": "vector",
-                                "numDimensions": embedding_length,
-                                "similarity": "cosine"
-                            }
-                        ]
+        if "vector_search_index" not in await database[collection_name].index_information():
+            result = await self._async_execute_and_verify(database, {
+                "createSearchIndexes": collection_name,
+                "indexes": [
+                    {
+                        "name": "vector_search_index",
+                        "type": "vectorSearch",
+                        "definition": {
+                            "fields": [
+                                {
+                                    "path": "vector_embedding",
+                                    "type": "vector",
+                                    "numDimensions": embedding_length,
+                                    "similarity": "cosine"
+                                }
+                            ]
+                        }
                     }
-                }
-            ]
-        })
-        if not result:
-            _logger.warning(f"Vector search index creation failed for collection {collection_name}")
-
-        return True
+                ]
+            })
+            if not result:
+                _logger.warning(f"Vector search index creation failed for collection {collection_name}")
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -135,8 +132,8 @@ class MongoDbBackend(ABaseDbBackend):
             conn = self._get_connection()
             database = self._get_database(conn)
 
-            if not await self._async_init_database(conn, database, collection_name, embedding_length):
-                await database[collection_name].delete_many({})
+            await self._async_init_database(conn, database, collection_name, embedding_length)
+            await database[collection_name].delete_many({})
 
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
