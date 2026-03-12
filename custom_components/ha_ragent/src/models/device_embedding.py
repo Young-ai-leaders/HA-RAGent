@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Any, List, Dict
 
 from .device import Device
 
@@ -16,4 +16,15 @@ class DeviceEmbedding:
                 "device_tags": self.device.device_tags,
                 "services": self.device.services,
                 "vector_embedding": self.vector_embedding
-            }    
+            }
+    
+    @staticmethod
+    def from_dict(doc: Dict[str, Any]) -> Device:
+        return Device(
+            id=doc.get("device_id"),
+            name=doc.get("name"),
+            domain=doc.get("domain"),
+            area_name=doc.get("area_name"),
+            device_tags=doc.get("device_tags", []),
+            services=doc.get("services", [])
+        )
