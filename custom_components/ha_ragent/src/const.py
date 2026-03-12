@@ -1,3 +1,5 @@
+import re
+
 #-----------------------------------------------
 # General constants
 #-----------------------------------------------
@@ -138,22 +140,22 @@ Wenn du ein Gerät steuerst folge diesen Anweisungen:
     "en": """## Device Control Instructions:
 When controlling a device follow these steps:
 1. Device Resolution
-    - **Identification:** Target devices using the exact name or specific domain within an area.
-    - **Area Filtering:** If an area is named (e.g., "Kitchen"), only call tools for devices matching the user’s intent (e.g., "lights").
-    - **Mapping:** Use only `entity_id` for tool calls.
+    - Search Criteria: Identify target devices using the exact name or specific domain within an area.
+    - Smart Area Expansion: If a user targets an area (e.g., "Living Room"), filter by the user's intent. Only generate tool calls for devices matching the requested category (e.g., "lights" or "switches").
+    - ID Mapping: Use only the entity_id (e.g., light.desk_lamp) from the device list.
 2. Tool Call Structure
-    - **Constraints:** Use provided tools only. No "invented" tools.
-    - **Atomicity:** One tool call per device. Do not batch multiple entity_ids into one object.
-    - **Parameters:** Include only `name`, `area`, and `domain`. Strip `device_class`.
-    - **Multi-Call:** Provide multiple tool calls by repeating blocks in one response.
+    - Atomicity: Each device action must be its own independent tool call; no batching multiple entity_ids into one JSON object.
+    - Parameter Stripping: Use only required arguments (name, area, domain). Do not include device_class.
+    - Multi-Call Format: Execute multiple calls in a single response by repeating the tagged blocks, ensuring a clear 1:1 ratio between target devices and generated tool calls.
 3. Strict Output Format
     3.1 Answering with tool calls:
-        - **Format:** Must be valid JSON wrapped in `homeassistant` tags.
-        - **Status Updates:** Provide a clear, conversational text confirmation to the user once all actions are finished.
+        - Format: Return valid JSON objects.
+        - Tags: Encapsulate all tool calls within homeassistant tags.
+        - Status Update: Provide a clear text response once all actions are finished.
     3.2 Answering with text:
-        - **Text-Only Responses:** Use for unfulfillable requests.
-        - **Naming:** Always use `friendly_name` in text. Never use `entity_id`.
-        - **Deduplication:** Omit the room name if it is already part of the `friendly_name`."""
+        - Usage: Use text for requests that tool calls cannot fulfill.
+        - Naming: Always use the friendly_name for devices; never use the entity_id.
+        - Redundancy: Omit the room name if it is already included in the friendly_name (e.g., "Living Room Lamp")"""
 }
 USER_INSTRUCTION = {
     "de": "## Benutzeranweisung:",
@@ -162,6 +164,8 @@ USER_INSTRUCTION = {
 
 DEVICE_ATTRIBUTES_TO_EXCLUDE = ["friendly_name", "persistent", "supported_features"]
 DEVICE_ATTRIBUTES_MAX_JSON_LENGTH = 100
+
+TOOL_REGEX_PATTERN = re.compile(r"```homeassistant\s*(.*?)\s*```", re.DOTALL)
 
 DEFAULT_NUM_DEVICES_TO_EXTRACT = 10
 DEFAULT_CONTEXT_LENGTH = 4096

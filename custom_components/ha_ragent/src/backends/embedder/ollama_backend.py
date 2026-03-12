@@ -23,24 +23,14 @@ class OllamaEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
 
-        self._tags_url = self._format_url(
-            hostname=client_options.get(CONF_EMBEDDING_HOST),
-            port=client_options.get(CONF_EMBEDDING_PORT),
-            ssl=client_options.get(CONF_EMBEDDING_SSL),
-            path="/api/tags"
-        )
-        self._info_url = self._format_url(
-            hostname=client_options.get(CONF_EMBEDDING_HOST),
-            port=client_options.get(CONF_EMBEDDING_PORT),
-            ssl=client_options.get(CONF_EMBEDDING_SSL),
-            path="/api/show"
-        )
-        self._embed_url = self._format_url(
-            hostname=client_options.get(CONF_EMBEDDING_HOST),
-            port=client_options.get(CONF_EMBEDDING_PORT),
-            ssl=client_options.get(CONF_EMBEDDING_SSL),
-            path="/api/embed"
-        )
+        base = {
+            "hostname": client_options.get(CONF_EMBEDDING_HOST),
+            "port": client_options.get(CONF_EMBEDDING_PORT),
+            "ssl": client_options.get(CONF_EMBEDDING_SSL),
+        }
+        self._tags_url = self._format_url(**base, path="/api/tags")
+        self._info_url = self._format_url(**base, path="/api/show")
+        self._embed_url = self._format_url(**base, path="/api/embed")
 
         self._default_timeout = aiohttp.ClientTimeout(total=5)
         self._embed_timeout = aiohttp.ClientTimeout(total=30)
@@ -49,7 +39,7 @@ class OllamaEmbedder(ABaseEmbedder):
     
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
-        return f"Embedder: Ollama"
+        return "Embedder: Ollama"
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -61,7 +51,7 @@ class OllamaEmbedder(ABaseEmbedder):
                     hostname=user_input.get(CONF_EMBEDDING_HOST),
                     port=user_input.get(CONF_EMBEDDING_PORT),
                     ssl=user_input.get(CONF_EMBEDDING_SSL),
-                    path=f"/api/tags"
+                    path="/api/tags"
                 ),
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers
