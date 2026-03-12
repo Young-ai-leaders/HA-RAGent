@@ -131,7 +131,7 @@ class OllamaBackend(ALlmBaseBackend):
         else:
             payload["messages"] = messages
 
-        if tools and len(tools) > 0:
+        if tools:
             payload["tools"] = tools
             _logger.info("Added %d tools to Ollama request", len(tools))
         
