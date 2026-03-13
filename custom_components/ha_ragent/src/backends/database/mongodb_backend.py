@@ -12,6 +12,8 @@ from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
 from .base_backend import ABaseDbBackend
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
 
 from ...const import (
     CONF_VECTOR_DB_NAME,
@@ -142,7 +144,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
             
-    async def async_save_device_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding]) -> None:
+    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         conn = None
         try:
             conn = self._get_connection()
@@ -155,7 +157,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
         
-    async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
+    async def async_retrieve_objects(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         conn = None
         devices = []
 

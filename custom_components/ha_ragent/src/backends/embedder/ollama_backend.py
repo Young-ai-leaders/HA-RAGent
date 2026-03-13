@@ -6,6 +6,8 @@ import aiohttp
 from .base_backend import ABaseEmbedder
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -123,12 +125,12 @@ class OllamaEmbedder(ABaseEmbedder):
         embeddings = await self._async_embed_batch(config_subentry, [text], keep_alive=keep_alive)
         return embeddings[0] if embeddings else []
 
-    async def async_embed_devices(self, config_subentry: dict, devices: list[Device]) -> list[DeviceEmbedding]:
+    async def async_embed_object(self, config_subentry: dict, devices: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
         if not devices:
             return []
 
         batch_size = 32
-        device_embeddings: list[DeviceEmbedding] = []
+        device_embeddings = []
         for i in range(0, len(devices), batch_size):
             chunk = devices[i:i + batch_size]
             texts = [str(d) for d in chunk]

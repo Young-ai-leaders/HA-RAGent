@@ -4,8 +4,8 @@ import voluptuous as vol
 from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_LLM_HASS_API, UnitOfTime
-from homeassistant.data_entry_flow import AbortFlow, section
+from homeassistant.const import CONF_LLM_HASS_API
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import llm
 from homeassistant.helpers.selector import (
     NumberSelector,

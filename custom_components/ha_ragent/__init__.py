@@ -9,6 +9,7 @@ from custom_components.ha_ragent.src.backends.database.base_backend import ABase
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.homeassistant.device_extractor import DeviceExtractor
+from custom_components.ha_ragent.src.homeassistant.tool_extractor import ToolExtractor
 
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
@@ -117,14 +118,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    tool_extractor = ToolExtractor(hass, entry)
     device_extractor = DeviceExtractor(hass, entry)
     
     if hass.is_running:
+        hass.async_create_task(tool_extractor.async_embed_all_tools())
         hass.async_create_task(device_extractor.async_embed_all_exposed_devices())
     else:
         hass.bus.async_listen_once(
             EVENT_HOMEASSISTANT_STARTED,
-            lambda _event: hass.add_job(device_extractor.async_embed_all_exposed_devices()),
+            lambda _event: (
+                hass.add_job(tool_extractor.async_embed_all_tools()),
+                hass.add_job(device_extractor.async_embed_all_exposed_devices())
+            )
         )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

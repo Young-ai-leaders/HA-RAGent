@@ -18,6 +18,8 @@ from ...const import (
 
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
 
@@ -121,13 +123,13 @@ class ChromaDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error resetting database: {e}", exc_info=True)
 
-    async def async_save_device_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding]) -> None:
+    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
         except Exception as e:
              _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
 
-    async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
+    async def async_retrieve_objects(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         devices: List[Device] = []
         try:
             result = await self.hass.async_add_executor_job(self._query_devices, collection_name, query_embedding, top_k)
