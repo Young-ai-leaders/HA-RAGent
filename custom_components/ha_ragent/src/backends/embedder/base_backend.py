@@ -44,5 +44,5 @@ class ABaseEmbedder(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_embed_object(self, config_subentry: dict, devices: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
+    async def async_embed_object(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, devices: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
         raise NotImplementedError()

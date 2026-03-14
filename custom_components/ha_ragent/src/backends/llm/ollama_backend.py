@@ -7,6 +7,8 @@ from typing import Any, Dict, List, AsyncGenerator
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
+from custom_components.ha_ragent.src.models.tool import LlmTool
+
 from .base_backend import ALlmBaseBackend
 from ...const import (
     CONF_CONTEXT_LENGTH,
@@ -113,7 +115,7 @@ class OllamaBackend(ALlmBaseBackend):
         return available
     
 
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[Dict], **kwargs) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self.hass)
 
@@ -132,7 +134,7 @@ class OllamaBackend(ALlmBaseBackend):
             payload["messages"] = messages
 
         if tools:
-            payload["tools"] = tools
+            payload["tools"] = [tool.to_tool_dict() for tool in tools]
             _logger.info("Added %d tools to Ollama request", len(tools))
         
         try:

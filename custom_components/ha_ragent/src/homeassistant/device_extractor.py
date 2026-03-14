@@ -1,5 +1,7 @@
 import logging
 
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+
 from ..models.device import Device
 
 from homeassistant.core import HomeAssistant
@@ -100,7 +102,7 @@ class DeviceExtractor:
                     
                     await self._entry.vector_db_backend.async_reset_database(dict(subentry.data), collection_name, embedding_len)                    
                     device_list = await self._async_get_embeddable_devices(exposed_entities)
-                    device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
+                    device_embeddings = await self._entry.embedder_backend.async_embed_object(DeviceEmbedding, dict(subentry.data), device_list)
 
                     if device_embeddings:
                         _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")

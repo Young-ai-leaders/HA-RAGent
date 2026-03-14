@@ -81,6 +81,7 @@ DEFAULT_LLM_BACKEND_TYPE = BACKEND_LLM_TYPE_OLLAMA
 # Prompt configuration constants
 #----------------------------------------------
 CONF_NUM_DEVICES_TO_EXTRACT = "rag_num_devices_to_extract"
+CONF_NUM_TOOLS_TO_EXTRACT = "rag_num_tools_to_extract"
 CONF_CONTEXT_LENGTH = "rag_context_length"
 
 CONF_IN_CONTEXT_LEARNING_ENABLED = "rag_in_context_learning_enabled"
@@ -141,22 +142,21 @@ Wenn du ein Gerät steuerst folge diesen Anweisungen:
 When controlling a device follow these steps:
 1. Device Resolution
     - Search Criteria: Identify target devices using the exact name or specific domain within an area.
-    - Smart Area Expansion: If a user targets an area (e.g., "Living Room"), filter by the user's intent. Only generate tool calls for devices matching the requested category (e.g., "lights" or "switches").
-    - ID Mapping: Use only the entity_id (e.g., light.desk_lamp) from the device list.
+    - Smart Area Expansion: If a user targets an area (e.g., "Bedroom"), find ALL devices in that area matching the requested category (e.g., "lights").
+    - User Itend: Do not include devices that are not relevant to the user's request. If the user asks to turn off the lights in the bedroom, do not include a device in the living room even if it is a light.
 2. Tool Call Structure
-    - Atomicity: Each device action must be its own independent tool call; no batching multiple entity_ids into one JSON object.
-    - Parameter Stripping: Use only required arguments (name, area, domain). Do not include device_class.
-    - Multi-Call Format: Execute multiple calls in a single response by repeating the tagged blocks, ensuring a clear 1:1 ratio between target devices and generated tool calls.
+    - Exhaustive Action: If a user says "all lights," you MUST generate a separate tool call for every matching light that is currently `on`.
+    - Atomicity: Encapsulate each individual JSON call in its own `homeassistant` tag block.
+    - Identification: Never truncate the name `light.bedroom_1_lamp` to `bedroom_1_lamp`. The tool will fail without the domain.
 3. Strict Output Format
     3.1 Answering with tool calls:
-        - Format: Return valid JSON objects.
-        - Tags: Encapsulate all tool calls within homeassistant tags.
-        - Status Update: Provide a clear text response once all actions are finished.
+        - Format: Return valid JSON objects inside `homeassistant` tags.
+        - Follow-up: Once all tool calls are listed, provide a brief confirmation using friendly_names.
     3.2 Answering with text:
-        - Usage: Use text for requests that tool calls cannot fulfill.
-        - Naming: Always use the friendly_name for devices; never use the entity_id.
-        - Redundancy: Omit the room name if it is already included in the friendly_name (e.g., "Living Room Lamp")"""
+        - Use only if no matching devices exist.
+        - Always use friendly_name, omitting the room name if it’s redundant (e.g., "Bedside Lamp" instead of "Bedroom Bedside Lamp")."""
 }
+
 USER_INSTRUCTION = {
     "de": "## Benutzeranweisung:",
     "en": "## User instruction:"
@@ -168,6 +168,7 @@ DEVICE_ATTRIBUTES_MAX_JSON_LENGTH = 100
 TOOL_REGEX_PATTERN = re.compile(r"```homeassistant\s*(.*?)\s*```", re.DOTALL)
 
 DEFAULT_NUM_DEVICES_TO_EXTRACT = 10
+DEFAULT_NUM_TOOLS_TO_EXTRACT = 8
 DEFAULT_CONTEXT_LENGTH = 4096
 
 DEFAULT_IN_CONTEXT_LEARNING_ENABLED = True
@@ -182,12 +183,12 @@ DEFAULT_OLLAMA_KEEP_ALIVE_MIN = 5
 DEFAULT_PROMPT = """<persona>
 <current_date>
 
+<device_control_prompt>
+
 <devices>
 {% for device in device_list %}
-- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "services": {{ device.services | tojson }}  "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
+- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
 {% endfor %}
-
-<device_control_prompt>
 
 <user_instruction>
 """

@@ -17,9 +17,9 @@ class DeviceEmbedding:
                 "services": self.device.services,
                 "vector_embedding": self.vector_embedding
             }
-    
+
     @staticmethod
-    def from_dict(doc: Dict[str, Any]) -> Device:
+    def parse_object(doc: Dict[str, Any]) -> Device:
         return Device(
             id=doc.get("device_id"),
             name=doc.get("name"),

@@ -1,3 +1,4 @@
+import json
 from typing import Any, List, Dict
 
 from .tool import LlmTool
@@ -9,14 +10,18 @@ class LlmToolEmbedding:
     
     def to_dict(self) -> Dict:
         return {
-                "tool_id": self.tool.id,
+                "name": self.tool.name,
                 "description": self.tool.description,
+                "parameters": json.dumps(self.tool.parameters),
+                "metadata": json.dumps(self.tool.metadata),
                 "vector_embedding": self.vector_embedding
             }
     
     @staticmethod
-    def from_dict(doc: Dict[str, Any]) -> LlmTool:
+    def parse_object(doc: Dict[str, Any]) -> 'LlmTool':
         return LlmTool(
-            id=doc.get("tool_id"),
-            description=doc.get("description")
+            name=doc.get("name"),
+            description=doc.get("description"),
+            parameters=json.loads(doc.get("parameters")) if doc.get("parameters") else None,
+            metadata=json.loads(doc.get("metadata")) if doc.get("metadata") else None
         )

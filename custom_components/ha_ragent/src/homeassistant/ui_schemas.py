@@ -25,6 +25,7 @@ from homeassistant.helpers.selector import (
 
 from ..const import (
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
+    CONF_NUM_TOOLS_TO_EXTRACT,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_VECTOR_DB_USERNAME,
     CONF_VECTOR_DB_PASSWORD,
@@ -73,6 +74,7 @@ from ..const import (
     DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
+    DEFAULT_NUM_TOOLS_TO_EXTRACT,
     DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
     DEFAULT_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
@@ -344,6 +346,11 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_NUM_DEVICES_TO_EXTRACT)},
             default=DEFAULT_NUM_DEVICES_TO_EXTRACT,
         ): int,
+        vol.Required(
+            CONF_NUM_TOOLS_TO_EXTRACT,
+            description={"suggested_value": options.get(CONF_NUM_TOOLS_TO_EXTRACT)},
+            default=DEFAULT_NUM_TOOLS_TO_EXTRACT,
+        ): int,
     }
 
     global_order = [
@@ -352,6 +359,7 @@ def ui_schema_config_options(
         CONF_PROMPT,
         CONF_ENABLE_MODEL_THINKING,
         CONF_NUM_DEVICES_TO_EXTRACT,
+        CONF_NUM_TOOLS_TO_EXTRACT,
         CONF_CONTEXT_LENGTH,
         CONF_MAX_TOKENS,
         # sampling parameters

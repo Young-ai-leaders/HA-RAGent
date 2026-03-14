@@ -122,13 +122,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     device_extractor = DeviceExtractor(hass, entry)
     
     if hass.is_running:
-        hass.async_create_task(tool_extractor.async_embed_all_tools())
+        hass.async_create_task(tool_extractor.async_embed_all_exposed_tools())
         hass.async_create_task(device_extractor.async_embed_all_exposed_devices())
     else:
         hass.bus.async_listen_once(
             EVENT_HOMEASSISTANT_STARTED,
             lambda _event: (
-                hass.add_job(tool_extractor.async_embed_all_tools()),
+                hass.add_job(tool_extractor.async_embed_all_exposed_tools()),
                 hass.add_job(device_extractor.async_embed_all_exposed_devices())
             )
         )

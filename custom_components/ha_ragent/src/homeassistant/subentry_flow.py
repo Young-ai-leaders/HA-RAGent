@@ -18,6 +18,7 @@ from ..const import (
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_LLM_BACKEND_TYPE,
+    CONF_EMBEDDING_MODEL,
     CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
     CONF_IN_CONTEXT_LEARNING_ENABLED,
@@ -159,7 +160,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         if self._is_new:
             return self.async_create_entry(
-                title=self.model_config.get(CONF_LLM_MODEL, "Model"),
+                title=f"{self.model_config.get(CONF_EMBEDDING_MODEL, "Embedder")} + {self.model_config.get(CONF_LLM_MODEL, "LLM")}",
                 data=self.model_config,
             )
         else:

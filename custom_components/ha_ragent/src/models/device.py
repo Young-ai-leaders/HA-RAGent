@@ -14,6 +14,9 @@ class Device:
     attributes: Dict[str, Any] = None
     
     def __str__(self):
+        return self.to_json()
+
+    def to_json(self):
         return json.dumps({
             "device_id": self.id,
             "name": self.name,

@@ -157,13 +157,34 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
         
-    async def async_retrieve_objects(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         conn = None
         devices = []
 
         try:
             conn = self._get_connection()
             collection = self._get_collection(conn, collection_name)
+
+            if object_type == DeviceEmbedding:
+                projection = {
+                    "device_id": 1,
+                    "name": 1,
+                    "domain": 1,
+                    "area_name": 1,
+                    "device_tags": 1,
+                    "services": 1,
+                }
+            elif object_type == LlmToolEmbedding:
+                projection = {
+                    "name": 1,
+                    "description": 1,
+                    "parameters": 1,
+                    "metadata": 1
+                }
+            else:
+                _logger.error(f"Unsupported object type for retrieval: {object_type}")
+                return []
+
             pipeline = [
                 {
                     "$vectorSearch": {
@@ -175,21 +196,14 @@ class MongoDbBackend(ABaseDbBackend):
                     }
                 },
                 {
-                    "$project": {
-                        "device_id": 1,
-                        "name": 1,
-                        "domain": 1,
-                        "area_name": 1,
-                        "device_tags": 1,
-                        "services": 1
-                    }
+                    "$project": projection
                 }
             ]
 
             cursor = await collection.aggregate(pipeline)
             results = await cursor.to_list(length=top_k)
             
-            devices = [DeviceEmbedding.from_dict(doc) for doc in results]
+            devices = [object_type.parse_object(doc) for doc in results]
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
         finally:

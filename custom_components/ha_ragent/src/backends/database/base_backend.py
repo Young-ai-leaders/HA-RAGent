@@ -36,5 +36,5 @@ class ABaseDbBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_retrieve_objects(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         raise NotImplementedError()
