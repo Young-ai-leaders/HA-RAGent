@@ -64,6 +64,10 @@ class DeviceExtractor:
                     if label:
                         device_tags.append(label.name)
 
+            aliases = []
+            if entity_entry and entity_entry.aliases:
+                aliases = list(entity_entry.aliases)
+
             services = await self._async_get_services_for_domain(domain)
 
             devices.append(Device(
@@ -72,6 +76,7 @@ class DeviceExtractor:
                 domain=[domain],
                 area_name=area_name,
                 device_tags=device_tags,
+                aliases=aliases,
                 services=services
             ))
         

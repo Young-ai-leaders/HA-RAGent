@@ -173,6 +173,7 @@ class MongoDbBackend(ABaseDbBackend):
                     "area_name": 1,
                     "device_tags": 1,
                     "services": 1,
+                    "aliases": 1
                 }
             elif object_type == LlmToolEmbedding:
                 projection = {

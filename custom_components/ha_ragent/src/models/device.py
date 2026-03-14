@@ -10,8 +10,12 @@ class Device:
     domain: List[str] = None
     device_tags: List[str] = None
     services: List[str] = None
+    aliases: List[str] = None
+
+    # Loaded from current state not used for embedding
     state: str = None
     attributes: Dict[str, Any] = None
+
     
     def __str__(self):
         return self.to_json()
@@ -24,4 +28,5 @@ class Device:
             "area_name": self.area_name,
             "device_tags": self.device_tags,
             "services": self.services,
+            "aliases": self.aliases
         })
