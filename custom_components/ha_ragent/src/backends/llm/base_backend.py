@@ -4,6 +4,8 @@ from typing import Any, Dict, List, AsyncGenerator
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.llm import APIInstance
 
+from custom_components.ha_ragent.src.models.tool import LlmTool
+
 class ALlmBaseBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         self.hass = hass
@@ -34,5 +36,5 @@ class ALlmBaseBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[Dict]) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool]) -> AsyncGenerator[str, None]:
         raise NotImplementedError()

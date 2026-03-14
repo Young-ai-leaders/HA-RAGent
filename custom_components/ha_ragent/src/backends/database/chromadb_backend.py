@@ -2,6 +2,7 @@ import logging
 import asyncio
 import time
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from homeassistant.core import HomeAssistant
 
@@ -18,6 +19,8 @@ from ...const import (
 
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
 
@@ -69,7 +72,7 @@ class ChromaDbBackend(ABaseDbBackend):
         collections = [col.name for col in client.list_collections()]
         return collection_name in collections
     
-    def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding]):
+    def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]):
         collection = self._get_client().get_or_create_collection(name=collection_name)
 
         metadatas = []
@@ -77,7 +80,7 @@ class ChromaDbBackend(ABaseDbBackend):
             meta = emb.to_dict()
             metadatas.append({k: v for k, v in meta.items() if not (isinstance(v, list) and len(v) == 0)})
 
-        ids = [emb.device.id for emb in device_embeddings]
+        ids = [str(uuid4()) for emb in device_embeddings]
         embeddings = [emb.vector_embedding for emb in device_embeddings]
         collection.add(ids=ids, metadatas=metadatas, embeddings=embeddings)
         _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
@@ -94,7 +97,8 @@ class ChromaDbBackend(ABaseDbBackend):
         try:
             if self._collection_exists(self._get_client(), collection_name):
                 self._get_client().delete_collection(collection_name)
-                time.sleep(1)
+                while self._collection_exists(self._get_client(), collection_name):
+                    time.sleep(1)
 
             self._get_client().create_collection(collection_name)
             _logger.info(f"Collection {collection_name} reset successfully")
@@ -121,19 +125,19 @@ class ChromaDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error resetting database: {e}", exc_info=True)
 
-    async def async_save_device_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding]) -> None:
+    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
         except Exception as e:
              _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
 
-    async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         devices: List[Device] = []
         try:
             result = await self.hass.async_add_executor_job(self._query_devices, collection_name, query_embedding, top_k)
             metadata = result.get("metadatas") or []
             if metadata:
-                devices = [DeviceEmbedding.from_dict(m) for m in metadata[0]]
+                devices = [object_type.parse_object(m) for m in metadata[0]]
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
         return devices

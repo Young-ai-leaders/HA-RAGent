@@ -6,6 +6,9 @@ from homeassistant.config_entries import ConfigSubentry
 
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
+
 
 class ABaseEmbedder(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -41,5 +44,5 @@ class ABaseEmbedder(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_embed_devices(self, config_subentry: dict, devices: List[Device]) -> List[DeviceEmbedding]:
+    async def async_embed_object(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, devices: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
         raise NotImplementedError()

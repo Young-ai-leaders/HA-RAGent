@@ -1,5 +1,7 @@
 import logging
 
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+
 from ..models.device import Device
 
 from homeassistant.core import HomeAssistant
@@ -98,16 +100,13 @@ class DeviceExtractor:
                     collection_name = f"devices_{subentry_id}"
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
                     
-                    _logger.debug(f"Preparing collection reset for subentry {subentry_id} (collection: {collection_name}, embedding_len: {embedding_len}).")
-                    await self._entry.vector_db_backend.async_reset_database(dict(subentry.data), collection_name, embedding_len)
-                    _logger.debug(f"Collection reset done. Starting embedding job for subentry {subentry_id} (collection: {collection_name}).")
-                    
+                    await self._entry.vector_db_backend.async_reset_database(dict(subentry.data), collection_name, embedding_len)                    
                     device_list = await self._async_get_embeddable_devices(exposed_entities)
-                    device_embeddings = await self._entry.embedder_backend.async_embed_devices(dict(subentry.data), device_list)
+                    device_embeddings = await self._entry.embedder_backend.async_embed_object(DeviceEmbedding, dict(subentry.data), device_list)
 
                     if device_embeddings:
                         _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
-                        await self._entry.vector_db_backend.async_save_device_embeddings(dict(subentry.data), collection_name, device_embeddings)
+                        await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, device_embeddings)
                         _logger.debug(f"Finished embedding all exposed devices for subentry {subentry_id} ({len(device_embeddings)} devices)")
                     else:
                         _logger.warning("No devices to embed for subentry %s", subentry_id)
@@ -115,7 +114,7 @@ class DeviceExtractor:
                     _logger.error(f"Error in background embedding job for subentry {subentry_id}: {err}", exc_info=True)
                     continue
         except Exception as err:
-            _logger.error("Error in background embedding job: %s", err, exc_info=True)
+            _logger.error(f"Error in tool embedding job: {err}", exc_info=True)
         finally:
             _logger.info("===== DEVICE EMBEDDING FUNCTION FINISHED =====")
 

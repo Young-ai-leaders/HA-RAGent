@@ -5,6 +5,8 @@ from homeassistant.core import HomeAssistant
 
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
 
 class ABaseDbBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -30,9 +32,9 @@ class ABaseDbBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_save_device_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding]) -> None:
+    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_retrieve_devices(self, config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device]:
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         raise NotImplementedError()

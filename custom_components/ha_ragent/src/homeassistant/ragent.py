@@ -4,13 +4,6 @@ import json
 import logging
 from typing import Any, List, Tuple, Dict
 
-try:
-    from voluptuous_openapi import convert
-    HAS_VOLUPTUOUS_OPENAPI = True
-except ImportError:
-    HAS_VOLUPTUOUS_OPENAPI = False
-    convert = None
-
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
 from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.components import conversation
@@ -22,17 +15,23 @@ from homeassistant.helpers import chat_session, intent, llm
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.llm import ToolInput, APIInstance
 
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+
 from .ragent_entity import RAGentEntity
 from .ragent_config_entry import RAGentConfigEntry
 from ..models.device import Device
 
 from ..const import (
     CONF_NUM_DEVICES_TO_EXTRACT,
+    CONF_NUM_TOOLS_TO_EXTRACT,
     CONF_PROMPT,
     CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_NUM_INTERACTIONS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     DEFAULT_NUM_DEVICES_TO_EXTRACT,
+    DEFAULT_NUM_TOOLS_TO_EXTRACT,
     DEFAULT_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION,
     DEFAULT_REMEMBER_NUM_INTERACTIONS,
@@ -82,7 +81,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             query_embedding = await self.entry.embedder_backend.async_embed_text(dict(self.subentry.data), user_input.text)
             _logger.debug(f"User input embedded successfully, embedding shape: {len(query_embedding)}"),
         except Exception as e:
-            _logger.error("Error embedding user input: %s", e, exc_info=True)
+            _logger.error(f"Error embedding user input: {e}", exc_info=True)
         
         return query_embedding
 
@@ -92,17 +91,37 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         collection_name = f"devices_{self.subentry_id}"
         _logger.debug(f"Collection name: {collection_name}, Query embedding dimension: {len(query_embedding)}")
         try:
-            retrieved_devices = await self.entry.vector_db_backend.async_retrieve_devices(
-                dict(self.subentry.data),
+            retrieved_devices = await self.entry.vector_db_backend.async_retrieve_objects(
+                object_type=DeviceEmbedding,
+                config_subentry=dict(self.subentry.data),
                 collection_name=collection_name,
                 query_embedding=query_embedding,
                 top_k=n_devices
             )
-            _logger.debug("Retrieved %d relevant devices from vector database (collection: %s)", len(retrieved_devices), collection_name)
+            _logger.debug(f"Retrieved {len(retrieved_devices)} relevant devices from vector database (collection: {collection_name})")
         except Exception as e:
-            _logger.error("Error retrieving devices from vector DB: %s", e, exc_info=True)
+            _logger.error(f"Error retrieving devices from vector DB: {e}", exc_info=True)
         
         return retrieved_devices
+
+    async def _async_retrieve_tools(self, query_embedding: List[float], n_tools: int) -> List[LlmTool]:
+        """Retrieve relevant tools from vector database based on query embedding."""
+        _logger.debug("RAG Step 2: Querying vector database for similar tools")
+        collection_name = f"tools_{self.subentry_id}"
+        _logger.debug(f"Collection name: {collection_name}, Query embedding dimension: {len(query_embedding)}")
+        try:
+            retrieved_tools = await self.entry.vector_db_backend.async_retrieve_objects(
+                object_type=LlmToolEmbedding,
+                config_subentry=dict(self.subentry.data),
+                collection_name=collection_name,
+                query_embedding=query_embedding,
+                top_k=n_tools
+            )
+            _logger.debug(f"Retrieved {len(retrieved_tools)} relevant tools from vector database (collection: {collection_name})")
+        except Exception as e:
+            _logger.error("Error retrieving tools from vector DB: %s", e, exc_info=True)
+        
+        return retrieved_tools
 
     async def _async_render_template(self, template_str: str, devices: List[Device], tools: List[str], icl_examples: List[str]) -> str:
         """Render a Jinja2 template string with the given context."""
@@ -115,7 +134,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             })
             return rendered
         except TemplateError as e:
-            _logger.error("Template rendering error: %s", e, exc_info=True)
+            _logger.error(f"Template rendering error: {e}", exc_info=True)
             raise e
 
     async def _async_get_message_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, devices: List[Device]) -> List[conversation.Content]:
@@ -128,7 +147,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             system_prompt_content = await self._async_render_template(raw_prompt, devices, [], [])
             system_prompt = conversation.SystemContent(content=system_prompt_content)
         except Exception as err:
-            _logger.error("Error rendering prompt: %s", err, exc_info=True)
+            _logger.error(f"Error rendering prompt: {err}", exc_info=True)
             return None
 
         if remember_conversation:
@@ -150,39 +169,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return message_history
 
-    def _get_tool_list(self, llm_api: APIInstance) -> List[Dict]:
-        if not llm_api or not HAS_VOLUPTUOUS_OPENAPI:
-            return []
-
-        tools = []
-        try:
-            for tool in llm_api.tools:
-                if tool.name == "GetLiveContext":
-                    continue
-
-                tool_def = {
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description or "",
-                    }
-                }
-
-                if hasattr(tool, 'parameters') and tool.parameters:
-                    try:
-                        tool_def["function"]["parameters"] = convert(tool.parameters, custom_serializer=llm_api.custom_serializer)
-                    except Exception as param_err:
-                        _logger.debug("Could not convert parameters for tool %s: %s", tool.name, param_err)
-                        tool_def["function"]["parameters"] = {}
-                else:
-                    tool_def["function"]["parameters"] = {}
-                
-                tools.append(tool_def)
-        except Exception as err:
-            _logger.warning("Failed to format tools for Ollama: %s", err)
-
-        return tools
-
     def _parse_tool_calls(self, response_text: str) -> List[dict]:
         """Parse tool calls from LLM response."""
         parsed_calls = []
@@ -199,16 +185,21 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     
                     parameters = tool_json.get("arguments", {})
                     if "device_class" in parameters:
-                        parameters["domain"] = parameters.pop("device_class")
+                        device_class = parameters.pop("device_class")
+                        if "domain" not in parameters:
+                            parameters["domain"] = device_class
+
+                    if "floor" in parameters:
+                        parameters.pop("floor")
 
                     parsed_calls.append({
                         "name": tool_json.get("tool"),
                         "parameters": parameters
                     })
 
-                    _logger.debug("Parsed tool call from homeassistant block: %s", tool_json)
+                    _logger.debug(f"Parsed tool call from homeassistant block: {tool_json}")
             except (json.JSONDecodeError, AttributeError) as e:
-                _logger.warning("Failed to parse homeassistant block JSON: %s", e)
+                _logger.warning(f"Failed to parse homeassistant block JSON: {e}")
 
         return parsed_calls
     
@@ -229,10 +220,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return tool_result
 
-    async def _async_prompt_model(self, llm_api: llm.APIInstance, user_input: ConversationInput, message_history: List[conversation.Content]) -> ConversationResult:
+    async def _async_prompt_model(self, llm_api: llm.APIInstance, user_input: ConversationInput, tool_list: List[LlmTool], message_history: List[conversation.Content]) -> ConversationResult:
         """Process a prompt through the RAGent."""
         max_tool_call_iterations = self.runtime_options.get(CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS)
-        tool_list = self._get_tool_list(llm_api)
 
         formatted_messages = []
         last_formatted_index = 0
@@ -388,6 +378,12 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant devices.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
+                retrieved_tools = await self._async_retrieve_tools(query_embedding, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT))
+                if not retrieved_tools and llm_api:
+                    intent_response = intent.IntentResponse(language=user_input.language)
+                    intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant tools.")
+                    return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
+
                 device_list = []
                 for device in retrieved_devices:
                     st = self.hass.states.get(device.id)
@@ -404,7 +400,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Template rendering failed.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
                 
-                return await self._async_prompt_model(llm_api, user_input, message_history)
+                return await self._async_prompt_model(llm_api, user_input, retrieved_tools, message_history)
         except Exception as err:
             _logger.error("Unexpected error in async_process: %s", err)
             intent_response = intent.IntentResponse(language=user_input.language)
