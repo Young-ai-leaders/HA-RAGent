@@ -36,7 +36,7 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 ### Add Service Entry:
 **Select Backends:**
 - `Vector database backend`
-    - **FAISS (Local DB)** is the default and simplest to use there is no additional configuration required
+    - **FAISS (Local DB)** is the default and simplest to use, there is no additional configuration required
     - **MongoDB** requires the setup of an external MongoDB Atlas instance
     - **ChromaDB** requires the setup of an external ChromaDB instace
 - `Embedding backend`
@@ -68,7 +68,7 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 - **Use HTTPS** whether to enable SSL for the LLM backend connection
 
 ### Add AI RAGent Entry:
-**Pick one of the configures services**
+**Pick one of the configured services**
 - The name contains database, embedding and llm backend
 
 **Pick Models**
