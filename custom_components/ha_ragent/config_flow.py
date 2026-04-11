@@ -16,6 +16,7 @@ from homeassistant.helpers import llm
 from .src.homeassistant.ragent_config_entry import RAGentConfigEntry
 
 from .src.const import (
+    BACKEND_VECTOR_DB_TYPE_FAISS,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_VECTOR_DB_NAME,
@@ -114,8 +115,12 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             vector_db_hostname = user_input.get(CONF_VECTOR_DB_HOST)
             embedding_hostname = user_input.get(CONF_EMBEDDING_HOST)
             llm_hostname = user_input.get(CONF_LLM_HOST)
+            
+            vector_db_is_valid = self.client_config.get(CONF_VECTOR_DB_BACKEND_TYPE) == BACKEND_VECTOR_DB_TYPE_FAISS or is_valid_host(vector_db_hostname)
+            embedding_is_valid = is_valid_host(embedding_hostname)
+            llm_is_valid = is_valid_host(llm_hostname)
 
-            if not is_valid_host(vector_db_hostname) or not is_valid_host(embedding_hostname) or not is_valid_host(llm_hostname):
+            if not vector_db_is_valid or not embedding_is_valid or not llm_is_valid:
                 errors["base"] = "invalid_hostname"
                 description_placeholders["exception"] = "The provided hostname could not be resolved to an IP address."
             else:
