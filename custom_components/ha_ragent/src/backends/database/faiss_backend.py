@@ -115,8 +115,8 @@ class FaissDbBackend(ABaseDbBackend):
     def _reset_database(self, collection_name: str, embedding_length: int):
         idx_path, meta_path = self._get_paths(collection_name)
 
-        self._indices.pop(collection_name)
-        self._metadata.pop(collection_name)
+        self._indices.pop(collection_name, None)
+        self._metadata.pop(collection_name, None)
 
         for path in (idx_path, meta_path):
             if os.path.exists(path):
