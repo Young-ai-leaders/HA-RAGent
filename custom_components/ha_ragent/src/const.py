@@ -19,7 +19,7 @@ DEFAULT_LANGUAGE = "en"
 #-----------------------------------------------
 # Service Tool constants
 #-----------------------------------------------
-
+RAGENT_TIMER_DEVICE_ID = "ha_ragent_timer_device_a03a100a-81ca-415d"
 
 #-----------------------------------------------
 # Vector database backend constants
@@ -126,7 +126,6 @@ AREAS_PROMPT = {
 - Aktueller Standort: Du befindest dich physisch im {{ area_name }}{% if floor_name %} ({{ floor_name }} Stock){% endif %}.
 - Standardverhalten: Wenn der Benutzer eine Gerätekategorie angibt (z. B. „die Lichter“), ohne einen Raum zu nennen, ziele NUR auf die Geräte im {{ area_name }} ab.
 {% else %}
-- Aktueller Standort: UNBEKANNT. 
 - KRITISCH: Du hast keine Erlaubnis, einen Raum zu erraten oder das gesamte Haus anzusprechen.
 - Wenn der Benutzer keinen Raum angibt, MUSST du um Klarstellung bitten.
 {% endif %}""",
@@ -135,8 +134,7 @@ AREAS_PROMPT = {
 - Current Location: You are physically located in the {{ area_name }}{% if floor_name %} ({{ floor_name }} floor){% endif %}.
 - Default Behavior: If the user specifies a device category (e.g., "the lights") without naming a room, target ONLY the devices within the {{ area_name }}.
 {% else %}
-- Current Location: UNKNOWN. 
-- CRITICAL: You do not have permission to guess a room or target the entire house. 
+- CRITICAL: You do not have permission to guess a room or target the entire house.
 - If the user does not name a room, you MUST ask for clarification.
 {% endif %}
 """

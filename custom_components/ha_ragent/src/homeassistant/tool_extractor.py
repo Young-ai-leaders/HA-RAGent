@@ -4,12 +4,14 @@ import logging
 from typing import Any, Iterable, List, Tuple
 
 from homeassistant.const import CONF_LLM_HASS_API
+from homeassistant.components.intent import async_register_timer_handler
+from homeassistant.components.intent.timers import TIMER_DATA, TimerEventType, TimerInfo
 
 import voluptuous as vol
 from voluptuous_openapi import convert
 
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.llm import LLMContext
@@ -18,8 +20,7 @@ from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbeddi
 
 from .ragent_config_entry import RAGentConfigEntry
 from ..models.tool import LlmTool
-from ..const import DOMAIN
-from ..const import DOMAIN
+from ..const import DOMAIN, RAGENT_TIMER_DEVICE_ID
 
 _logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class ToolExtractor:
     def __init__(self, hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
         self._hass = hass
         self._entry = entry
+        self._fake_timer_remove = None
 
     @staticmethod
     def _normalize_strings(values: Iterable[Any]) -> set[str]:
@@ -99,6 +101,27 @@ class ToolExtractor:
         metadata["is_device_class_aware"] = has_device_class
         return metadata
 
+    def _register_fake_timer_device(self) -> None:
+        @callback
+        def handle_timer_event(event_type: TimerEventType, timer: TimerInfo) -> None:
+            pass
+
+        try:
+            self._fake_timer_remove = async_register_timer_handler(self._hass, RAGENT_TIMER_DEVICE_ID, handle_timer_event)
+            _logger.debug("Registered timer support for HA-RAGent")
+        except Exception as err:
+            _logger.warning("Failed to register timer device: %s", err)
+    
+    def _remove_fake_timer_device(self) -> None:
+        if not self._fake_timer_remove:
+            return
+        
+        try:
+            self._fake_timer_remove()
+            _logger.debug("Unregistered timer support for HA-RAGent")
+        except Exception as err:
+            _logger.warning("Failed to unregister timer device: %s", err)
+
     async def _async_get_embeddable_tools(self, subentry: ConfigSubentry) -> List[LlmTool]:
         tool_list = []
 
@@ -109,11 +132,13 @@ class ToolExtractor:
             llm_api = await llm.async_get_api(
                 self._hass,
                 subentry.data.get(CONF_LLM_HASS_API, "default"),
-                llm_context=LLMContext(platform=DOMAIN, context=None, language=None, assistant=None, device_id=None),
+                llm_context=LLMContext(platform=DOMAIN, context=None, language=None, assistant=None, device_id=RAGENT_TIMER_DEVICE_ID),
             )
 
             if not llm_api or not hasattr(llm_api, "tools"):
                 return tool_list
+            
+            self._register_fake_timer_device()
 
             for tool in llm_api.tools:
                 if tool.name == "GetLiveContext":
@@ -137,6 +162,8 @@ class ToolExtractor:
                     metadata=tool_metadata
                 )
                 tool_list.append(llm_tool)
+
+            self._remove_fake_timer_device()
 
         except HomeAssistantError as err:
             _logger.warning(f"Error getting LLM API for tool extraction: {err}")
@@ -163,6 +190,9 @@ class ToolExtractor:
                     if not exposed_tools:
                         _logger.debug(f"No tools to embed for subentry {subentry_id}")
                         return
+                    
+                    for tool in exposed_tools:
+                        _logger.debug(f"Tool: {tool.name}, Description: {tool.description}, Metadata: {tool.metadata}")
 
                     collection_name = f"tools_{subentry_id}"
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
