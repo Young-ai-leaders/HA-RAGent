@@ -13,8 +13,9 @@ class DeviceEmbedding:
                 "name": self.device.name,
                 "domain": self.device.domain,
                 "area_name": self.device.area_name,
-                "device_tags": self.device.device_tags,
+                "device_labels": self.device.device_labels,
                 "services": self.device.services,
+                "aliases": self.device.aliases,
                 "vector_embedding": self.vector_embedding
             }
 
@@ -25,6 +26,7 @@ class DeviceEmbedding:
             name=doc.get("name"),
             domain=doc.get("domain"),
             area_name=doc.get("area_name"),
-            device_tags=doc.get("device_tags", []),
-            services=doc.get("services", [])
+            device_labels=doc.get("device_labels", []),
+            services=doc.get("services", []),
+            aliases=doc.get("aliases", [])
         )

@@ -1,6 +1,6 @@
 services:
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:2026.2.3
+    image: ghcr.io/home-assistant/home-assistant:2026.4.1
     container_name: homeassistant
     restart: unless-stopped
     ports:
