@@ -105,6 +105,10 @@ class FaissDbBackend(ABaseDbBackend):
         for filename in os.listdir(self._storage_path):
             if filename.endswith((".index", ".pkl")):
                 os.remove(os.path.join(self._storage_path, filename))
+                
+        os.rmdir(os.path.join(self._storage_path, self.db_name))
+        if os.listdir(self._storage_path) == []:
+            os.rmdir(self._storage_path)
         self._indices.clear()
         self._metadata.clear()
         
