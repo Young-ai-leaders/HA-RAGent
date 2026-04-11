@@ -3,6 +3,7 @@ import time
 from typing import Any, Dict, List
 import logging
 from pymongo import AsyncMongoClient, WriteConcern
+from pymongo.errors import OperationFailure
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.collection import AsyncCollection
 
@@ -68,33 +69,61 @@ class MongoDbBackend(ABaseDbBackend):
         database = self._get_database(connection)
         collection_names = await database.list_collection_names()
         return collection_name in collection_names
+
+    async def _async_vector_index_exists(self, database: AsyncDatabase, collection_name: str, index_name: str) -> bool:
+        try:
+            result = await database.command({
+                "listSearchIndexes": collection_name,
+                "name": index_name,
+            })
+            indexes = result.get("indexes", [])
+            return any(index.get("name") == index_name for index in indexes)
+        except OperationFailure as err:
+            if err.code == 125:
+                _logger.warning(
+                    "Search Index Management service unavailable while listing indexes for %s; "
+                    "skipping vector index initialization for now.",
+                    collection_name,
+                )
+                return True
+            raise
     
     async def _async_init_database(self, conn: AsyncMongoClient, database: AsyncDatabase, collection_name: str, embedding_length: int) -> None:
         if not await self._async_collection_exists(conn, collection_name):
             await database.create_collection(collection_name)
 
-        if "vector_search_index" not in await database[collection_name].index_information():
-            result = await self._async_execute_and_verify(database, {
-                "createSearchIndexes": collection_name,
-                "indexes": [
-                    {
-                        "name": "vector_search_index",
-                        "type": "vectorSearch",
-                        "definition": {
-                            "fields": [
-                                {
-                                    "path": "vector_embedding",
-                                    "type": "vector",
-                                    "numDimensions": embedding_length,
-                                    "similarity": "cosine"
-                                }
-                            ]
+        if not await self._async_vector_index_exists(database, collection_name, "vector_search_index"):
+            try:
+                result = await self._async_execute_and_verify(database, {
+                    "createSearchIndexes": collection_name,
+                    "indexes": [
+                        {
+                            "name": "vector_search_index",
+                            "type": "vectorSearch",
+                            "definition": {
+                                "fields": [
+                                    {
+                                        "path": "vector_embedding",
+                                        "type": "vector",
+                                        "numDimensions": embedding_length,
+                                        "similarity": "cosine"
+                                    }
+                                ]
+                            }
                         }
-                    }
-                ]
-            })
-            if not result:
-                _logger.warning(f"Vector search index creation failed for collection {collection_name}")
+                    ]
+                })
+                if not result:
+                    _logger.warning(f"Vector search index creation failed for collection {collection_name}")
+            except OperationFailure as err:
+                if err.code == 125:
+                    _logger.warning(
+                        "Search Index Management service unavailable while creating vector index for %s; "
+                        "continuing without resetting the index.",
+                        collection_name,
+                    )
+                else:
+                    raise
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -171,7 +200,7 @@ class MongoDbBackend(ABaseDbBackend):
                     "name": 1,
                     "domain": 1,
                     "area_name": 1,
-                    "device_tags": 1,
+                    "device_labels": 1,
                     "services": 1,
                     "aliases": 1
                 }

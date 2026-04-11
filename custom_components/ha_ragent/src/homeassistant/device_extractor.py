@@ -56,17 +56,17 @@ class DeviceExtractor:
                     if device and device.area_id:
                         area = area_reg.async_get_area(device.area_id)
                         area_name = area.name if area else ""
-
-            device_tags = []
+                
+            device_labels = []
             if entity_entry and entity_entry.labels:
                 for label_id in entity_entry.labels:
                     label = label_reg.async_get_label(label_id)
                     if label:
-                        device_tags.append(label.name)
+                        device_labels.append(label.name)
 
             aliases = []
             if entity_entry and entity_entry.aliases:
-                aliases = list(entity_entry.aliases)
+                aliases = [alias for alias in entity_entry.aliases if isinstance(alias, str)]
 
             services = await self._async_get_services_for_domain(domain)
 
@@ -75,7 +75,7 @@ class DeviceExtractor:
                 name=friendly_name,
                 domain=[domain],
                 area_name=area_name,
-                device_tags=device_tags,
+                device_labels=device_labels,
                 aliases=aliases,
                 services=services
             ))

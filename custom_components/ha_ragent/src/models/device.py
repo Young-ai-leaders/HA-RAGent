@@ -8,7 +8,7 @@ class Device:
     name: str
     area_name: str
     domain: List[str] = None
-    device_tags: List[str] = None
+    device_labels: List[str] = None
     services: List[str] = None
     aliases: List[str] = None
 
@@ -26,7 +26,7 @@ class Device:
             "name": self.name,
             "domain": self.domain,
             "area_name": self.area_name,
-            "device_tags": self.device_tags,
+            "device_labels": self.device_labels,
             "services": self.services,
             "aliases": self.aliases
         })

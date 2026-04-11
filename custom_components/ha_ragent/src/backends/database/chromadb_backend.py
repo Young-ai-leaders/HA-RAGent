@@ -1,6 +1,5 @@
 import logging
 import asyncio
-import time
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -95,12 +94,16 @@ class ChromaDbBackend(ABaseDbBackend):
 
     def _reset_collection(self, collection_name: str):
         try:
-            if self._collection_exists(self._get_client(), collection_name):
-                self._get_client().delete_collection(collection_name)
-                while self._collection_exists(self._get_client(), collection_name):
-                    time.sleep(1)
+            client = self._get_client()
+            if self._collection_exists(client, collection_name):
+                collection = client.get_collection(name=collection_name)
+            else:
+                collection = client.create_collection(collection_name)
 
-            self._get_client().create_collection(collection_name)
+            existing_ids = collection.get(include=[]).get("ids", [])
+            if existing_ids:
+                collection.delete(ids=existing_ids)
+
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting Chroma collection: {e}", exc_info=True)
