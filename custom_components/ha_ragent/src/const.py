@@ -19,7 +19,7 @@ DEFAULT_LANGUAGE = "en"
 #-----------------------------------------------
 # Service Tool constants
 #-----------------------------------------------
-
+RAGENT_TIMER_DEVICE_ID = "ha_ragent_timer_device_a03a100a-81ca-415d"
 
 #-----------------------------------------------
 # Vector database backend constants
@@ -121,24 +121,23 @@ DEVICES_PROMPT = {
     "en": "## Available Devices:",
 }
 AREAS_PROMPT = {
-    "de": """{% if area_name and floor_name %}
-Die bist in {{ area_name }} auf dem {{ floor_name }} Stockwerk.
-{% elif area_name %}
-Die bist in {{ area_name }}.
-{% elif floor_name %}
-Die bist auf dem {{ floor_name }} Stockwerk.
+    "de": """Bereichsanweisungen:
+{% if area_name %}
+- Aktueller Standort: Du befindest dich physisch im {{ area_name }}{% if floor_name %} ({{ floor_name }} Stock){% endif %}.
+- Standardverhalten: Wenn der Benutzer eine Gerätekategorie angibt (z. B. „die Lichter“), ohne einen Raum zu nennen, ziele NUR auf die Geräte im {{ area_name }} ab.
 {% else %}
-Wenn keine Informationen über Bereich oder Stockwerk verfügbar sind, frage den Benutzer nach einer Klarstellung, welcher Bereich gemeint ist.
+- KRITISCH: Du hast keine Erlaubnis, einen Raum zu erraten oder das gesamte Haus anzusprechen.
+- Wenn der Benutzer keinen Raum angibt, MUSST du um Klarstellung bitten.
 {% endif %}""",
-    "en": """{% if area_name and floor_name %}
-You are in {{ area_name }} on the {{ floor_name }} floor.
-{% elif area_name %}
-You are in {{ area_name }}.
-{% elif floor_name %}
-You are on the {{ floor_name }} floor.
+    "en": """Area Instructions:
+{% if area_name %}
+- Current Location: You are physically located in the {{ area_name }}{% if floor_name %} ({{ floor_name }} floor){% endif %}.
+- Default Behavior: If the user specifies a device category (e.g., "the lights") without naming a room, target ONLY the devices within the {{ area_name }}.
 {% else %}
-If no area or floor information is available, ask the user for clarification which area should be targeted.
-{% endif %}"""
+- CRITICAL: You do not have permission to guess a room or target the entire house.
+- If the user does not name a room, you MUST ask for clarification.
+{% endif %}
+"""
 }
 DEVICE_CONTROL_PROMPT = {
     "de": """## Geräte Steuerungsanweisungen:
@@ -205,7 +204,7 @@ DEFAULT_PROMPT = """<persona>
 
 <devices>
 {% for device in device_list %}
-- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
+- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
 {% endfor %}
 
 <user_instruction>
