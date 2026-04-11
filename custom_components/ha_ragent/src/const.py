@@ -34,13 +34,15 @@ CONF_VECTOR_DB_SSL = "rag_vector_db_ssl"
 
 BACKEND_VECTOR_DB_TYPE_MONGODB = "mongodb"
 BACKEND_VECTOR_DB_TYPE_CHROMA = "chromadb"
+BACKEND_VECTOR_DB_TYPE_FAISS = "faiss"
 
 BACKEND_VECTOR_DB_TYPE_OPTIONS = [ 
     BACKEND_VECTOR_DB_TYPE_MONGODB,
     BACKEND_VECTOR_DB_TYPE_CHROMA,
+    BACKEND_VECTOR_DB_TYPE_FAISS
 ]
 
-DEFAULT_VECTOR_DB_BACKEND_TYPE = BACKEND_VECTOR_DB_TYPE_MONGODB
+DEFAULT_VECTOR_DB_BACKEND_TYPE = BACKEND_VECTOR_DB_TYPE_FAISS
 DEFAULT_VECTOR_DB_NAME = "ha_ragent_db"
 
 #-----------------------------------------------
@@ -115,7 +117,6 @@ CURRENT_DATE_PROMPT = {
     "de": """{% set day_name = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"] %}{% set month_name = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"] %}Die aktuelle Uhrzeit und das aktuelle Datum sind {{ (as_timestamp(now()) | timestamp_custom("%H:%M", local=True)) }} {{ day_name[now().weekday()] }}, {{ now().day }} {{ month_name[now().month -1]}} {{ now().year }}.""",
     "en": """The current time and date is {{ (as_timestamp(now()) | timestamp_custom("%I:%M %p on %A %B %d, %Y", True, "")) }}"""
 }
-
 DEVICES_PROMPT = {
     "de": "## Verfügbare Geräte:",
     "en": "## Available Devices:",
@@ -136,32 +137,34 @@ AREAS_PROMPT = {
 {% else %}
 - CRITICAL: You do not have permission to guess a room or target the entire house.
 - If the user does not name a room, you MUST ask for clarification.
-{% endif %}
-"""
+{% endif %}"""
 }
 DEVICE_CONTROL_PROMPT = {
     "de": """## Geräte Steuerungsanweisungen:
 Wenn du ein Gerät steuerst folge diesen Anweisungen:
 1. Geräteauflösung
-   - Suchkriterien: Identifiziere Zielgeräte anhand des exakten Namens oder des angegebenen Bereichs.
-   - Bereichserweiterung: Wenn ein Benutzer einen Bereich anspricht (z. B. „Wohnzimmer“), musst du jedes Gerät in diesem Bereich identifizieren und für jedes einzelne einen eigenen Tool-Aufruf erzeugen.
-   - ID-Zuordnung: Verwende ausschließlich die **entity_id** (z. B. `light.desk_lamp`), die in der Geräteliste angegeben ist.
-2. **Struktur der Tool-Aufrufe**
-   - Atomarität: Jede Geräteaktion muss ein eigener, unabhängiger Tool-Aufruf sein.
-   - Kein Batching: Kombiniere niemals mehrere **entity_ids** in einem einzigen JSON-Objekt.
-   - Parameterbereinigung: Nimm die **device_class** nicht in den Tool-Aufruf auf. Verwende nur die erforderlichen Argumente (**name**, **area**, **domain**).
-3. **Strenges Ausgabeformat**
-   - Gib **ein gültiges JSON-Objekt pro Tool-Aufruf** oder eine **Textantwort für den Benutzer** zurück.
-   - Halte ein **1:1-Verhältnis** zwischen der Anzahl der Zielgeräte und der Anzahl der erzeugten Tool-Aufrufe ein.""",
-
+   - Suchkriterien: Identifiziere Zielgeräte anhand des genauen Namens oder spezifischer Domäne oder device_class innerhalb des angegebenen Bereichs.
+   - Intelligente Bereichserweiterung: Wenn ein Benutzer einen Bereich anspricht (z. B. „Wohnzimmer“), finde ALLE Geräte in diesem Bereich, die zur angeforderten Domäne oder device_class passen (z. B. „Lichter“).
+   - Benutzerintention: Schließe keine Geräte ein, die für die Anfrage des Benutzers nicht relevant sind. Steuere keine Geräte in Bereichen, die vom Benutzer nicht erwähnt wurden.
+2. Struktur der Tool-Aufrufe
+   - Umfassende Aktion: Wenn ein Benutzer „alle Lichter“ sagt, MUSST du einen separaten Tool-Aufruf für jedes passende Licht generieren, das sich im angegebenen Bereich befindet.
+   - Atomizität: Kapsle jeden einzelnen JSON-Aufruf in seinem eigenen `homeassistant`-Tag-Block ein.
+   - Identifikation: Kürze den Namen `light.bedroom_1_lamp` niemals zu `bedroom_1_lamp`. Das Tool wird ohne die Domäne fehlschlagen.
+3. Strenges Ausgabeformat
+   3.1 Beantwortung mit Tool-Aufrufen:
+       - Format: Gib gültige JSON-Objekte innerhalb von `homeassistant`-Tags zurück.
+       - Nachverfolgung: Sobald alle Tool-Aufrufe aufgelistet sind, gib eine kurze Bestätigung mit den friendly_names.
+    3.2 Beantwortung mit Text:
+       - Verwende dies nur, wenn keine passenden Geräte existieren.
+       - Verwende immer den friendly_name und lasse den Raumnamen weg, wenn er redundant ist (z. B. „Nachttischlampe“ statt „Schlafzimmer Nachttischlampe“).""",
     "en": """## Device Control Instructions:
 When controlling a device follow these steps:
 1. Device Resolution
-    - Search Criteria: Identify target devices using the exact name or specific domain within an area.
-    - Smart Area Expansion: If a user targets an area (e.g., "Bedroom"), find ALL devices in that area matching the requested category (e.g., "lights").
-    - User Itend: Do not include devices that are not relevant to the user's request. If the user asks to turn off the lights in the bedroom, do not include a device in the living room even if it is a light.
+    - Search Criteria: Identify target devices using the exact name or specific domain or device_class within the specified area.
+    - Smart Area Expansion: If a user targets an area (e.g., "Bedroom"), find ALL devices in that area matching the requested domain or device_class (e.g., "lights").
+    - User Intent: Do not include devices that are not relevant to the user's request. Do not control devices in areas that were not mentioned by the user.
 2. Tool Call Structure
-    - Exhaustive Action: If a user says "all lights," you MUST generate a separate tool call for every matching light that is currently `on`.
+    - Exhaustive Action: If a user says "all lights", you MUST generate a separate tool call for every matching light that is within the specified area.
     - Atomicity: Encapsulate each individual JSON call in its own `homeassistant` tag block.
     - Identification: Never truncate the name `light.bedroom_1_lamp` to `bedroom_1_lamp`. The tool will fail without the domain.
 3. Strict Output Format

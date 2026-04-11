@@ -24,6 +24,7 @@ from homeassistant.helpers.selector import (
 )
 
 from ..const import (
+    BACKEND_VECTOR_DB_TYPE_FAISS,
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
     CONF_NUM_TOOLS_TO_EXTRACT,
     CONF_VECTOR_DB_BACKEND_TYPE,
@@ -188,12 +189,16 @@ def ui_schema_backend_connections(
             vol.Optional(CONF_VECTOR_DB_USERNAME, default=vector_db_username if vector_db_username else ""): str,
             vol.Optional(CONF_VECTOR_DB_PASSWORD, default=vector_db_password if vector_db_password else ""): str,
         })
+        
+    if not vector_db_backend_type == BACKEND_VECTOR_DB_TYPE_FAISS:
+        schema.update({
+            vol.Required(CONF_VECTOR_DB_HOST, default=vector_db_host if vector_db_host else ""): str,
+            vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else vector_default_port): int,
+            vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
+        })
     
     schema.update({
-        vol.Required(CONF_VECTOR_DB_HOST, default=vector_db_host if vector_db_host else ""): str,
         vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else f"{DEFAULT_VECTOR_DB_NAME}_{uuid4()}"): str,
-        vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else vector_default_port): int,
-        vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
 
         vol.Required(CONF_EMBEDDING_HOST, default=embedding_host if embedding_host else ""): str,
         vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
