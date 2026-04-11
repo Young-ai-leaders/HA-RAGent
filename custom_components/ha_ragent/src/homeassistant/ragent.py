@@ -13,7 +13,8 @@ from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
 from homeassistant.exceptions import TemplateError, HomeAssistantError
 from homeassistant.helpers import chat_session, intent, llm
 from homeassistant.helpers.template import Template
-from homeassistant.helpers.llm import ToolInput, APIInstance
+from homeassistant.helpers.llm import ToolInput, LLMContext
+from homeassistant.helpers import area_registry as ar, device_registry as dr, floor_registry as fr
 
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
@@ -123,13 +124,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         
         return retrieved_tools
 
-    async def _async_render_template(self, template_str: str, devices: List[Device], tools: List[str], icl_examples: List[str]) -> str:
+    async def _async_render_template(self, template_str: str, devices: List[Device], area: ar.AreaEntry, floor: fr.FloorEntry, icl_examples: List[str]) -> str:
         """Render a Jinja2 template string with the given context."""
         try:
             template = Template(template_str, self.hass)
             rendered = template.async_render({
                 "device_list": devices,
                 "area_list": list(set(device.area_name for device in devices if device.area_name)),
+                "area_name": area.name if area else None,
+                "floor_name": floor.name if floor else None,
                 "icl_examples": icl_examples
             })
             return rendered
@@ -137,14 +140,14 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             _logger.error(f"Template rendering error: {e}", exc_info=True)
             raise e
 
-    async def _async_get_message_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, devices: List[Device]) -> List[conversation.Content]:
+    async def _async_get_message_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, devices: List[Device], area: ar.AreaEntry, floor: fr.FloorEntry) -> List[conversation.Content]:
         """Build the prompt for the LLM, including retrieved device context."""
         raw_prompt = self.runtime_options.get(CONF_PROMPT, DEFAULT_PROMPT)
         remember_conversation = self.runtime_options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)
         remember_num_interactions = self.runtime_options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS)
 
         try:
-            system_prompt_content = await self._async_render_template(raw_prompt, devices, [], [])
+            system_prompt_content = await self._async_render_template(raw_prompt, devices, area, floor, [])
             system_prompt = conversation.SystemContent(content=system_prompt_content)
         except Exception as err:
             _logger.error(f"Error rendering prompt: {err}", exc_info=True)
@@ -219,6 +222,22 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             tool_result["failed"] = failed_ids
 
         return tool_result
+    
+    def _get_current_area(self, llm_context: LLMContext) -> ar.AreaEntry | None:
+        area: ar.AreaEntry | None = None
+        floor: fr.FloorEntry | None = None
+        if llm_context.device_id:
+            device_reg = dr.async_get(self.hass)
+            device = device_reg.async_get(llm_context.device_id)
+
+            if device:
+                area_reg = ar.async_get(self.hass)
+                if device.area_id and (area := area_reg.async_get_area(device.area_id)):
+                    floor_reg = fr.async_get(self.hass)
+                    if area.floor_id:
+                        floor = floor_reg.async_get_floor(area.floor_id)
+
+        return area, floor
 
     async def _async_prompt_model(self, llm_api: llm.APIInstance, user_input: ConversationInput, tool_list: List[LlmTool], message_history: List[conversation.Content]) -> ConversationResult:
         """Process a prompt through the RAGent."""
@@ -393,8 +412,10 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     device.state = st.state
                     device.attributes = clean_device_attributes(st.attributes)
                     device_list.append(device)
+                
+                area, floor = self._get_current_area(user_input.as_llm_context(DOMAIN))
 
-                message_history = await self._async_get_message_history(chat_log, user_input, device_list)
+                message_history = await self._async_get_message_history(chat_log, user_input, device_list, area, floor)
                 if not message_history:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Template rendering failed.")
@@ -412,6 +433,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         """Build base prompt template from constants in specified language."""
         prompt_template = prompt_template.replace("<persona>", get_placeholder_translation(PERSONA_PROMPTS, selected_language))
         prompt_template = prompt_template.replace("<current_date>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<devices>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<areas>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))

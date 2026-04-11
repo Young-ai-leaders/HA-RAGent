@@ -115,13 +115,30 @@ CURRENT_DATE_PROMPT = {
     "de": """{% set day_name = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"] %}{% set month_name = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"] %}Die aktuelle Uhrzeit und das aktuelle Datum sind {{ (as_timestamp(now()) | timestamp_custom("%H:%M", local=True)) }} {{ day_name[now().weekday()] }}, {{ now().day }} {{ month_name[now().month -1]}} {{ now().year }}.""",
     "en": """The current time and date is {{ (as_timestamp(now()) | timestamp_custom("%I:%M %p on %A %B %d, %Y", True, "")) }}"""
 }
+
 DEVICES_PROMPT = {
     "de": "## Verfügbare Geräte:",
     "en": "## Available Devices:",
 }
 AREAS_PROMPT = {
-    "de": "## Verfügbar Bereich:",
-    "en": "## Available Areas:"
+    "de": """{% if area_name and floor_name %}
+Die bist in {{ area_name }} auf dem {{ floor_name }} Stockwerk.
+{% elif area_name %}
+Die bist in {{ area_name }}.
+{% elif floor_name %}
+Die bist auf dem {{ floor_name }} Stockwerk.
+{% else %}
+Wenn keine Informationen über Bereich oder Stockwerk verfügbar sind, frage den Benutzer nach einer Klarstellung, welcher Bereich gemeint ist.
+{% endif %}""",
+    "en": """{% if area_name and floor_name %}
+You are in {{ area_name }} on the {{ floor_name }} floor.
+{% elif area_name %}
+You are in {{ area_name }}.
+{% elif floor_name %}
+You are on the {{ floor_name }} floor.
+{% else %}
+If no area or floor information is available, ask the user for clarification which area should be targeted.
+{% endif %}"""
 }
 DEVICE_CONTROL_PROMPT = {
     "de": """## Geräte Steuerungsanweisungen:
@@ -182,6 +199,7 @@ DEFAULT_OLLAMA_JSON_MODE = True
 DEFAULT_OLLAMA_KEEP_ALIVE_MIN = 5
 DEFAULT_PROMPT = """<persona>
 <current_date>
+<area_prompt>
 
 <device_control_prompt>
 
