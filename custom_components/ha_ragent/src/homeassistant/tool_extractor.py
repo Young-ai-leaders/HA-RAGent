@@ -129,6 +129,8 @@ class ToolExtractor:
             return tool_list
 
         try:
+            self._register_fake_timer_device()
+
             llm_api = await llm.async_get_api(
                 self._hass,
                 subentry.data.get(CONF_LLM_HASS_API, "default"),
@@ -137,8 +139,6 @@ class ToolExtractor:
 
             if not llm_api or not hasattr(llm_api, "tools"):
                 return tool_list
-            
-            self._register_fake_timer_device()
 
             for tool in llm_api.tools:
                 if tool.name == "GetLiveContext":
@@ -185,14 +185,11 @@ class ToolExtractor:
             for subentry_id, subentry in self._entry.subentries.items():
                 try:
                     exposed_tools = await self._async_get_embeddable_tools(subentry)
-                    _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation.")
+                    _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")
 
                     if not exposed_tools:
                         _logger.debug(f"No tools to embed for subentry {subentry_id}")
                         return
-                    
-                    for tool in exposed_tools:
-                        _logger.debug(f"Tool: {tool.name}, Description: {tool.description}, Metadata: {tool.metadata}")
 
                     collection_name = f"tools_{subentry_id}"
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
