@@ -117,7 +117,6 @@ CURRENT_DATE_PROMPT = {
     "de": """{% set day_name = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"] %}{% set month_name = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"] %}Die aktuelle Uhrzeit und das aktuelle Datum sind {{ (as_timestamp(now()) | timestamp_custom("%H:%M", local=True)) }} {{ day_name[now().weekday()] }}, {{ now().day }} {{ month_name[now().month -1]}} {{ now().year }}.""",
     "en": """The current time and date is {{ (as_timestamp(now()) | timestamp_custom("%I:%M %p on %A %B %d, %Y", True, "")) }}"""
 }
-
 DEVICES_PROMPT = {
     "de": "## Verfügbare Geräte:",
     "en": "## Available Devices:",
@@ -144,17 +143,20 @@ DEVICE_CONTROL_PROMPT = {
     "de": """## Geräte Steuerungsanweisungen:
 Wenn du ein Gerät steuerst folge diesen Anweisungen:
 1. Geräteauflösung
-   - Suchkriterien: Identifiziere Zielgeräte anhand des exakten Namens oder des angegebenen Bereichs.
-   - Bereichserweiterung: Wenn ein Benutzer einen Bereich anspricht (z. B. „Wohnzimmer“), musst du jedes Gerät in diesem Bereich identifizieren und für jedes einzelne einen eigenen Tool-Aufruf erzeugen.
-   - ID-Zuordnung: Verwende ausschließlich die **entity_id** (z. B. `light.desk_lamp`), die in der Geräteliste angegeben ist.
-2. **Struktur der Tool-Aufrufe**
-   - Atomarität: Jede Geräteaktion muss ein eigener, unabhängiger Tool-Aufruf sein.
-   - Kein Batching: Kombiniere niemals mehrere **entity_ids** in einem einzigen JSON-Objekt.
-   - Parameterbereinigung: Nimm die **device_class** nicht in den Tool-Aufruf auf. Verwende nur die erforderlichen Argumente (**name**, **area**, **domain**).
-3. **Strenges Ausgabeformat**
-   - Gib **ein gültiges JSON-Objekt pro Tool-Aufruf** oder eine **Textantwort für den Benutzer** zurück.
-   - Halte ein **1:1-Verhältnis** zwischen der Anzahl der Zielgeräte und der Anzahl der erzeugten Tool-Aufrufe ein.""",
-
+   - Suchkriterien: Identifiziere Zielgeräte anhand des genauen Namens oder spezifischer Domäne oder device_class innerhalb des angegebenen Bereichs.
+   - Intelligente Bereichserweiterung: Wenn ein Benutzer einen Bereich anspricht (z. B. „Wohnzimmer“), finde ALLE Geräte in diesem Bereich, die zur angeforderten Domäne oder device_class passen (z. B. „Lichter“).
+   - Benutzerintention: Schließe keine Geräte ein, die für die Anfrage des Benutzers nicht relevant sind. Steuere keine Geräte in Bereichen, die vom Benutzer nicht erwähnt wurden.
+2. Struktur der Tool-Aufrufe
+   - Umfassende Aktion: Wenn ein Benutzer „alle Lichter“ sagt, MUSST du einen separaten Tool-Aufruf für jedes passende Licht generieren, das sich im angegebenen Bereich befindet.
+   - Atomizität: Kapsle jeden einzelnen JSON-Aufruf in seinem eigenen `homeassistant`-Tag-Block ein.
+   - Identifikation: Kürze den Namen `light.bedroom_1_lamp` niemals zu `bedroom_1_lamp`. Das Tool wird ohne die Domäne fehlschlagen.
+3. Strenges Ausgabeformat
+   3.1 Beantwortung mit Tool-Aufrufen:
+       - Format: Gib gültige JSON-Objekte innerhalb von `homeassistant`-Tags zurück.
+       - Nachverfolgung: Sobald alle Tool-Aufrufe aufgelistet sind, gib eine kurze Bestätigung mit den friendly_names.
+    3.2 Beantwortung mit Text:
+       - Verwende dies nur, wenn keine passenden Geräte existieren.
+       - Verwende immer den friendly_name und lasse den Raumnamen weg, wenn er redundant ist (z. B. „Nachttischlampe“ statt „Schlafzimmer Nachttischlampe“).""",
     "en": """## Device Control Instructions:
 When controlling a device follow these steps:
 1. Device Resolution

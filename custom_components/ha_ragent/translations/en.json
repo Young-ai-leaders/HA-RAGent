@@ -166,7 +166,8 @@
         "rag_vector_db_backend": {
             "options": {
                 "mongodb": "MongoDB",
-                "chromadb": "ChromaDB"
+                "chromadb": "ChromaDB",
+                "faiss": "FAISS (Local DB)"
             }
         },
         "rag_embedding_backend": {

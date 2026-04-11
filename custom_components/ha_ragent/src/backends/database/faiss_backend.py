@@ -13,9 +13,7 @@ import pickle
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
 
 from ...const import (
-    CONF_VECTOR_DB_HOST,
-    CONF_VECTOR_DB_PORT,
-    CONF_VECTOR_DB_SSL,
+    CONF_VECTOR_DB_NAME
 )
 
 from ...models.device import Device
@@ -29,9 +27,10 @@ class FaissDbBackend(ABaseDbBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
         self._storage_path = hass.config.path("ha_ragent_storage")
-        if not os.path.exists(self._storage_path):
-            os.makedirs(self._storage_path)
-            
+        self.db_name = self.client_options.get(CONF_VECTOR_DB_NAME)
+
+        os.makedirs(os.path.join(self._storage_path, self.db_name), exist_ok=True)
+        
         self._indices: Dict[str, faiss.Index] = {}
         self._metadata: Dict[str, List[Dict[str, Any]]] = {}
 
@@ -44,8 +43,8 @@ class FaissDbBackend(ABaseDbBackend):
         return None
     
     def _get_paths(self, collection_name: str):
-        index_path = os.path.join(self._storage_path, f"{collection_name}.index")
-        meta_path = os.path.join(self._storage_path, f"{collection_name}.pkl")
+        index_path = os.path.join(self._storage_path, self.db_name, f"{collection_name}.index")
+        meta_path = os.path.join(self._storage_path, self.db_name, f"{collection_name}.pkl")
         return index_path, meta_path
 
     def _load_collection(self, collection_name: str, embedding_length: int = 1536):
