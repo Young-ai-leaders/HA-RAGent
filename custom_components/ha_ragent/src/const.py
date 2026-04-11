@@ -204,7 +204,7 @@ DEFAULT_PROMPT = """<persona>
 
 <devices>
 {% for device in device_list %}
-- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
+- { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
 {% endfor %}
 
 <user_instruction>
