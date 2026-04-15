@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Any, List, Tuple, Dict
@@ -91,6 +92,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         _logger.debug("RAG Step 2: Querying vector database for similar devices")
         collection_name = f"devices_{self.subentry_id}"
         _logger.debug(f"Collection name: {collection_name}, Query embedding dimension: {len(query_embedding)}")
+        retrieved_devices = []
         try:
             retrieved_devices = await self.entry.vector_db_backend.async_retrieve_objects(
                 object_type=DeviceEmbedding,
@@ -110,6 +112,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         _logger.debug("RAG Step 2: Querying vector database for similar tools")
         collection_name = f"tools_{self.subentry_id}"
         _logger.debug(f"Collection name: {collection_name}, Query embedding dimension: {len(query_embedding)}")
+        retrieved_tools = []
         try:
             retrieved_tools = await self.entry.vector_db_backend.async_retrieve_objects(
                 object_type=LlmToolEmbedding,
@@ -391,13 +394,20 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                retrieved_devices = await self._async_retrieve_devices(query_embedding, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
+                retrieve_devices_task = self._async_retrieve_devices(query_embedding, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
+                retrieve_tools_task = self._async_retrieve_tools(query_embedding, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT)) if llm_api else None
+
+                if retrieve_tools_task:
+                    retrieved_devices, retrieved_tools = await asyncio.gather(retrieve_devices_task, retrieve_tools_task)
+                else:
+                    retrieved_devices = await retrieve_devices_task
+                    retrieved_tools = []
+
                 if not retrieved_devices:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant devices.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                retrieved_tools = await self._async_retrieve_tools(query_embedding, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT))
                 if not retrieved_tools and llm_api:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant tools.")

@@ -127,7 +127,7 @@ class MongoDbBackend(ABaseDbBackend):
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
-        conn = None
+        connection = None
         try:
             url = MongoDbBackend._format_url(
                 username=user_input.get(CONF_VECTOR_DB_USERNAME),
@@ -142,8 +142,8 @@ class MongoDbBackend(ABaseDbBackend):
         except Exception as ex:
             return str(ex)
         finally:
-            if conn:
-                await conn.close()
+            if connection:
+                await connection.close()
 
     async def async_cleanup_database(self) -> None:
         conn = None

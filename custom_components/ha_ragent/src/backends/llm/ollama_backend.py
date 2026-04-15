@@ -50,7 +50,7 @@ class OllamaBackend(ALlmBaseBackend):
         headers = {}
         try:
             session = async_get_clientsession(hass)
-            response = await session.get(
+            async with session.get(
                 ALlmBaseBackend._format_url(
                     hostname=user_input.get(CONF_LLM_HOST),
                     port=user_input.get(CONF_LLM_PORT),
@@ -59,8 +59,8 @@ class OllamaBackend(ALlmBaseBackend):
                 ),
                 timeout=aiohttp.ClientTimeout(total=5),
                 headers=headers
-            )
-            return None if response.ok else f"HTTP Status {response.status}"
+            ) as response:
+                return None if response.ok else f"HTTP Status {response.status}"
         except Exception as ex:
             return str(ex)
         

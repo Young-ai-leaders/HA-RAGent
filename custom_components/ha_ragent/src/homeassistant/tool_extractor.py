@@ -163,12 +163,12 @@ class ToolExtractor:
                 )
                 tool_list.append(llm_tool)
 
-            self._remove_fake_timer_device()
-
         except HomeAssistantError as err:
             _logger.warning(f"Error getting LLM API for tool extraction: {err}")
         except Exception as err:
             _logger.error(f"Error extracting tools from LLM API: {err}", exc_info=True)
+        finally:
+            self._remove_fake_timer_device()
 
         return tool_list
 
@@ -189,7 +189,7 @@ class ToolExtractor:
 
                     if not exposed_tools:
                         _logger.debug(f"No tools to embed for subentry {subentry_id}")
-                        return
+                        continue
 
                     collection_name = f"tools_{subentry_id}"
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
