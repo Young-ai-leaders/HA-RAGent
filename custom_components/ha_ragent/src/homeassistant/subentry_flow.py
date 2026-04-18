@@ -21,15 +21,13 @@ from ..const import (
     CONF_EMBEDDING_MODEL,
     CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
-    CONF_IN_CONTEXT_LEARNING_ENABLED,
-    CONF_IN_CONTEXT_LEARNING_FILE,
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
-    CONF_REMEMBER_NUM_INTERACTIONS,
+    CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
+    CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_SELECTED_LANGUAGE,
 
-    DEFAULT_IN_CONTEXT_LEARNING_FILE,
     DEFAULT_OPTIONS,
     DEFAULT_PROMPT,
 )
@@ -123,14 +121,9 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
             )
 
         if user_input:
-            if user_input.get(CONF_IN_CONTEXT_LEARNING_ENABLED):
-                filename = user_input.get(CONF_IN_CONTEXT_LEARNING_FILE, DEFAULT_IN_CONTEXT_LEARNING_FILE)
-                if not os.path.isfile(os.path.join(os.path.dirname(__file__), "..", "..", filename)):
-                    errors["base"] = "missing_icl_file"
-                    description_placeholders["filename"] = filename
-
             for key in (
-                CONF_REMEMBER_NUM_INTERACTIONS,
+                CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
+                CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
                 CONF_MAX_TOOL_CALL_ITERATIONS,
                 CONF_CONTEXT_LENGTH,
                 CONF_MAX_TOKENS,

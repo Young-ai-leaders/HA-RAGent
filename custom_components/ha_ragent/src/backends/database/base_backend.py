@@ -28,9 +28,13 @@ class ABaseDbBackend(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_reset_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         raise NotImplementedError()
     
+    @abstractmethod
+    async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
+        raise NotImplementedError()
+
     @abstractmethod
     async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         raise NotImplementedError()

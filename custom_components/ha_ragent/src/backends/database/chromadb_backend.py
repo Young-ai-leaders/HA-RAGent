@@ -95,10 +95,7 @@ class ChromaDbBackend(ABaseDbBackend):
     def _reset_collection(self, collection_name: str):
         try:
             client = self._get_client()
-            if self._collection_exists(client, collection_name):
-                collection = client.get_collection(name=collection_name)
-            else:
-                collection = client.create_collection(collection_name)
+            collection = client.get_or_create_collection(name=collection_name)
 
             existing_ids = collection.get(include=[]).get("ids", [])
             if existing_ids:
@@ -107,6 +104,15 @@ class ChromaDbBackend(ABaseDbBackend):
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting Chroma collection: {e}", exc_info=True)
+    
+    def _cleanup_collection(self, collection_name: str):
+        try:
+            client = self._get_client()
+            if self._collection_exists(client, collection_name):
+                client.delete_collection(name=collection_name)
+                _logger.info(f"Collection {collection_name} deleted successfully")
+        except Exception as e:
+            _logger.error(f"Error deleting Chroma collection: {e}", exc_info=True)
     
     def _cleanup_database(self):
         try:
@@ -122,11 +128,17 @@ class ChromaDbBackend(ABaseDbBackend):
         except Exception as e:
              _logger.error(f"Error cleaning up database: {e}", exc_info=True)
 
-    async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_reset_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         try:
             await self.hass.async_add_executor_job(self._reset_collection, collection_name)
         except Exception as e:
-            _logger.error(f"Error resetting database: {e}", exc_info=True)
+            _logger.error(f"Error resetting collection: {e}", exc_info=True)
+
+    async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._cleanup_collection, collection_name)
+        except Exception as e:
+            _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
     async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         try:

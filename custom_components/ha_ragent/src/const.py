@@ -86,21 +86,15 @@ CONF_NUM_DEVICES_TO_EXTRACT = "rag_num_devices_to_extract"
 CONF_NUM_TOOLS_TO_EXTRACT = "rag_num_tools_to_extract"
 CONF_CONTEXT_LENGTH = "rag_context_length"
 
-CONF_IN_CONTEXT_LEARNING_ENABLED = "rag_in_context_learning_enabled"
-CONF_IN_CONTEXT_LEARNING_FILE = "rag_in_context_learning_file"
-CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES = "rag_in_context_learning_num_examples"
-
 CONF_MAX_TOKENS = "rag_max_tokens"
 CONF_MAX_TOOL_CALL_ITERATIONS = "rag_max_tool_call_iterations"
 
-CONF_OLLAMA_KEEP_ALIVE_MIN = "rag_ollama_keep_alive_min"
 CONF_PROMPT = "rag_prompt"
 
 CONF_ENABLE_MODEL_THINKING = "rag_enable_model_thinking"
 
-CONF_REMEMBER_CONVERSATION = "rag_remember_conversation"
 CONF_REMEMBER_CONVERSATION_TIME_MINUTES = "rag_remember_conversation_time_minutes"
-CONF_REMEMBER_NUM_INTERACTIONS = "rag_remember_num_interactions"
+CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS = "rag_remember_conversation_num_interactions"
 CONF_SELECTED_LANGUAGE = "rag_selected_language"
 
 CONF_TEMPERATURE = "rag_temperature"
@@ -158,22 +152,28 @@ Wenn du ein Gerät steuerst folge diesen Anweisungen:
        - Verwende dies nur, wenn keine passenden Geräte existieren.
        - Verwende immer den friendly_name und lasse den Raumnamen weg, wenn er redundant ist (z. B. „Nachttischlampe“ statt „Schlafzimmer Nachttischlampe“).""",
     "en": """## Device Control Instructions:
-When controlling a device follow these steps:
+When controlling a device, you MUST follow these rules:
 1. Device Resolution
-    - Search Criteria: Identify target devices using the exact name or specific domain or device_class within the specified area.
-    - Smart Area Expansion: If a user targets an area (e.g., "Bedroom"), find ALL devices in that area matching the requested domain or device_class (e.g., "lights").
-    - User Intent: Do not include devices that are not relevant to the user's request. Do not control devices in areas that were not mentioned by the user.
-2. Tool Call Structure
-    - Exhaustive Action: If a user says "all lights", you MUST generate a separate tool call for every matching light that is within the specified area.
-    - Atomicity: Encapsulate each individual JSON call in its own `homeassistant` tag block.
-    - Identification: Never truncate the name `light.bedroom_1_lamp` to `bedroom_1_lamp`. The tool will fail without the domain.
+    - Search Criteria: Identify target devices using the exact entity_id, name, domain, or device_class within the specified area provided in the state.
+    - Smart Area Expansion: If an area is targeted (e.g., "Living Room"), include ALL devices in that area matching the requested domain (e.g., "lights").
+    - Relevance: EXCLUDE devices irrelevant to the request. NEVER control devices in areas not explicitly mentioned.
+    - Contextual Priority: Prioritize devices mentioned earlier in the conversation. If the target is still unclear, ask for clarification instead of guessing.
+2. Tool Call Execution
+    - Exhaustive Action: For requests involving multiple devices (e.g., "turn on all lights"), you MUST generate a separate tool call for every matching entity.
+    - Atomicity: each individual JSON call must be encapsulated within its own unique `homeassistant` tag block.
+    - Multiple Tool Calls: You are permitted—and encouraged—to return multiple `homeassistant` blocks in a single response. Do **not** combine them into a single JSON list or array; keep them as distinct, sequential blocks.
+    - Precise Addressing: Always use the full entity_id (e.g., `light.bedroom_lamp`). Do not truncate or invent IDs.
 3. Strict Output Format
-    3.1 Answering with tool calls:
-        - Format: Return valid JSON objects inside `homeassistant` tags.
-        - Follow-up: Once all tool calls are listed, provide a brief confirmation using friendly_names.
-    3.2 Answering with text:
-        - Use only if no matching devices exist.
-        - Always use friendly_name, omitting the room name if it’s redundant (e.g., "Bedside Lamp" instead of "Bedroom Bedside Lamp")."""
+    3.1 Execution Order:
+        - Tool First: Output all `homeassistant` blocks at the very beginning of your response.
+        - Speech Second: Provide the conversational text response only after all tool blocks have been declared.
+    3.2 Error Handling:
+        - If no devices match the criteria, provide a concise text response explaining that the device or area could not be found.
+    3.3 TTS-Optimized Speech:
+        - Style: Keep responses brief, warm, and conversational.
+        - No IDs: NEVER use entity IDs, device IDs, or technical labels (e.g., "light.kitchen_1") in the text response.
+        - Natural Identification: Use simple, friendly names (e.g., "the kitchen lights" or "the floor lamp").
+        - Fluent Aggregation: When controlling multiple devices, summarize the action naturally (e.g., "Sure, I've turned off all the lights in the lounge for you") rather than listing each entity."""
 }
 
 USER_INSTRUCTION = {
@@ -187,18 +187,12 @@ DEVICE_ATTRIBUTES_MAX_JSON_LENGTH = 100
 TOOL_REGEX_PATTERN = re.compile(r"```homeassistant\s*(.*?)\s*```", re.DOTALL)
 
 DEFAULT_NUM_DEVICES_TO_EXTRACT = 10
-DEFAULT_NUM_TOOLS_TO_EXTRACT = 8
+DEFAULT_NUM_TOOLS_TO_EXTRACT = 10
 DEFAULT_CONTEXT_LENGTH = 4096
-
-DEFAULT_IN_CONTEXT_LEARNING_ENABLED = True
-DEFAULT_IN_CONTEXT_LEARNING_FILE = "default_icl_examples.txt"
-DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES = 3
 
 DEFAULT_MAX_TOKENS = 1000
 DEFAULT_MAX_TOOL_CALL_ITERATIONS = 8
 
-DEFAULT_OLLAMA_JSON_MODE = True
-DEFAULT_OLLAMA_KEEP_ALIVE_MIN = 5
 DEFAULT_PROMPT = """<persona>
 <current_date>
 <area_prompt>
@@ -214,8 +208,8 @@ DEFAULT_PROMPT = """<persona>
 """
 
 DEFAULT_ENABLE_MODEL_THINKING = False
-DEFAULT_REMEMBER_CONVERSATION = False
-DEFAULT_REMEMBER_NUM_INTERACTIONS = 10
+DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES = 5
+DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS = 10
 DEFAULT_SELECTED_LANGUAGE = "en"
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_K_TOP = 40
@@ -234,12 +228,8 @@ DEFAULT_OPTIONS = {
     CONF_P_MIN: DEFAULT_P_MIN,
     CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
     CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
-    CONF_REMEMBER_CONVERSATION: DEFAULT_REMEMBER_CONVERSATION,
-    CONF_REMEMBER_NUM_INTERACTIONS: DEFAULT_REMEMBER_NUM_INTERACTIONS,
-    CONF_IN_CONTEXT_LEARNING_ENABLED: DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
-    CONF_IN_CONTEXT_LEARNING_FILE: DEFAULT_IN_CONTEXT_LEARNING_FILE,
-    CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES: DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
+    CONF_REMEMBER_CONVERSATION_TIME_MINUTES: DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
+    CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS: DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_CONTEXT_LENGTH: DEFAULT_CONTEXT_LENGTH,
-    CONF_OLLAMA_KEEP_ALIVE_MIN: DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
     CONF_NUM_DEVICES_TO_EXTRACT: DEFAULT_NUM_DEVICES_TO_EXTRACT,
 }

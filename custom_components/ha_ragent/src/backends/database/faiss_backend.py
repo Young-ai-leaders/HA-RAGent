@@ -1,8 +1,6 @@
 import logging
-import asyncio
 import os
-from typing import Any, Dict, List, Optional
-from uuid import uuid4
+from typing import Any, Dict, List
 
 from homeassistant.core import HomeAssistant
 
@@ -71,7 +69,7 @@ class FaissDbBackend(ABaseDbBackend):
         idx_path, meta_path = self._get_paths(collection_name)
         faiss.write_index(self._indices[collection_name], idx_path)
         with open(meta_path, "wb") as f:
-            pickle.dump(self._metadata[collection_name], f)
+            pickle.dump(self._metadata[collection_name], f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]):
         if not device_embeddings:
@@ -80,7 +78,7 @@ class FaissDbBackend(ABaseDbBackend):
         dim = len(device_embeddings[0].vector_embedding)
         self._load_collection(collection_name, dim)
 
-        vectors = np.array([emb.vector_embedding for emb in device_embeddings]).astype('float32')
+        vectors = np.asarray([emb.vector_embedding for emb in device_embeddings], dtype=np.float32)
         metadatas = [emb.to_dict() for emb in device_embeddings]
 
         self._indices[collection_name].add(vectors)
@@ -92,32 +90,35 @@ class FaissDbBackend(ABaseDbBackend):
     def _query_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
         self._load_collection(collection_name, len(query_embedding))
         
-        query_vector = np.array([query_embedding]).astype('float32')
-        distances, indices = self._indices[collection_name].search(query_vector, top_k)
+        query_vector = np.asarray([query_embedding], dtype=np.float32)
+        _, indices = self._indices[collection_name].search(query_vector, top_k)
 
-        results = []
-        for idx in indices[0]:
-            if idx != -1 and idx < len(self._metadata[collection_name]):
-                results.append(self._metadata[collection_name][idx])
-        return results
+        metadata = self._metadata[collection_name]
+        return [metadata[idx] for idx in indices[0] if idx != -1 and idx < len(metadata)]
     
     def _cleanup_database(self):
-        for filename in os.listdir(self._storage_path):
+        db_path = os.path.join(self._storage_path, self.db_name)
+        for filename in os.listdir(db_path):
             if filename.endswith((".index", ".pkl")):
-                os.remove(os.path.join(self._storage_path, filename))
-                
-        os.rmdir(os.path.join(self._storage_path, self.db_name))
-        if os.listdir(self._storage_path) == []:
+                os.remove(os.path.join(db_path, filename))
+
+        os.rmdir(db_path)
+        if not os.listdir(self._storage_path):
             os.rmdir(self._storage_path)
         self._indices.clear()
         self._metadata.clear()
         
-    def _reset_database(self, collection_name: str, embedding_length: int):
-        idx_path, meta_path = self._get_paths(collection_name)
+    def _reset_collection(self, collection_name: str, embedding_length: int):
+        self._cleanup_collection(collection_name)
 
+        self._create_empty(collection_name, embedding_length)
+        self._save_to_disk(collection_name)
+
+    def _cleanup_collection(self, collection_name: str):
         self._indices.pop(collection_name, None)
         self._metadata.pop(collection_name, None)
 
+        idx_path, meta_path = self._get_paths(collection_name)
         for path in (idx_path, meta_path):
             if os.path.exists(path):
                 try:
@@ -125,26 +126,29 @@ class FaissDbBackend(ABaseDbBackend):
                 except OSError as err:
                     _logger.warning(f"Failed to remove stale FAISS file {path}: {err}")
 
-        self._create_empty(collection_name, embedding_length)
-        self._save_to_disk(collection_name)
-
     async def async_cleanup_database(self) -> None:
         try:
             await self.hass.async_add_executor_job(self._cleanup_database)
         except Exception as e:
              _logger.error(f"Error cleaning up database: {e}", exc_info=True)
 
-    async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_reset_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         try:
-            await self.hass.async_add_executor_job(self._reset_database, collection_name, embedding_length)
+            await self.hass.async_add_executor_job(self._reset_collection, collection_name, embedding_length)
         except Exception as e:
-            _logger.error(f"Error resetting database: {e}", exc_info=True)
+            _logger.error(f"Error resetting collection: {e}", exc_info=True)
+    
+    async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._cleanup_collection, collection_name)
+        except Exception as e:
+            _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
     async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
         except Exception as e:
-             _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
+            _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
 
     async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         devices: List[Device] = []
