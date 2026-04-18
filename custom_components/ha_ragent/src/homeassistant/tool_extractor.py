@@ -194,7 +194,7 @@ class ToolExtractor:
                     collection_name = f"tools_{subentry_id}"
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
 
-                    await self._entry.vector_db_backend.async_reset_database(dict(subentry.data), collection_name, embedding_len)    
+                    await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)    
                     tool_embeddings = await self._entry.embedder_backend.async_embed_object(LlmToolEmbedding, dict(subentry.data), exposed_tools)
 
                     if tool_embeddings:

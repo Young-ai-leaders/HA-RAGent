@@ -95,10 +95,7 @@ class ChromaDbBackend(ABaseDbBackend):
     def _reset_collection(self, collection_name: str):
         try:
             client = self._get_client()
-            if self._collection_exists(client, collection_name):
-                collection = client.get_collection(name=collection_name)
-            else:
-                collection = client.create_collection(collection_name)
+            collection = client.get_or_create_collection(name=collection_name)
 
             existing_ids = collection.get(include=[]).get("ids", [])
             if existing_ids:

@@ -144,6 +144,12 @@ class FaissDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
+    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
+        except Exception as e:
+            _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
+
     async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         devices: List[Device] = []
         try:

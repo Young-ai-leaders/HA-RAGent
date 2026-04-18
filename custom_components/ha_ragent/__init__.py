@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.config_entries import ConfigEntryState, OperationNotAllowed
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry, target
 
@@ -45,21 +46,12 @@ def _create_llm_client(hass: HomeAssistant, llm_backend_type: str, entry: RAGent
     _logger.debug("Creating LLM client of type %s", llm_backend_type)
     return llm_backend_to_class(llm_backend_type)(hass, dict(entry.options))
 
-async def _async_reset_subentry_collections(entry: RAGentConfigEntry, subentry_id: str, subentry_data: dict[str, Any]) -> None:
-    try:
-        collection_names = [f"devices_{subentry_id}", f"tools_{subentry_id}"]
-        embedding_len = len(await entry.embedder_backend.async_embed_text(subentry_data, "Test"))
+async def _async_cleanup_subentry_collections(entry: RAGentConfigEntry, subentry_id: str, subentry_data: dict[str, Any]) -> None:
+    collection_names = [f"devices_{subentry_id}", f"tools_{subentry_id}"]
 
-        for collection_name in collection_names:
-            _logger.debug("Resetting collection %s for deleted subentry %s", collection_name, subentry_id)
-            await entry.vector_db_backend.async_reset_database(subentry_data, collection_name, embedding_len)
-    except Exception as err:
-        _logger.error(
-            "Failed to reset database collections for deleted subentry %s: %s",
-            subentry_id,
-            err,
-            exc_info=True,
-        )
+    for collection_name in collection_names:
+        _logger.debug("Cleaning up collection %s for deleted subentry %s", collection_name, subentry_id)
+        await entry.vector_db_backend.async_cleanup_collection(subentry_data, collection_name)
 
 async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
     subentry_ids_by_entry = hass.data[DOMAIN].setdefault("subentry_ids", {})
@@ -73,7 +65,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) 
     if removed_subentry_ids:
         for subentry_id in removed_subentry_ids:
             subentry_data = removed_data.get(subentry_id, {})
-            await _async_reset_subentry_collections(entry, subentry_id, subentry_data)
+            await _async_cleanup_subentry_collections(entry, subentry_id, subentry_data)
 
     subentry_ids_by_entry[entry.entry_id] = current_subentry_ids
     subentry_data_by_entry[entry.entry_id] = {
@@ -81,7 +73,21 @@ async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) 
         for subentry_id, subentry in entry.subentries.items()
     }
 
-    await hass.config_entries.async_reload(entry.entry_id)
+    if entry.state != ConfigEntryState.LOADED:
+        _logger.debug(
+            "Skipped config entry reload after subentry cleanup because entry is not loaded (%s) for %s",
+            entry.state,
+            entry.entry_id,
+        )
+        return
+
+    try:
+        await hass.config_entries.async_reload(entry.entry_id)
+    except OperationNotAllowed:
+        _logger.warning(
+            "Config entry %s is unloading, skipping reload after subentry change",
+            entry.entry_id,
+        )
 
 async def _register_services(hass: HomeAssistant):
     async def _handle_preload_models(call: ServiceCall) -> None:
