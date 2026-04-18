@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -44,7 +45,42 @@ def _create_llm_client(hass: HomeAssistant, llm_backend_type: str, entry: RAGent
     _logger.debug("Creating LLM client of type %s", llm_backend_type)
     return llm_backend_to_class(llm_backend_type)(hass, dict(entry.options))
 
+async def _async_reset_subentry_collections(entry: RAGentConfigEntry, subentry_id: str, subentry_data: dict[str, Any]) -> None:
+    try:
+        collection_names = [f"devices_{subentry_id}", f"tools_{subentry_id}"]
+        embedding_len = len(await entry.embedder_backend.async_embed_text(subentry_data, "Test"))
+
+        for collection_name in collection_names:
+            _logger.debug("Resetting collection %s for deleted subentry %s", collection_name, subentry_id)
+            await entry.vector_db_backend.async_reset_database(subentry_data, collection_name, embedding_len)
+    except Exception as err:
+        _logger.error(
+            "Failed to reset database collections for deleted subentry %s: %s",
+            subentry_id,
+            err,
+            exc_info=True,
+        )
+
 async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
+    subentry_ids_by_entry = hass.data[DOMAIN].setdefault("subentry_ids", {})
+    subentry_data_by_entry = hass.data[DOMAIN].setdefault("subentry_data", {})
+
+    previous_subentry_ids = set(subentry_ids_by_entry.get(entry.entry_id, set()))
+    current_subentry_ids = set(entry.subentries)
+    removed_subentry_ids = previous_subentry_ids - current_subentry_ids
+    removed_data = subentry_data_by_entry.get(entry.entry_id, {})
+
+    if removed_subentry_ids:
+        for subentry_id in removed_subentry_ids:
+            subentry_data = removed_data.get(subentry_id, {})
+            await _async_reset_subentry_collections(entry, subentry_id, subentry_data)
+
+    subentry_ids_by_entry[entry.entry_id] = current_subentry_ids
+    subentry_data_by_entry[entry.entry_id] = {
+        subentry_id: dict(subentry.data)
+        for subentry_id, subentry in entry.subentries.items()
+    }
+
     await hass.config_entries.async_reload(entry.entry_id)
 
 async def _register_services(hass: HomeAssistant):
@@ -107,6 +143,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     """Set up HA Ragent from a config entry."""
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = entry
+    hass.data[DOMAIN].setdefault("subentry_ids", {})[entry.entry_id] = set(entry.subentries)
+    hass.data[DOMAIN].setdefault("subentry_data", {})[entry.entry_id] = {
+        subentry_id: dict(subentry.data)
+        for subentry_id, subentry in entry.subentries.items()
+    }
     
     vector_db_backend_type = entry.data.get(CONF_VECTOR_DB_BACKEND_TYPE, DEFAULT_VECTOR_DB_BACKEND_TYPE)
     embedding_backend_type = entry.data.get(CONF_EMBEDDING_BACKEND_TYPE, DEFAULT_EMBEDDING_BACKEND_TYPE)
@@ -142,6 +183,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: RAGentConfigEntry) -> b
         return False
 
     hass.data[DOMAIN].pop(entry.entry_id)
+    hass.data[DOMAIN].get("subentry_ids", {}).pop(entry.entry_id, None)
     return True
 
 async def async_remove_entry(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:

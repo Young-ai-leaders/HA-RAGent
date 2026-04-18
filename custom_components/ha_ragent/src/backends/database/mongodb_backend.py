@@ -157,7 +157,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
     
-    async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_reset_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         conn = None
         try:
             conn = self._get_connection()
@@ -165,7 +165,6 @@ class MongoDbBackend(ABaseDbBackend):
 
             await self._async_init_database(conn, database, collection_name, embedding_length)
             await database[collection_name].delete_many({})
-
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting database: {e}", exc_info=True)
@@ -173,6 +172,21 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
             
+    async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
+        conn = None
+        try:
+            conn = self._get_connection()
+            database = self._get_database(conn)
+
+            if await self._async_collection_exists(conn, collection_name):
+                await database.drop_collection(collection_name)
+                _logger.info(f"Collection {collection_name} deleted successfully")
+        except Exception as e:
+            _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
+        finally:
+            if conn:
+                await conn.close()
+
     async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
         conn = None
         try:

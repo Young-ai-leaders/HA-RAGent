@@ -108,12 +108,17 @@ class FaissDbBackend(ABaseDbBackend):
         self._indices.clear()
         self._metadata.clear()
         
-    def _reset_database(self, collection_name: str, embedding_length: int):
-        idx_path, meta_path = self._get_paths(collection_name)
+    def _reset_collection(self, collection_name: str, embedding_length: int):
+        self._cleanup_collection(collection_name)
 
+        self._create_empty(collection_name, embedding_length)
+        self._save_to_disk(collection_name)
+
+    def _cleanup_collection(self, collection_name: str):
         self._indices.pop(collection_name, None)
         self._metadata.pop(collection_name, None)
 
+        idx_path, meta_path = self._get_paths(collection_name)
         for path in (idx_path, meta_path):
             if os.path.exists(path):
                 try:
@@ -121,26 +126,23 @@ class FaissDbBackend(ABaseDbBackend):
                 except OSError as err:
                     _logger.warning(f"Failed to remove stale FAISS file {path}: {err}")
 
-        self._create_empty(collection_name, embedding_length)
-        self._save_to_disk(collection_name)
-
     async def async_cleanup_database(self) -> None:
         try:
             await self.hass.async_add_executor_job(self._cleanup_database)
         except Exception as e:
              _logger.error(f"Error cleaning up database: {e}", exc_info=True)
 
-    async def async_reset_database(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_reset_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         try:
-            await self.hass.async_add_executor_job(self._reset_database, collection_name, embedding_length)
+            await self.hass.async_add_executor_job(self._reset_collection, collection_name, embedding_length)
         except Exception as e:
-            _logger.error(f"Error resetting database: {e}", exc_info=True)
-
-    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
+            _logger.error(f"Error resetting collection: {e}", exc_info=True)
+    
+    async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
         try:
-            await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
+            await self.hass.async_add_executor_job(self._cleanup_collection, collection_name)
         except Exception as e:
-             _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
+            _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
     async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
         devices: List[Device] = []
