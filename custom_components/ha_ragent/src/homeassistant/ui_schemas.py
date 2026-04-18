@@ -38,16 +38,11 @@ from ..const import (
     CONF_LLM_BACKEND_TYPE,
     CONF_LLM_MODEL,
     CONF_CONTEXT_LENGTH,
-    CONF_IN_CONTEXT_LEARNING_ENABLED,
-    CONF_IN_CONTEXT_LEARNING_FILE,
-    CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
-    CONF_OLLAMA_KEEP_ALIVE_MIN,
     CONF_PROMPT,
-    CONF_REMEMBER_CONVERSATION,
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
-    CONF_REMEMBER_NUM_INTERACTIONS,
+    CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_SELECTED_LANGUAGE,
     CONF_ENABLE_MODEL_THINKING,
     CONF_TEMPERATURE,
@@ -70,16 +65,12 @@ from ..const import (
     DEFAULT_EMBEDDING_BACKEND_TYPE,
     DEFAULT_LLM_BACKEND_TYPE,
     DEFAULT_CONTEXT_LENGTH,
-    DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
-    DEFAULT_IN_CONTEXT_LEARNING_FILE,
-    DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
-    DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
     DEFAULT_PROMPT,
-    DEFAULT_REMEMBER_CONVERSATION,
-    DEFAULT_REMEMBER_NUM_INTERACTIONS,
+    DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
+    DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
     DEFAULT_SELECTED_LANGUAGE,
     DEFAULT_TEMPERATURE,
     DEFAULT_K_TOP,
@@ -276,16 +267,6 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)},
             default=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
         ): NumberSelector(NumberSelectorConfig(min=0.0, max=2.0, step=0.05, mode=NumberSelectorMode.BOX)),
-        # vol.Required(
-        #     CONF_IN_CONTEXT_LEARNING_ENABLED,
-        #     description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_ENABLED)},
-        #     default=DEFAULT_IN_CONTEXT_LEARNING_ENABLED,
-        # ): BooleanSelector(BooleanSelectorConfig()),
-        # vol.Required(
-        #     CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-        #     description={"suggested_value": options.get(CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES)},
-        #     default=DEFAULT_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
-        # ): NumberSelector(NumberSelectorConfig(min=1, max=16, step=1)),
         vol.Required(
             CONF_MAX_TOKENS,
             description={"suggested_value": options.get(CONF_MAX_TOKENS)},
@@ -316,26 +297,16 @@ def ui_schema_config_options(
         #     description={"suggested_value": options.get(CONF_P_TYPICAL)},
         #     default=DEFAULT_P_TYPICAL,
         # ): NumberSelector(NumberSelectorConfig(min=0, max=1, step=0.05)),
-        # vol.Required(
-        #     CONF_OLLAMA_KEEP_ALIVE_MIN,
-        #     description={"suggested_value": options.get(CONF_OLLAMA_KEEP_ALIVE_MIN)},
-        #     default=DEFAULT_OLLAMA_KEEP_ALIVE_MIN,
-        # ): NumberSelector(NumberSelectorConfig(min=-1, max=1440, step=1, unit_of_measurement=UnitOfTime.MINUTES, mode=NumberSelectorMode.BOX)),
-        # vol.Optional(
-        #     CONF_REMEMBER_CONVERSATION,
-        #     description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION)},
-        #     default=options.get(CONF_REMEMBER_CONVERSATION, DEFAULT_REMEMBER_CONVERSATION),
-        # ): BooleanSelector(BooleanSelectorConfig()),
-        # vol.Optional(
-        #     CONF_REMEMBER_NUM_INTERACTIONS,
-        #     description={"suggested_value": options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS)},
-        #     default=options.get(CONF_REMEMBER_NUM_INTERACTIONS, DEFAULT_REMEMBER_NUM_INTERACTIONS),
-        # ): NumberSelector(NumberSelectorConfig(min=0, max=100, mode=NumberSelectorMode.BOX)),
-        # vol.Optional(
-        #     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
-        #     description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION)},
-        #     default=options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION),
-        # ): NumberSelector(NumberSelectorConfig(min=0, max=1440, mode=NumberSelectorMode.BOX)),
+        vol.Optional(
+            CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
+            description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS, DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS)},
+            default=options.get(CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS, DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS),
+        ): NumberSelector(NumberSelectorConfig(min=0, max=100, mode=NumberSelectorMode.BOX)),
+        vol.Optional(
+            CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
+            description={"suggested_value": options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES)},
+            default=options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES),
+        ): NumberSelector(NumberSelectorConfig(min=0, max=1440, mode=NumberSelectorMode.BOX)),
         vol.Required(
             CONF_MAX_TOOL_CALL_ITERATIONS,
             description={"suggested_value": options.get(CONF_MAX_TOOL_CALL_ITERATIONS)},
@@ -373,15 +344,10 @@ def ui_schema_config_options(
         CONF_P_MIN,
         CONF_P_TYPICAL,
         CONF_K_TOP,
-        # tool calling/reasoning
+        # tool and memory parameters
         CONF_MAX_TOOL_CALL_ITERATIONS,
-        # integration specific options
-        CONF_REMEMBER_CONVERSATION,
-        CONF_REMEMBER_NUM_INTERACTIONS,
+        CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
         CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
-        CONF_IN_CONTEXT_LEARNING_ENABLED,
-        CONF_IN_CONTEXT_LEARNING_FILE,
-        CONF_IN_CONTEXT_LEARNING_NUM_EXAMPLES,
     ]
 
     result = { k: v for k, v in sorted(result.items(), key=lambda item: global_order.index(item[0]) if item[0] in global_order else 9999) }

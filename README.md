@@ -97,6 +97,10 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - Controls how much the LLM halucinates.
 - `Maximum Tool Call Iterations`
     - Controls how often the LLM is allowed to perform tool calls per request (**Important note:** one response can call multiple tools the LLM can respond up to 8 times per default)
+- `Conversation Memory Interactions`
+    - Controls how many past user interactions are kept in memory for context.
+- `Conversation Memory Duration`
+    - Controls how long the assistant will retain conversation history in minutes.
 
 ## Help and Contribution
 **Found a bug?** <br>

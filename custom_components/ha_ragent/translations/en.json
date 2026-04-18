@@ -94,9 +94,11 @@
                         "rag_max_tokens": "Maximum Tokens",
                         "rag_context_length": "Context Length",
                         "rag_max_tool_call_iterations": "Maximum Tool Call Iterations",
-                        "rag_llm_hass_api": "LLM API",
                         "rag_num_devices_to_extract": "Number of Devices",
-                        "rag_num_tools_to_extract": "Number of Tools"
+                        "rag_num_tools_to_extract": "Number of Tools",
+                        "rag_remember_conversation_num_interactions": "Conversation Memory Interactions",
+                        "rag_remember_conversation_time_minutes": "Conversation Memory Duration (minutes)"
+                        
                     },
                     "data_description": {
                         "rag_prompt": "The system prompt that defines the behavior and personality of the assistant",
@@ -105,9 +107,10 @@
                         "rag_max_tokens": "Maximum number of tokens the model may generate per response",
                         "rag_context_length": "How many past messages to include in the model context window",
                         "rag_max_tool_call_iterations": "Limit on how many times the agent may call external tools per request",
-                        "rag_llm_hass_api": "Select a Home Assistant LLM API provider",
                         "rag_num_devices_to_extract": "The number of relevant devices to extract and include in the model context per request",
-                        "rag_num_tools_to_extract": "The number of relevant tools to extract and include in the model context per request"
+                        "rag_num_tools_to_extract": "The number of relevant tools to extract and include in the model context per request",
+                        "rag_remember_conversation_num_interactions": "How many past user interactions to keep in memory",
+                        "rag_remember_conversation_time_minutes": "How long the assistant should remember the conversation in minutes"
                     }
                 }
             },
