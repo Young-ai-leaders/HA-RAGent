@@ -28,13 +28,15 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 ### Add Service Entry:
 **Select Backends:**
 - `Vector database backend`
-    - **FAISS (Local DB)** is the default and simplest to use, there is no additional configuration required
-    - **MongoDB** requires the setup of an external MongoDB Atlas instance
-    - **ChromaDB** requires the setup of an external ChromaDB instace
+    - **FAISS (Local DB)** stores embeddings locally and is the default, simplest setup
+    - **MongoDB** stores embeddings in an external MongoDB instance
+    - **ChromaDB** stores embeddings in an external ChromaDB server
 - `Embedding backend`
-    - **Ollama** requires the setup of external ollama instance and download of an embedding model ([find embedding model](https://ollama.com/search?c=embedding))
+    - **Ollama** requires an external Ollama instance and an installed embedding model ([find embedding models](https://ollama.com/search?c=embedding))
+    - **OpenAI Compatible** works with APIs that expose an OpenAI-style embeddings endpoint
 - `LLM backend`
-    - **Ollama** requires the setup of external ollama instance and download of an llm model with tool support ([find LLM model](https://ollama.com/search?c=tools))
+    - **Ollama** requires an external Ollama instance and an installed chat model with tool support ([find tool-capable models](https://ollama.com/search?c=tools))
+    - **OpenAI Compatible** works with APIs that expose an OpenAI-style chat completions endpoint
 - `Language`
     - **English** used in order to setup the default prompt
     - **German** used in order to setup the default prompt
@@ -42,22 +44,24 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 **Setup Connections:**
 
 `Vector Database Options`
-- **Database Username** the username which is used for the database connection (only visible for certain backends)
-- **Database Password** the password which is used for the database connection (only visible for certain backends)
-- **Vector DB Hostname** the hostname which is used for the database connection (only visible for certain backends)
-- **Vector DB Port** the port which is used for the database connection (only visible for certain backends)
-- **Use HTTPS** whether to enable SSL for the database connection (only visible for certain backends)
+- **Database Username** optional database username, currently relevant for MongoDB
+- **Database Password** optional database password, currently relevant for MongoDB
+- **Vector DB Hostname** hostname or IP of the vector database server, used for MongoDB and ChromaDB
+- **Vector DB Port** port of the vector database server, used for MongoDB and ChromaDB
+- **Use HTTPS** enables SSL/TLS for the vector database connection when supported by the selected backend
 - **Database Name** can be left as is or changed (Must be unique for each instance when multiple instances of HA-RAGent are configured. The default name is already unique.)
 
 `Embedding Backend Options`
-- **Ebedding Hostname** the hostname which is used for the embedding backend connection
-- **Ebedding Port** the port which is used for the embedding backend connection
-- **Use HTTPS** whether to enable SSL for the embedding backend connection
+- **Embedding Hostname** hostname or IP of the embedding API server
+- **Embedding Port** port of the embedding API server
+- **Use HTTPS** enables SSL/TLS for the embedding API connection
+- **Embedding API Key** optional bearer token for OpenAI-compatible embedding APIs
 
 `LLM Backend Options`
-- **LLM Hostname** the hostname which is used for the LLM backend connection
-- **LLM Port** the port which is used for the LLM backend connection
-- **Use HTTPS** whether to enable SSL for the LLM backend connection
+- **LLM Hostname** hostname or IP of the LLM API server
+- **LLM Port** port of the LLM API server
+- **Use HTTPS** enables SSL/TLS for the LLM API connection
+- **LLM API Key** optional bearer token for OpenAI-compatible LLM APIs
 
 ### Add AI RAGent Entry:
 **Pick one of the configured services**

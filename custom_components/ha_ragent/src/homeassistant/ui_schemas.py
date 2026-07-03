@@ -92,6 +92,8 @@ from ..const import (
     BACKEND_VECTOR_DB_TYPE_CHROMA,
     BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE,
     BACKEND_LLM_TYPE_OPENAI_COMPATIBLE,
+    EMBEDDING_BACKENDS_WITH_API_KEY,
+    LLM_BACKENDS_WITH_API_KEY,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -218,17 +220,25 @@ def ui_schema_backend_connections(
     
     schema.update({
         vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else f"{DEFAULT_VECTOR_DB_NAME}_{uuid4()}"): str,
+    })
 
+    schema.update({
         vol.Required(CONF_EMBEDDING_HOST, default=embedding_host if embedding_host else ""): str,
         vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else embedding_default_port): int,
-        vol.Optional(CONF_EMBEDDING_API_KEY, default=embedding_api_key if embedding_api_key else ""): str,
-        vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl is not None else embedding_default_ssl): bool,
+    })
 
+    if embedding_backend_type in EMBEDDING_BACKENDS_WITH_API_KEY:
+        schema[vol.Optional(CONF_EMBEDDING_API_KEY, default=embedding_api_key if embedding_api_key else "")] = str
+    schema[vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl is not None else embedding_default_ssl)] = bool
+
+    schema.update({
         vol.Required(CONF_LLM_HOST, default=llm_host if llm_host else ""): str,
         vol.Optional(CONF_LLM_PORT, default=llm_port if llm_port else llm_default_port): int,
-        vol.Optional(CONF_LLM_API_KEY, default=llm_api_key if llm_api_key else ""): str,
-        vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl is not None else llm_default_ssl): bool,
     })
+
+    if llm_backend_type in LLM_BACKENDS_WITH_API_KEY:
+        schema[vol.Optional(CONF_LLM_API_KEY, default=llm_api_key if llm_api_key else "")] = str
+    schema[vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl is not None else llm_default_ssl)] = bool
 
     return vol.Schema(schema)
 

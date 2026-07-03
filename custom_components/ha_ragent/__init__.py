@@ -11,11 +11,9 @@ from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RA
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
-from custom_components.ha_ragent.src.homeassistant.actions import (
-    register_embed_subentry_action,
-    register_preload_models_action,
-    register_unload_models_action,
-)
+from custom_components.ha_ragent.src.homeassistant.actions.embed_subentry_action import register_embed_subentry_action
+from custom_components.ha_ragent.src.homeassistant.actions.preload_action import register_preload_models_action
+from custom_components.ha_ragent.src.homeassistant.actions.unload_action import register_unload_models_action
 from custom_components.ha_ragent.src.homeassistant.extractors.device_extractor import DeviceExtractor
 from custom_components.ha_ragent.src.homeassistant.search_tool_api import RAGentLLMAPI
 from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor import ToolExtractor
