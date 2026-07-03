@@ -68,11 +68,13 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - **Only shows downloaded models** that can be used for ebedding generation
 - `LLM Model`
     - **Only shows downloaded models** that can be used as LLM model
+- `Allow Auto Embedding`
+    - Automatically embeds exposed devices and tools for this AI RAGent during Home Assistant startup and on config entry reload.
 
 **Fine Tuning**
 - `LLM Home Assistant API`
     - **No Control** means the model is not allowed to control devices
-    - **Assist** allows the model to control devices
+    - **Assist** allows the model to control devices and exposes Home Assistant tools
 - `System Prompt`
     - The prompt that is sent to the model.
 - `Enable Model Thinking`
@@ -93,6 +95,19 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - Controls how many past user interactions are kept in memory for context.
 - `Conversation Memory Duration`
     - Controls how long the assistant will retain conversation history in minutes.
+
+## Services
+
+HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:
+
+- `ha_ragent.embed_subentry`
+    - Rebuilds device and tool embeddings for the selected AI RAGent subentry.
+- `ha_ragent.preload_models`
+    - Preloads the embedding model and LLM for the selected AI RAGent subentry.
+- `ha_ragent.unload_models`
+    - Unloads the embedding model and LLM for the selected AI RAGent subentry to free resources.
+
+All three services target the HA-RAGent conversation entity, so you can run them from Developer Tools by selecting the specific assistant instance you want to manage.
 
 ## Help and Contribution
 **Found a bug?** <br>

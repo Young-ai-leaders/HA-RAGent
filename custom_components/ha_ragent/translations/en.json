@@ -205,6 +205,16 @@
         }
     },
     "services": {
+        "embed_subentry": {
+            "name": "Embed Subentry",
+            "description": "Embeds devices and tools for a specific integration instance.",
+            "fields": {
+                "entry_id": {
+                "name": "Integration Entry",
+                "description": "Select which instance to embed."
+                }
+            }
+        },
         "preload_models": {
             "name": "Preload Models",
             "description": "Preloads models for a specific integration instance.",

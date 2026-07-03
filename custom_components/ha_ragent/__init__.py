@@ -4,13 +4,18 @@ from typing import Any
 
 from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
 from homeassistant.config_entries import ConfigEntryState, OperationNotAllowed
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.helpers import entity_registry, llm, target
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import llm
 
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
+from custom_components.ha_ragent.src.homeassistant.actions import (
+    register_embed_subentry_action,
+    register_preload_models_action,
+    register_unload_models_action,
+)
 from custom_components.ha_ragent.src.homeassistant.extractors.device_extractor import DeviceExtractor
 from custom_components.ha_ragent.src.homeassistant.search_tool_api import RAGentLLMAPI
 from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor import ToolExtractor
@@ -30,9 +35,6 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_LLM_API_ID,
     STARTUP_EMBEDDING_RUNNING_FLAG
 )
-
-import voluptuous as vol
-from homeassistant.helpers import config_validation
 
 from custom_components.ha_ragent.src.utils import vector_db_to_class, embedding_backend_to_class, llm_backend_to_class
 
@@ -104,59 +106,22 @@ async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) 
         )
 
 async def _register_services(hass: HomeAssistant):
-    async def _handle_preload_models(call: ServiceCall) -> None:
-        entity_reg = entity_registry.async_get(hass)
-        target_selector = target.TargetSelection(call.data)
-        referenced = target.async_extract_referenced_entity_ids(hass, target_selector)
-        
-        for entity_id in referenced.referenced | referenced.indirectly_referenced:
-            entry = entity_reg.async_get(entity_id)
-            if not entry or entry.platform != DOMAIN or not entry.config_subentry_id:
-                continue
+    if not hass.services.has_service(DOMAIN, "embed_subentry"):
+        register_embed_subentry_action(hass)
 
-            parent: RAGentConfigEntry = hass.config_entries.async_get_entry(entry.config_entry_id)
-            if not parent:
-                continue
-            
-            sub = parent.subentries.get(entry.config_subentry_id)
-            if sub:
-                _logger.debug("Preloading model for: %s", sub.title)
-                await parent.embedder_backend.async_preload_model(dict(sub.data))
-                await parent.llm_backend.async_preload_model(dict(sub.data))
+    if not hass.services.has_service(DOMAIN, "preload_models"):
+        register_preload_models_action(hass)
 
-    hass.services.async_register(
-        DOMAIN,
-        "preload_models",
-        _handle_preload_models,
-        schema=vol.Schema({}).extend(config_validation.TARGET_SERVICE_FIELDS)
-    )
-    
-    async def _handle_unload_models(call: ServiceCall) -> None:
-        entity_reg = entity_registry.async_get(hass)
-        target_selector = target.TargetSelection(call.data)
-        referenced = target.async_extract_referenced_entity_ids(hass, target_selector)
+    if not hass.services.has_service(DOMAIN, "unload_models"):
+        register_unload_models_action(hass)
 
-        for entity_id in referenced.referenced | referenced.indirectly_referenced:
-            entry = entity_reg.async_get(entity_id)
-            if not entry or entry.platform != DOMAIN or not entry.config_subentry_id:
-                continue
 
-            parent: RAGentConfigEntry = hass.config_entries.async_get_entry(entry.config_entry_id)
-            if not parent:
-                continue
-            
-            sub = parent.subentries.get(entry.config_subentry_id)
-            if sub:
-                _logger.debug("Unloading model for: %s", sub.title)
-                await parent.embedder_backend.async_unload_model(dict(sub.data))
-                await parent.llm_backend.async_unload_model(dict(sub.data))
-
-    hass.services.async_register(
-        DOMAIN,
-        "unload_models",
-        _handle_unload_models,
-        schema=vol.Schema({}).extend(config_validation.TARGET_SERVICE_FIELDS)
-    )
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Set up the HA RAGent component."""
+    hass.data.setdefault(DOMAIN, {})
+    _ensure_llm_api_registered(hass)
+    await _register_services(hass)
+    return True
 
 
 async def _async_run_startup_embeddings(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
