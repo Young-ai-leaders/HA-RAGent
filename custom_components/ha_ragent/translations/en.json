@@ -22,12 +22,14 @@
                     "rag_embedding_host": "Embedding Hostname",
                     "rag_embedding_port": "Embedding Port",
                     "rag_embedding_ssl": "Use HTTPS",
+                    "rag_embedding_api_key": "Embedding API Key",
                     "rag_embedding_model": "Embedding Model",
 
                     "llm_section": "LLM Backend Settings",
                     "rag_llm_host": "LLM Hostname",
                     "rag_llm_port": "LLM Port",
                     "rag_llm_ssl": "Use HTTPS",
+                    "rag_llm_api_key": "LLM API Key",
                     "rag_llm_model": "LLM Model"
                     },
                 "data_description": {
@@ -45,10 +47,12 @@
                     "rag_embedding_host": "Hostname or IP for embedding API",
                     "rag_embedding_port": "Port for embedding API",
                     "rag_embedding_ssl": "Enable HTTPS for embedding backend",
+                    "rag_embedding_api_key": "Optional bearer token for embedding API",
                     "rag_llm_model": "Model to use with the LLM backend",
                     "rag_llm_host": "Hostname or IP for LLM API",
                     "rag_llm_port": "Port for LLM API",
-                    "rag_llm_ssl": "Enable HTTPS for LLM backend"
+                    "rag_llm_ssl": "Enable HTTPS for LLM backend",
+                    "rag_llm_api_key": "Optional bearer token for LLM API"
                 }
             }
         },
@@ -80,7 +84,11 @@
                     "description": "Select the embedding and LLM models to use for this AI RAGent.",
                     "data": {
                         "rag_embedding_model": "Embedding Model",
-                        "rag_llm_model": "LLM Model"
+                        "rag_llm_model": "LLM Model",
+                        "rag_allow_auto_embedding": "Allow Auto Embedding"
+                    },
+                    "data_description": {
+                        "rag_allow_auto_embedding": "Automatically embed exposed devices and tools for this AI RAGent during startup."
                     }
                 },
                 "model_parameters": {
@@ -140,9 +148,11 @@
                     "rag_embedding_host": "Embedding Hostname",
                     "rag_embedding_port": "Embedding Port",
                     "rag_embedding_ssl": "Use HTTPS",
+                    "rag_embedding_api_key": "Embedding API Key",
                     "rag_llm_host": "LLM Hostname",
                     "rag_llm_port": "LLM Port",
-                    "rag_llm_ssl": "Use HTTPS"
+                    "rag_llm_ssl": "Use HTTPS",
+                    "rag_llm_api_key": "LLM API Key"
                 },
                 "data_description": {
                     "rag_vector_db_username": "Optional username for the vector database",
@@ -154,9 +164,11 @@
                     "rag_embedding_host": "Hostname or IP for embedding API",
                     "rag_embedding_port": "Port for embedding API",
                     "rag_embedding_ssl": "Enable HTTPS for embedding backend",
+                    "rag_embedding_api_key": "Optional bearer token for embedding API",
                     "rag_llm_host": "Hostname or IP for LLM API",
                     "rag_llm_port": "Port for LLM API",
-                    "rag_llm_ssl": "Enable HTTPS for LLM backend"
+                    "rag_llm_ssl": "Enable HTTPS for LLM backend",
+                    "rag_llm_api_key": "Optional bearer token for LLM API"
                 }
             }
         },
@@ -175,12 +187,14 @@
         },
         "rag_embedding_backend": {
             "options": {
-                "ollama": "Ollama"
+                "ollama": "Ollama",
+                "openai_compatible": "OpenAI Compatible"
             }
         },
         "rag_llm_backend": {
             "options": {
-                "ollama": "Ollama"
+                "ollama": "Ollama",
+                "openai_compatible": "OpenAI Compatible"
             }
         },
         "rag_selected_language": {

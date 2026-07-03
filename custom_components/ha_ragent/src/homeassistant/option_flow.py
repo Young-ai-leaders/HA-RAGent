@@ -12,10 +12,12 @@ from ..const import (
     CONF_LLM_HOST,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
+    CONF_LLM_API_KEY,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_EMBEDDING_HOST,
     CONF_EMBEDDING_PORT,
     CONF_EMBEDDING_SSL,
+    CONF_EMBEDDING_API_KEY,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
@@ -70,9 +72,11 @@ class RagentOptionsFlow(OptionsFlow):
             embedding_host=client_config.get(CONF_EMBEDDING_HOST),
             embedding_port=client_config.get(CONF_EMBEDDING_PORT),
             embedding_ssl=client_config.get(CONF_EMBEDDING_SSL),
+            embedding_api_key=client_config.get(CONF_EMBEDDING_API_KEY),
             llm_host=client_config.get(CONF_LLM_HOST),
             llm_port=client_config.get(CONF_LLM_PORT),
-            llm_ssl=client_config.get(CONF_LLM_SSL))
+            llm_ssl=client_config.get(CONF_LLM_SSL),
+            llm_api_key=client_config.get(CONF_LLM_API_KEY))
         
         return self.async_show_form(
             step_id="init",

@@ -16,6 +16,7 @@ from custom_components.ha_ragent.src.homeassistant.search_tool_api import RAGent
 from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor import ToolExtractor
 
 from custom_components.ha_ragent.src.const import (
+    CONF_ALLOW_AUTO_EMBEDDING,
     DOMAIN,
     
     CONF_VECTOR_DB_BACKEND_TYPE,
@@ -24,6 +25,7 @@ from custom_components.ha_ragent.src.const import (
     
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_EMBEDDING_BACKEND_TYPE,
+    DEFAULT_ALLOW_AUTO_EMBEDDING,
     DEFAULT_LLM_BACKEND_TYPE,    
     RAGENT_LLM_API_ID,
     STARTUP_EMBEDDING_RUNNING_FLAG
@@ -159,6 +161,16 @@ async def _register_services(hass: HomeAssistant):
 
 async def _async_run_startup_embeddings(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
     """Run embedding of exposed tools and devices at startup and prevent concurrent runs."""
+    auto_embedding_subentry_ids = [
+        subentry_id
+        for subentry_id, subentry in entry.subentries.items()
+        if subentry.data.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING)
+    ]
+
+    if not auto_embedding_subentry_ids:
+        _logger.debug("Skipping startup embeddings for %s because auto embedding is disabled for all subentries", entry.entry_id)
+        return
+
     domain_data = hass.data.setdefault(DOMAIN, {})
     running_entries = domain_data.get(STARTUP_EMBEDDING_RUNNING_FLAG)
     if not isinstance(running_entries, set):
@@ -177,8 +189,8 @@ async def _async_run_startup_embeddings(hass: HomeAssistant, entry: RAGentConfig
         tool_extractor = ToolExtractor(hass, entry)
         device_extractor = DeviceExtractor(hass, entry)
         await asyncio.gather(
-            tool_extractor.async_embed_all_exposed_tools(),
-            device_extractor.async_embed_all_exposed_devices(),
+            tool_extractor.async_embed_all_exposed_tools(auto_embedding_subentry_ids),
+            device_extractor.async_embed_all_exposed_devices(auto_embedding_subentry_ids),
         )
     finally:
         running_entries.discard(entry.entry_id)

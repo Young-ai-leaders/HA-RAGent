@@ -46,6 +46,7 @@ from ..const import (
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_SELECTED_LANGUAGE,
     CONF_ENABLE_MODEL_THINKING,
+    CONF_ALLOW_AUTO_EMBEDDING,
     CONF_TEMPERATURE,
     CONF_K_TOP,
     CONF_P_MIN,
@@ -59,9 +60,11 @@ from ..const import (
     CONF_LLM_SSL,
     CONF_EMBEDDING_PORT,
     CONF_EMBEDDING_SSL,
+    CONF_EMBEDDING_API_KEY,
     CONF_VECTOR_DB_HOST,
     CONF_LLM_HOST,
     CONF_EMBEDDING_HOST,
+    CONF_LLM_API_KEY,
 
     DEFAULT_EMBEDDING_BACKEND_TYPE,
     DEFAULT_LLM_BACKEND_TYPE,
@@ -79,6 +82,7 @@ from ..const import (
     DEFAULT_P_TOP,
     DEFAULT_P_TYPICAL,
     DEFAULT_ENABLE_MODEL_THINKING,
+    DEFAULT_ALLOW_AUTO_EMBEDDING,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_NAME,
@@ -86,6 +90,8 @@ from ..const import (
     
     BACKEND_VECTOR_DB_TYPE_MONGODB,
     BACKEND_VECTOR_DB_TYPE_CHROMA,
+    BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE,
+    BACKEND_LLM_TYPE_OPENAI_COMPATIBLE,
 
     SELECTED_LANGUAGE_OPTIONS,
 )
@@ -97,6 +103,13 @@ from ..utils import (
 from .ragent import RAGent
 
 _logger = logging.getLogger(__name__)
+
+
+def _backend_connection_defaults(backend_type: str, *, ollama_port: int, openai_port: int) -> tuple[int, bool]:
+    if backend_type in (BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE, BACKEND_LLM_TYPE_OPENAI_COMPATIBLE):
+        return openai_port, True
+
+    return ollama_port, False
 
 def ui_schema_pick_backends(ventor_db_backend_type=None, embedding_backend_type=None, llm_backend_type=None, selected_language=None) -> vol.Schema:
     return vol.Schema(
@@ -153,9 +166,11 @@ def ui_schema_backend_connections(
         embedding_host=None, 
         embedding_port=None, 
         embedding_ssl=None,
+        embedding_api_key=None,
         llm_host=None,
         llm_port=None,
-        llm_ssl=None) -> vol.Schema:
+        llm_ssl=None,
+        llm_api_key=None) -> vol.Schema:
     if vector_db_backend_type not in BACKEND_VECTOR_DB_TYPE_OPTIONS:
         raise AbortFlow(reason="unknown_vector_db_backend_type")
     
@@ -168,6 +183,7 @@ def ui_schema_backend_connections(
     default_port_mongodb = 27017
     default_port_chroma = 8000
     default_port_ollama = 11434
+    default_port_openai = 443
 
     if vector_db_backend_type == BACKEND_VECTOR_DB_TYPE_MONGODB:
         vector_default_port = default_port_mongodb
@@ -188,22 +204,41 @@ def ui_schema_backend_connections(
             vol.Optional(CONF_VECTOR_DB_PORT, default=vector_db_port if vector_db_port else vector_default_port): int,
             vol.Required(CONF_VECTOR_DB_SSL, default=vector_db_ssl if vector_db_ssl else False): bool,
         })
+
+    embedding_default_port, embedding_default_ssl = _backend_connection_defaults(
+        embedding_backend_type,
+        ollama_port=default_port_ollama,
+        openai_port=default_port_openai,
+    )
+    llm_default_port, llm_default_ssl = _backend_connection_defaults(
+        llm_backend_type,
+        ollama_port=default_port_ollama,
+        openai_port=default_port_openai,
+    )
     
     schema.update({
         vol.Required(CONF_VECTOR_DB_NAME, default=vector_db_name if vector_db_name else f"{DEFAULT_VECTOR_DB_NAME}_{uuid4()}"): str,
 
         vol.Required(CONF_EMBEDDING_HOST, default=embedding_host if embedding_host else ""): str,
-        vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else default_port_ollama): int,
-        vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl else False): bool,
+        vol.Optional(CONF_EMBEDDING_PORT, default=embedding_port if embedding_port else embedding_default_port): int,
+        vol.Optional(CONF_EMBEDDING_API_KEY, default=embedding_api_key if embedding_api_key else ""): str,
+        vol.Required(CONF_EMBEDDING_SSL, default=embedding_ssl if embedding_ssl is not None else embedding_default_ssl): bool,
 
         vol.Required(CONF_LLM_HOST, default=llm_host if llm_host else ""): str,
-        vol.Optional(CONF_LLM_PORT, default=llm_port if llm_port else default_port_ollama): int,
-        vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl else False): bool
+        vol.Optional(CONF_LLM_PORT, default=llm_port if llm_port else llm_default_port): int,
+        vol.Optional(CONF_LLM_API_KEY, default=llm_api_key if llm_api_key else ""): str,
+        vol.Required(CONF_LLM_SSL, default=llm_ssl if llm_ssl is not None else llm_default_ssl): bool,
     })
 
     return vol.Schema(schema)
 
-def ui_schema_pick_models(embedding_models: list[str], llm_models: list[str], embedding_model: str | None = None, llm_model: str | None = None) -> vol.Schema:
+def ui_schema_pick_models(
+    embedding_models: list[str],
+    llm_models: list[str],
+    embedding_model: str | None = None,
+    llm_model: str | None = None,
+    allow_auto_embedding: bool | None = None,
+) -> vol.Schema:
     if len(embedding_models) == 0:
         embedding_models = [ "" ]
     if len(llm_models) == 0:
@@ -224,6 +259,10 @@ def ui_schema_pick_models(embedding_models: list[str], llm_models: list[str], em
                 multiple=False,
                 mode=SelectSelectorMode.DROPDOWN,
             )),
+            vol.Optional(
+                CONF_ALLOW_AUTO_EMBEDDING,
+                default=get_value(allow_auto_embedding, DEFAULT_ALLOW_AUTO_EMBEDDING),
+            ): BooleanSelector(BooleanSelectorConfig()),
         }
     )
 
