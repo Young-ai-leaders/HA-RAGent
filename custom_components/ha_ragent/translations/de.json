@@ -1,0 +1,236 @@
+{
+    "config": {
+        "step": {
+            "user": {
+                "title": "HA RAGent konfigurieren",
+                "description": "Wählen Sie für diese Integration die Vektordatenbank-, Embedding- und LLM-Backends aus und geben Sie anschließend die Verbindungsdaten (Host, Port, SSL) für die Modell-APIs an.",
+                "data": {
+                    "rag_vector_db_backend": "Vektordatenbank-Backend",
+                    "rag_embedding_backend": "Embedding-Backend",
+                    "rag_llm_backend": "LLM-Backend",
+                    "rag_selected_language": "Sprache",
+
+                    "vector_db_section": "Einstellungen der Vektordatenbank",
+                    "rag_vector_db_username": "Datenbank-Benutzername",
+                    "rag_vector_db_password": "Datenbank-Passwort",
+                    "rag_vector_db_host": "Vector-DB-Hostname",
+                    "rag_vector_db_port": "Vector-DB-Port",
+                    "rag_vector_db_ssl": "HTTPS verwenden",
+                    "rag_vector_db_name": "Datenbankname",
+
+                    "embedding_section": "Embedding-Backend-Einstellungen",
+                    "rag_embedding_host": "Embedding-Hostname",
+                    "rag_embedding_port": "Embedding-Port",
+                    "rag_embedding_ssl": "HTTPS verwenden",
+                    "rag_embedding_api_key": "Embedding-API-Schlüssel",
+                    "rag_embedding_model": "Embedding-Modell",
+
+                    "llm_section": "LLM-Backend-Einstellungen",
+                    "rag_llm_host": "LLM-Hostname",
+                    "rag_llm_port": "LLM-Port",
+                    "rag_llm_ssl": "HTTPS verwenden",
+                    "rag_llm_api_key": "LLM-API-Schlüssel",
+                    "rag_llm_model": "LLM-Modell"
+                },
+                "data_description": {
+                    "rag_vector_db_backend": "Wählen Sie das zu verwendende Vektordatenbank-Backend aus",
+                    "rag_embedding_backend": "Wählen Sie das zu verwendende Embedding-Backend aus",
+                    "rag_llm_backend": "Wählen Sie das zu verwendende LLM-Backend aus",
+                    "rag_selected_language": "Wählen Sie die Sprache der Benutzeroberfläche aus",
+                    "rag_vector_db_username": "Optionaler Benutzername für die Vektordatenbank",
+                    "rag_vector_db_password": "Optionales Passwort für die Vektordatenbank",
+                    "rag_vector_db_name": "Name der zu verwendenden Vektordatenbank",
+                    "rag_vector_db_host": "Hostname oder IP-Adresse der Vektordatenbank",
+                    "rag_vector_db_port": "Port der Vektordatenbank",
+                    "rag_vector_db_ssl": "HTTPS für die Vektordatenbank aktivieren",
+                    "rag_embedding_model": "Zu verwendendes Modell für das Embedding-Backend",
+                    "rag_embedding_host": "Hostname oder IP-Adresse der Embedding-API",
+                    "rag_embedding_port": "Port der Embedding-API",
+                    "rag_embedding_ssl": "HTTPS für das Embedding-Backend aktivieren",
+                    "rag_embedding_api_key": "Optionales Bearer-Token für die Embedding-API",
+                    "rag_llm_model": "Zu verwendendes Modell für das LLM-Backend",
+                    "rag_llm_host": "Hostname oder IP-Adresse der LLM-API",
+                    "rag_llm_port": "Port der LLM-API",
+                    "rag_llm_ssl": "HTTPS für das LLM-Backend aktivieren",
+                    "rag_llm_api_key": "Optionales Bearer-Token für die LLM-API"
+                }
+            }
+        },
+        "error": {
+            "unknown_step": "Unbekannter Konfigurationsschritt",
+            "already_configured": "Diese Integration ist bereits konfiguriert",
+            "invalid_hostname": "Der angegebene Hostname ist ungültig. Bitte geben Sie nur die Domain oder IP-Adresse und nicht den vollständigen API-Endpunkt an.",
+            "failed_to_connect": "Verbindung zur entfernten API fehlgeschlagen: {exception}"
+        },
+        "abort": {
+            "unknown_step": "Unbekannter Konfigurationsschritt erkannt",
+            "already_configured": "HA RAGent ist bereits konfiguriert",
+            "entry_not_loaded": "Konfigurationseintrag ist nicht geladen",
+            "unknown_vector_db_backend_type": "Unbekannter Typ für das Vektordatenbank-Backend",
+            "unknown_embedding_backend_type": "Unbekannter Typ für das Embedding-Backend",
+            "unknown_llm_backend_type": "Unbekannter Typ für das LLM-Backend"
+        }
+    },
+    "config_subentries": {
+        "ragent": {
+            "initiate_flow": {
+                "user": "KI-RAGent hinzufügen",
+                "reconfigure": "KI-RAGent neu konfigurieren"
+            },
+            "entry_type": "KI-RAGent",
+            "step": {
+                "pick_model": {
+                    "title": "Modelle auswählen",
+                    "description": "Wählen Sie die Embedding- und LLM-Modelle für diesen KI-RAGent aus.",
+                    "data": {
+                        "rag_embedding_model": "Embedding-Modell",
+                        "rag_llm_model": "LLM-Modell"
+                    }
+                },
+                "model_parameters": {
+                    "title": "Modellparameter konfigurieren",
+                    "description": "Konfigurieren Sie die Modellparameter und das Verhalten des KI-RAGent.",
+                    "data": {
+                        "llm_hass_api": "LLM-Home-Assistant-API",
+                        "rag_prompt": "System-Prompt",
+                        "rag_allow_auto_embedding": "Automatisches Embedding erlauben",
+                        "rag_enable_model_thinking": "Modelldenken aktivieren",
+                        "rag_temperature": "Temperatur",
+                        "rag_max_tokens": "Maximale Tokens",
+                        "rag_context_length": "Kontextlänge",
+                        "rag_max_tool_call_iterations": "Maximale Tool-Call-Iterationen",
+                        "rag_num_devices_to_extract": "Anzahl Geräte",
+                        "rag_num_tools_to_extract": "Anzahl Tools",
+                        "rag_remember_conversation_num_interactions": "Gespeicherte Gesprächsinteraktionen",
+                        "rag_remember_conversation_time_minutes": "Gesprächsspeicherdauer (Minuten)"
+                    },
+                    "data_description": {
+                        "rag_prompt": "Der System-Prompt, der das Verhalten und die Persönlichkeit des Assistenten definiert",
+                        "rag_allow_auto_embedding": "Bindet exponierte Geräte und Tools für diesen KI-RAGent automatisch beim Start und nach Konfigurationsänderungen ein.",
+                        "rag_enable_model_thinking": "Deaktiviert das Denken des Modells, um die Antwortzeiten zu verkürzen.",
+                        "rag_temperature": "Sampling-Temperatur; höher = zufälliger, niedriger = deterministischer",
+                        "rag_max_tokens": "Maximale Anzahl an Tokens, die das Modell pro Antwort erzeugen darf",
+                        "rag_context_length": "Wie viele vorherige Nachrichten im Kontextfenster des Modells berücksichtigt werden",
+                        "rag_max_tool_call_iterations": "Begrenzung, wie oft der Agent pro Anfrage externe Tools aufrufen darf",
+                        "rag_num_devices_to_extract": "Anzahl relevanter Geräte, die pro Anfrage extrahiert und in den Modellkontext aufgenommen werden",
+                        "rag_num_tools_to_extract": "Anzahl relevanter Tools, die pro Anfrage extrahiert und in den Modellkontext aufgenommen werden",
+                        "rag_remember_conversation_num_interactions": "Wie viele frühere Benutzerinteraktionen im Speicher behalten werden",
+                        "rag_remember_conversation_time_minutes": "Wie lange sich der Assistent das Gespräch in Minuten merken soll"
+                    }
+                }
+            },
+            "error": {
+                "unknown": "Ein unerwarteter Fehler ist aufgetreten",
+                "sys_refresh_caching_enabled": "Die Aktualisierung des System-Prompts muss aktiviert sein, damit Prompt-Caching funktioniert",
+                "missing_icl_file": "Die Datei für das In-Context-Learning-Beispiel wurde nicht gefunden: {filename}"
+            },
+            "abort": {
+                "reconfigure_successful": "Modelloptionen erfolgreich aktualisiert",
+                "entry_not_loaded": "Konfigurationseintrag ist nicht geladen"
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "title": "HA RAGent-Optionen",
+                "description": "Aktualisieren Sie die Verbindungsdaten für die APIs, die die Modelle bereitstellen.",
+                "data": {
+                    "rag_vector_db_username": "Datenbank-Benutzername",
+                    "rag_vector_db_password": "Datenbank-Passwort",
+                    "rag_vector_db_host": "Vector-DB-Hostname",
+                    "rag_vector_db_port": "Vector-DB-Port",
+                    "rag_vector_db_ssl": "HTTPS verwenden",
+                    "rag_vector_db_name": "Datenbankname",
+                    "rag_embedding_host": "Embedding-Hostname",
+                    "rag_embedding_port": "Embedding-Port",
+                    "rag_embedding_ssl": "HTTPS verwenden",
+                    "rag_embedding_api_key": "Embedding-API-Schlüssel",
+                    "rag_llm_host": "LLM-Hostname",
+                    "rag_llm_port": "LLM-Port",
+                    "rag_llm_ssl": "HTTPS verwenden",
+                    "rag_llm_api_key": "LLM-API-Schlüssel"
+                },
+                "data_description": {
+                    "rag_vector_db_username": "Optionaler Benutzername für die Vektordatenbank",
+                    "rag_vector_db_password": "Optionales Passwort für die Vektordatenbank",
+                    "rag_vector_db_name": "Name der zu verwendenden Vektordatenbank",
+                    "rag_vector_db_host": "Hostname oder IP-Adresse der Vektordatenbank",
+                    "rag_vector_db_port": "Port der Vektordatenbank",
+                    "rag_vector_db_ssl": "HTTPS für die Vektordatenbank aktivieren",
+                    "rag_embedding_host": "Hostname oder IP-Adresse der Embedding-API",
+                    "rag_embedding_port": "Port der Embedding-API",
+                    "rag_embedding_ssl": "HTTPS für das Embedding-Backend aktivieren",
+                    "rag_embedding_api_key": "Optionales Bearer-Token für die Embedding-API",
+                    "rag_llm_host": "Hostname oder IP-Adresse der LLM-API",
+                    "rag_llm_port": "Port der LLM-API",
+                    "rag_llm_ssl": "HTTPS für das LLM-Backend aktivieren",
+                    "rag_llm_api_key": "Optionales Bearer-Token für die LLM-API"
+                }
+            }
+        },
+        "error": {
+            "failed_to_connect": "Verbindung zur entfernten API fehlgeschlagen: {exception}",
+            "invalid_hostname": "Der angegebene Hostname ist ungültig. Bitte geben Sie nur die Domain oder IP-Adresse und nicht den vollständigen API-Endpunkt an."
+        }
+    },
+    "selector": {
+        "rag_vector_db_backend": {
+            "options": {
+                "mongodb": "MongoDB",
+                "chromadb": "ChromaDB",
+                "faiss": "FAISS (Lokale DB)"
+            }
+        },
+        "rag_embedding_backend": {
+            "options": {
+                "ollama": "Ollama",
+                "openai_compatible": "OpenAI Compatible"
+            }
+        },
+        "rag_llm_backend": {
+            "options": {
+                "ollama": "Ollama",
+                "openai_compatible": "OpenAI Compatible"
+            }
+        },
+        "rag_selected_language": {
+            "options": {
+                "en": "Englisch",
+                "de": "Deutsch"
+            }
+        }
+    },
+    "services": {
+        "embed_subentry": {
+            "name": "Subeintrag einbetten",
+            "description": "Bindet Geräte und Tools für eine bestimmte Integrationsinstanz ein.",
+            "fields": {
+                "entry_id": {
+                    "name": "Integrationseintrag",
+                    "description": "Wählen Sie aus, welche Instanz eingebettet werden soll."
+                }
+            }
+        },
+        "preload_models": {
+            "name": "Modelle vorladen",
+            "description": "Lädt Modelle für eine bestimmte Integrationsinstanz vor.",
+            "fields": {
+                "entry_id": {
+                    "name": "Integrationseintrag",
+                    "description": "Wählen Sie aus, welche Instanz vorgeladen werden soll."
+                }
+            }
+        },
+        "unload_models": {
+            "name": "Modelle entladen",
+            "description": "Entlädt Modelle, um für eine bestimmte Integrationsinstanz Ressourcen freizugeben.",
+            "fields": {
+                "entry_id": {
+                    "name": "Integrationseintrag",
+                    "description": "Wählen Sie aus, welche Instanz entladen werden soll."
+                }
+            }
+        }
+    }
+}

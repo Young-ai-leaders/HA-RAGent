@@ -317,6 +317,11 @@ def ui_schema_config_options(
             type=TextSelectorType.TEXT,
         )),
         vol.Optional(
+            CONF_ALLOW_AUTO_EMBEDDING,
+            description={"suggested_value": options.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING)},
+            default=options.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING),
+        ): BooleanSelector(BooleanSelectorConfig()),
+        vol.Optional(
             CONF_TEMPERATURE,
             description={"suggested_value": options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE)},
             default=options.get(CONF_TEMPERATURE, DEFAULT_TEMPERATURE),
@@ -387,6 +392,7 @@ def ui_schema_config_options(
         # general
         CONF_LLM_HASS_API,
         CONF_PROMPT,
+        CONF_ALLOW_AUTO_EMBEDDING,
         CONF_ENABLE_MODEL_THINKING,
         CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_NUM_TOOLS_TO_EXTRACT,
