@@ -97,19 +97,35 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
         return available
 
     async def _async_embed_batch(self, config_subentry: dict, inputs: list[str]) -> list[list[float]]:
+        if not inputs:
+            return []
+
         payload = {
             "model": config_subentry[CONF_EMBEDDING_MODEL],
             "input": inputs,
         }
 
-        async with self._session.post(
-            self._embeddings_url,
-            json=payload,
-            timeout=self._request_timeout,
-            headers=self._headers(config_subentry),
-        ) as response:
-            response.raise_for_status()
-            data = await response.json()
+        try:
+            async with self._session.post(
+                self._embeddings_url,
+                json=payload,
+                timeout=self._request_timeout,
+                headers=self._headers(config_subentry),
+            ) as response:
+                response.raise_for_status()
+                data = await response.json()
+        except aiohttp.ClientResponseError as err:
+            if err.status >= 500 and len(inputs) > 1:
+                midpoint = max(1, len(inputs) // 2)
+                _logger.warning(
+                    "Embedding batch of %s items failed with HTTP %s; retrying in smaller chunks.",
+                    len(inputs),
+                    err.status,
+                )
+                left = await self._async_embed_batch(config_subentry, inputs[:midpoint])
+                right = await self._async_embed_batch(config_subentry, inputs[midpoint:])
+                return [*left, *right]
+            raise
 
         if isinstance(data, dict) and isinstance(data.get("data"), list):
             ordered = sorted(data["data"], key=lambda item: item.get("index", 0))

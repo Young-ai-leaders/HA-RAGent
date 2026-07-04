@@ -247,7 +247,6 @@ def ui_schema_pick_models(
     llm_models: list[str],
     embedding_model: str | None = None,
     llm_model: str | None = None,
-    allow_auto_embedding: bool | None = None,
 ) -> vol.Schema:
     if len(embedding_models) == 0:
         embedding_models = [ "" ]
@@ -269,10 +268,6 @@ def ui_schema_pick_models(
                 multiple=False,
                 mode=SelectSelectorMode.DROPDOWN,
             )),
-            vol.Optional(
-                CONF_ALLOW_AUTO_EMBEDDING,
-                default=get_value(allow_auto_embedding, DEFAULT_ALLOW_AUTO_EMBEDDING),
-            ): BooleanSelector(BooleanSelectorConfig()),
         }
     )
 
