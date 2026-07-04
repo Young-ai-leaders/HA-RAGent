@@ -125,6 +125,25 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
         }
         return f"\n```homeassistant\n{json.dumps(tool_json)}\n```\n"
 
+    def _collect_tool_calls(
+        self,
+        pending_tool_calls: dict[int, Dict[str, Any]],
+        tool_calls: list[dict[str, Any]] | None,
+    ) -> None:
+        for tool_call in tool_calls or []:
+            index = tool_call.get("index", 0)
+            current = pending_tool_calls.setdefault(index, {"function": {"name": "", "arguments": ""}})
+            function_data = tool_call.get("function", {}) or {}
+
+            if function_data.get("name"):
+                current["function"]["name"] = function_data["name"]
+
+            arguments = function_data.get("arguments")
+            if isinstance(arguments, str):
+                current["function"]["arguments"] += arguments
+            elif arguments:
+                current["function"]["arguments"] = json.dumps(arguments)
+
     async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         payload: Dict[str, Any] = {
             "model": config_subentry[CONF_LLM_MODEL],
@@ -175,19 +194,20 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
                     if not choices:
                         continue
 
-                    delta = choices[0].get("delta", {}) or {}
+                    choice = choices[0]
+                    delta = choice.get("delta", {}) or {}
                     content = delta.get("content")
                     if content:
                         yield content
 
-                    for tool_call in delta.get("tool_calls", []) or []:
-                        index = tool_call.get("index", 0)
-                        current = pending_tool_calls.setdefault(index, {"function": {"name": "", "arguments": ""}})
-                        function_data = tool_call.get("function", {}) or {}
-                        if function_data.get("name"):
-                            current["function"]["name"] = function_data["name"]
-                        if function_data.get("arguments"):
-                            current["function"]["arguments"] += function_data["arguments"]
+                    self._collect_tool_calls(pending_tool_calls, delta.get("tool_calls"))
+
+                    message = choice.get("message", {}) or {}
+                    message_content = message.get("content")
+                    if message_content and not content:
+                        yield message_content
+
+                    self._collect_tool_calls(pending_tool_calls, message.get("tool_calls"))
 
             for index in sorted(pending_tool_calls):
                 yield self._make_tool_result_block(pending_tool_calls[index])
