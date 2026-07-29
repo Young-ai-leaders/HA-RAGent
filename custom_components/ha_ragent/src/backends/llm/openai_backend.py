@@ -64,6 +64,7 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
                 return None if response.ok else f"HTTP Status {response.status}"
         except Exception as ex:
             return str(ex)
+<<<<<<< HEAD
             
         async def _async_get_model_info(self, model_name: str) -> Dict[str, Any]:
             session = async_get_clientsession(self.hass)
@@ -73,6 +74,106 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
                 timeout=self._default_timeout,
                 headers={},
             ) as response:
+=======
+
+    async def async_preload_model(self, config_subentry: dict) -> None:
+        _logger.debug("OpenAI-compatible chat models do not support explicit preload")
+
+    async def async_unload_model(self, config_subentry: dict) -> None:
+        _logger.debug("OpenAI-compatible chat models do not support explicit unload")
+
+    async def async_get_available_models(self) -> List[str]:
+        async with self._session.get(
+            self._models_url,
+            timeout=self._default_timeout,
+            headers={"Content-Type": "application/json"},
+        ) as response:
+            response.raise_for_status()
+            models_result = await response.json()
+
+        model_entries = models_result.get("data", []) or models_result.get("models", [])
+        available = []
+        for entry in model_entries:
+            model_name = entry.get("id") or entry.get("name")
+            if model_name:
+                available.append(model_name)
+
+        return available
+
+    def _normalize_messages(self, messages: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+        normalized = []
+        for message in messages:
+            role = str(message.get("role", "user")).lower()
+            content = message.get("content", "")
+            normalized_message: Dict[str, Any] = {"role": role, "content": content}
+
+            if role == "tool" and message.get("tool_call_id"):
+                normalized_message["tool_call_id"] = message["tool_call_id"]
+
+            normalized.append(normalized_message)
+        return normalized
+
+    def _make_tool_result_block(self, tool_call: Dict[str, Any]) -> str:
+        function_data = tool_call.get("function", {})
+        arguments = function_data.get("arguments", {})
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                pass
+
+        tool_json = {
+            "tool": function_data.get("name", "unknown"),
+            "arguments": arguments,
+        }
+        return f"\n```homeassistant\n{json.dumps(tool_json)}\n```\n"
+
+    def _collect_tool_calls(
+        self,
+        pending_tool_calls: dict[int, Dict[str, Any]],
+        tool_calls: list[dict[str, Any]] | None,
+    ) -> None:
+        for tool_call in tool_calls or []:
+            index = tool_call.get("index", 0)
+            current = pending_tool_calls.setdefault(index, {"function": {"name": "", "arguments": ""}})
+            function_data = tool_call.get("function", {}) or {}
+
+            if function_data.get("name"):
+                current["function"]["name"] = function_data["name"]
+
+            arguments = function_data.get("arguments")
+            if isinstance(arguments, str):
+                current["function"]["arguments"] += arguments
+            elif arguments:
+                current["function"]["arguments"] = json.dumps(arguments)
+
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+        payload: Dict[str, Any] = {
+            "model": config_subentry[CONF_LLM_MODEL],
+            "stream": True,
+            "messages": self._normalize_messages(messages),
+        }
+
+        temperature = config_subentry.get(CONF_TEMPERATURE)
+        if temperature is not None:
+            payload["temperature"] = temperature
+
+        max_tokens = config_subentry.get(CONF_MAX_TOKENS)
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+
+        if tools:
+            payload["tools"] = [tool.to_tool_dict() for tool in tools]
+            _logger.info("Added %d tools to OpenAI-compatible request", len(tools))
+
+        if "keep_alive" in kwargs:
+            _logger.debug("Ignoring keep_alive for OpenAI-compatible backend")
+
+        pending_tool_calls: dict[int, Dict[str, Any]] = {}
+
+        try:
+            async with self._session.post(self._chat_url, json=payload, timeout=self._chat_timeout, headers=self._headers(config_subentry)) as response:
+>>>>>>> origin/add_more_assistant_features
                 response.raise_for_status()
                 model_result = await response.json()
     
@@ -197,13 +298,31 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
     #     return headers
 
 
+<<<<<<< HEAD
 
     # async def async_preload_model(self, config_subentry: dict) -> None:
     #     _logger.debug("OpenAI-compatible chat models do not support explicit preload")
+=======
+                    choice = choices[0]
+                    delta = choice.get("delta", {}) or {}
+                    content = delta.get("content")
+                    if content:
+                        yield content
+
+                    self._collect_tool_calls(pending_tool_calls, delta.get("tool_calls"))
+
+                    message = choice.get("message", {}) or {}
+                    message_content = message.get("content")
+                    if message_content and not content:
+                        yield message_content
+
+                    self._collect_tool_calls(pending_tool_calls, message.get("tool_calls"))
+>>>>>>> origin/add_more_assistant_features
 
     # async def async_unload_model(self, config_subentry: dict) -> None:
     #     _logger.debug("OpenAI-compatible chat models do not support explicit unload")
 
+<<<<<<< HEAD
     # async def async_get_available_models(self) -> List[str]:
     #     async with self._session.get(
     #         self._models_url,
@@ -320,3 +439,8 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
     #     except Exception as err:
     #         _logger.error("Error calling OpenAI-compatible API: %s", err, exc_info=True)
     #         raise
+=======
+        except Exception as err:
+            _logger.error("Error calling OpenAI-compatible API: %s", err, exc_info=True)
+            raise
+>>>>>>> origin/add_more_assistant_features

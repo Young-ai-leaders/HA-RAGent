@@ -433,13 +433,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             for i in range(last_formatted_index, len(message_history)):
                 msg = message_history[i]
                 if isinstance(msg, conversation.SystemContent):
-                    formatted_messages.append({"role": "SYSTEM", "content": msg.content})
+                    formatted_messages.append({"role": "system", "content": msg.content})
                 elif isinstance(msg, conversation.UserContent):
-                    formatted_messages.append({"role": "USER", "content": msg.content})
+                    formatted_messages.append({"role": "user", "content": msg.content})
                 elif isinstance(msg, conversation.AssistantContent):
-                    formatted_messages.append({"role": "ASSISTANT", "content": msg.content})
+                    formatted_messages.append({"role": "assistant", "content": msg.content})
                 elif isinstance(msg, conversation.ToolResultContent):
-                    tool_message = {"role": "TOOL", "content": "{" + f"name: {msg.tool_name}, result: {msg.tool_result}" + "}"}
+                    tool_message = {"role": "tool", "content": "{" + f"name: {msg.tool_name}, result: {msg.tool_result}" + "}"}
                     tool_call_id = getattr(msg, "tool_call_id", None)
                     if tool_call_id:
                         tool_message["tool_call_id"] = tool_call_id

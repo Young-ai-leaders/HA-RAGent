@@ -85,7 +85,6 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
             llm_models,
             embedding_model=self.model_config.get(CONF_EMBEDDING_MODEL),
             llm_model=self.model_config.get(CONF_LLM_MODEL),
-            allow_auto_embedding=self.model_config.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING),
         )
 
         if user_input and "result" not in user_input:

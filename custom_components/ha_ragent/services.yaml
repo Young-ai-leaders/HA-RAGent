@@ -1,3 +1,10 @@
+embed_subentry:
+  name: Embed Subentry
+  target:
+    entity:
+      domain: conversation
+      integration: ha_ragent
+
 preload_models:
   name: Preload Agent
   target:

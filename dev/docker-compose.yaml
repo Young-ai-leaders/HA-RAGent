@@ -25,6 +25,25 @@ services:
               count: all
               capabilities: [gpu]
 
+  llamacpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llamacpp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./containers/llamacpp:/models
+    command:
+      - --models-dir
+      - /models
+      - --models-max
+      - "4"
+      - --embeddings
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+
   mongo:
     image: mongodb/mongodb-atlas-local:7.0.9
     container_name: mongodb
