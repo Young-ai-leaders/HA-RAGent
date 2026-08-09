@@ -26,20 +26,9 @@ _logger = logging.getLogger(__name__)
 class OllamaBackend(ALlmBaseBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
-
-        base = {
-            "hostname": client_options.get(CONF_LLM_HOST),
-            "port": client_options.get(CONF_LLM_PORT),
-            "ssl": client_options.get(CONF_LLM_SSL),
-        }
-        self._tags_url = self._format_url(**base, path="/api/tags")
-        self._info_url = self._format_url(**base, path="/api/show")
-        self._chat_url = self._format_url(**base, path="/api/chat")
-
-        self._default_timeout = aiohttp.ClientTimeout(total=5)
-        self._chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=30)
-
-        self._session = async_get_clientsession(hass)
+        self._tags_url = ALlmBaseBackend.format_url(**self._url_base, path="/api/tags")
+        self._info_url = ALlmBaseBackend.format_url(**self._url_base, path="/api/show")
+        self._chat_url = ALlmBaseBackend.format_url(**self._url_base, path="/api/chat")
 
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
@@ -47,9 +36,9 @@ class OllamaBackend(ALlmBaseBackend):
     
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
-        headers = {}
         try:
             session = async_get_clientsession(hass)
+            
             async with session.get(
                 ALlmBaseBackend._format_url(
                     hostname=user_input.get(CONF_LLM_HOST),
@@ -57,20 +46,18 @@ class OllamaBackend(ALlmBaseBackend):
                     ssl=user_input.get(CONF_LLM_SSL),
                     path="/api/tags"
                 ),
-                timeout=aiohttp.ClientTimeout(total=5),
-                headers=headers
+                timeout=ALlmBaseBackend._default_timeout
             ) as response:
                 return None if response.ok else f"HTTP Status {response.status}"
         except Exception as ex:
             return str(ex)
         
-    async def _async_get_model_info(self, model_name: str) -> Dict[str, Any]:
+    async def async_get_model_info(self, model_name: str) -> Dict[str, Any]:
         session = async_get_clientsession(self.hass)
         async with session.post(
             self._info_url,
             json={"model": model_name},
-            timeout=self._default_timeout,
-            headers={},
+            timeout=ALlmBaseBackend._default_timeout
         ) as response:
             response.raise_for_status()
             model_result = await response.json()
@@ -97,14 +84,13 @@ class OllamaBackend(ALlmBaseBackend):
         session = async_get_clientsession(self.hass)
         async with session.get(
             self._tags_url,
-            timeout=self._default_timeout,
-            headers={}
+            timeout=ALlmBaseBackend._default_timeout
         ) as response:
             response.raise_for_status()
             models_result = await response.json()
 
         names = [x["name"] for x in models_result.get("models", [])]
-        infos = await asyncio.gather(*(self._async_get_model_info(name) for name in names), return_exceptions=True)
+        infos = await asyncio.gather(*(self.async_get_model_info(name) for name in names), return_exceptions=True)
         available = []
         for info in infos:
             if isinstance(info, Exception):
@@ -138,7 +124,7 @@ class OllamaBackend(ALlmBaseBackend):
             _logger.info("Added %d tools to Ollama request", len(tools))
         
         try:
-            async with session.post(self._chat_url, json=payload, timeout=self._chat_timeout) as response:
+            async with session.post(self._chat_url, json=payload, timeout=ALlmBaseBackend._chat_timeout) as response:
                 response.raise_for_status()
                 async for line in response.content:
                     if not line:
