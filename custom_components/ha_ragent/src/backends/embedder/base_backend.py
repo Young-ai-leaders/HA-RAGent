@@ -5,7 +5,12 @@ import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigSubentry
 
-from custom_components.ha_ragent.src.const import CONF_LLM_HOST, CONF_LLM_PORT, CONF_LLM_SSL
+from custom_components.ha_ragent.src.const import (
+    CONF_EMBEDDING_API_KEY,
+    CONF_EMBEDDING_HOST,
+    CONF_EMBEDDING_PORT,
+    CONF_EMBEDDING_SSL,
+)
 
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
@@ -22,12 +27,12 @@ class ABaseEmbedder(ABC):
         self.client_options = client_options
 
         self._url_base = {
-            "hostname": client_options.get(CONF_LLM_HOST),
-            "port": client_options.get(CONF_LLM_PORT),
-            "ssl": client_options.get(CONF_LLM_SSL),
+            "hostname": client_options.get(CONF_EMBEDDING_HOST),
+            "port": client_options.get(CONF_EMBEDDING_PORT),
+            "ssl": client_options.get(CONF_EMBEDDING_SSL),
         }
 
-        self._api_key = str(client_options.get("api_key", "") or "").strip()
+        self._api_key = str(client_options.get(CONF_EMBEDDING_API_KEY, "") or "").strip()
     
     @staticmethod
     def format_url(hostname: str, port: str, ssl: bool, path: str) -> str:

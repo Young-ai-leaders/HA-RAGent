@@ -10,6 +10,7 @@ from homeassistant.helpers.llm import APIInstance
 from custom_components.ha_ragent.src.models.tool import LlmTool
 
 from ...const import (
+    CONF_LLM_API_KEY,
     CONF_LLM_HOST,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
@@ -29,7 +30,7 @@ class ALlmBaseBackend(ABC):
             "ssl": client_options.get(CONF_LLM_SSL),
         }
 
-        self._api_key = str(client_options.get("api_key", "") or "").strip()
+        self._api_key = str(client_options.get(CONF_LLM_API_KEY, "") or "").strip()
     
     @staticmethod
     def format_url(hostname: str, port: str, ssl: bool, path: str) -> str:

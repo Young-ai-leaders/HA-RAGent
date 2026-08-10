@@ -58,30 +58,41 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
         finally:
             if client:
                 await client.close()
-    
-    async def _async_get_model_info(self, model_name: str) -> Dict[str, Any]:
-        async with self._session.get(
-            self._models_url,
-            timeout=ABaseEmbedder._default_timeout,
-        ) as response:
-            response.raise_for_status()
-            result = await response.json()
 
-        for model in result.get("data", []):
-            if model.get("id") == model_name:
-                meta = model.get("meta") or {}
+    async def _async_create_client(self) -> AsyncOpenAI:
+        return await self.hass.async_add_executor_job(
+            partial(
+                AsyncOpenAI,
+                base_url=self._openai_url,
+                api_key=self._api_key or "not-needed",
+            )
+        )
 
-                return {
-                    "name": model_name,
-                    "supports_tools": False,
-                    "is_embedding": True,
-                    "embedding_size": meta.get("n_embd"),
-                    "context_size": meta.get("n_ctx_train"),
-                    "parameters": meta.get("n_params"),
-                    "size": meta.get("size"),
-                }
+    async def _async_get_model_info(
+        self,
+        model_name: str,
+    ) -> Dict[str, Any]:
+        client = await self._async_create_client()
 
-        raise ValueError(f"Model not found: {model_name}")
+        try:
+            model = await client.models.retrieve(model_name)
+
+            model_data = model.model_dump()
+
+            meta = model_data.get("meta") or {}
+
+            return {
+                "name": model.id,
+                "supports_tools": False,
+                "is_embedding": True,
+                "embedding_size": meta.get("n_embd"),
+                "context_size": meta.get("n_ctx_train"),
+                "parameters": meta.get("n_params"),
+                "size": meta.get("size"),
+            }
+
+        finally:
+            await client.close()
 
     async def async_preload_model(self, config_subentry: dict) -> None:
         _logger.info("Preloading not supported for OpenAI Compatible Embedder backend.")
@@ -90,18 +101,19 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
         _logger.info("Unloading not supported for OpenAI Compatible Embedder backend.")
 
     async def async_get_available_models(self) -> List[str]:
-        async with self._session.get(
-            self._models_url,
-            timeout=ABaseEmbedder._default_timeout,
-        ) as response:
-            response.raise_for_status()
-            result = await response.json()
+        client = await self._async_create_client()
 
-        return [
-            model["id"]
-            for model in result.get("data", [])
-            if model.get("id")
-        ]
+        try:
+            result = await client.models.list()
+
+            return [
+                model.id
+                for model in result.data
+                if model.id
+            ]
+
+        finally:
+            await client.close()
 
     async def _async_embed_batch(
         self,
@@ -111,49 +123,54 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
         if not inputs:
             return []
 
-        payload = {
-            "model": config_subentry[CONF_EMBEDDING_MODEL],
-            "input": inputs,
-            "encoding_format": "float",
-        }
+        client = await self._async_create_client()
 
-        async with self._session.post(
-            self._embed_url,
-            json=payload,
-            timeout=ABaseEmbedder._default_timeout,
-        ) as response:
-            response.raise_for_status()
-            result = await response.json()
+        try:
+            response = await client.embeddings.create(
+                model=config_subentry[CONF_EMBEDDING_MODEL],
+                input=inputs,
+                encoding_format="float",
+            )
 
-        # OpenAI-compatible response:
-        #
-        # {
-        #     "data": [
-        #         {
-        #             "embedding": [...],
-        #             "index": 0,
-        #             "object": "embedding"
-        #         }
-        #     ],
-        #     ...
-        # }
+            # OpenAI-compatible embedding responses contain
+            # an index for every input. Sort explicitly instead
+            # of relying on response ordering.
+            data = sorted(
+                response.data,
+                key=lambda item: item.index,
+            )
 
-        data = result.get("data", [])
+            return [
+                list(item.embedding)
+                for item in data
+            ]
 
-        # Do not blindly trust response ordering.
-        data.sort(key=lambda item: item.get("index", 0))
+        finally:
+            await client.close()
 
-        return [
-            item["embedding"]
-            for item in data
-            if item.get("embedding") is not None
-        ]
+    async def async_embed_text(
+        self,
+        config_subentry: dict,
+        text: str,
+        **kwargs,
+    ) -> List[float]:
+        embeddings = await self._async_embed_batch(
+            config_subentry,
+            [text],
+        )
 
-    async def async_embed_text(self, config_subentry: dict, text: str, **kwargs) -> List[float]:
-        embeddings = await self._async_embed_batch(config_subentry, [text])
         return embeddings[0] if embeddings else []
 
-    async def async_embed_object(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, objects: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
+    async def async_embed_object(
+        self,
+        object_type: type[
+            DeviceEmbedding | LlmToolEmbedding
+        ],
+        config_subentry: dict,
+        objects: List[Device | LlmTool],
+    ) -> List[
+        DeviceEmbedding | LlmToolEmbedding
+    ]:
         if not objects:
             return []
 
@@ -175,8 +192,9 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
 
             if len(vectors) != len(chunk):
                 raise RuntimeError(
-                    "llama.cpp returned an unexpected number "
-                    f"of embeddings: expected {len(chunk)}, "
+                    "OpenAI-compatible embedding server "
+                    "returned an unexpected number of embeddings: "
+                    f"expected {len(chunk)}, "
                     f"received {len(vectors)}"
                 )
 

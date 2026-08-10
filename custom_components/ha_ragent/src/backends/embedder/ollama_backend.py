@@ -51,7 +51,9 @@ class OllamaEmbedder(ABaseEmbedder):
             return str(ex)
     
     async def _async_get_model_info(self, model_name: str) -> Dict[str, Any]:
-        async with self._session.post(
+        session = async_get_clientsession(self.hass)
+
+        async with session.post(
             self._info_url,
             json={"model": model_name},
             timeout=ABaseEmbedder._default_timeout,
@@ -76,7 +78,8 @@ class OllamaEmbedder(ABaseEmbedder):
         await self.async_embed_text(config_subentry, "Unloading model with a test embedding request.", keep_alive=0)
     
     async def async_get_available_models(self) -> List[str]:
-        async with self._session.get(
+        session = async_get_clientsession(self.hass)
+        async with session.get(
             self._tags_url,
             timeout=ABaseEmbedder._default_timeout,
         ) as response:
@@ -101,7 +104,8 @@ class OllamaEmbedder(ABaseEmbedder):
         else:
             payload["input"] = inputs
 
-        async with self._session.post(self._embed_url, json=payload, timeout=ABaseEmbedder._default_timeout) as response:
+        session = async_get_clientsession(self.hass)
+        async with session.post(self._embed_url, json=payload, timeout=ABaseEmbedder._default_timeout) as response:
             response.raise_for_status()
             data = await response.json()
             return data.get("embeddings", [])
