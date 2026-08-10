@@ -1,139 +1,155 @@
-import logging
+import asyncio
 from typing import Any, Dict, List
+import logging
 
-import aiohttp
+from functools import partial
+from openai import AsyncOpenAI
+
+from .base_backend import ABaseEmbedder
+from ...models.device import Device
+from ...models.device_embedding import DeviceEmbedding
+from ...models.tool import LlmTool
+from ...models.tool_embedding import LlmToolEmbedding
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ...const import (
     CONF_EMBEDDING_API_KEY,
-    CONF_EMBEDDING_HOST,
     CONF_EMBEDDING_MODEL,
+    CONF_EMBEDDING_HOST,
     CONF_EMBEDDING_PORT,
-    CONF_EMBEDDING_SSL,
+    CONF_EMBEDDING_SSL
 )
-from ...models.device import Device
-from ...models.device_embedding import DeviceEmbedding
-from ...models.tool import LlmTool
-from ...models.tool_embedding import LlmToolEmbedding
-
-from .base_backend import ABaseEmbedder
 
 _logger = logging.getLogger(__name__)
-
-
+    
 class OpenAICompatibleEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
-
-        base = {
-            "hostname": client_options.get(CONF_EMBEDDING_HOST),
-            "port": client_options.get(CONF_EMBEDDING_PORT),
-            "ssl": client_options.get(CONF_EMBEDDING_SSL),
-        }
-        self._models_url = self._format_url(**base, path="/v1/models")
-        self._embeddings_url = self._format_url(**base, path="/v1/embeddings")
-
-        self._default_timeout = aiohttp.ClientTimeout(total=5)
-        self._request_timeout = aiohttp.ClientTimeout(total=30)
-        self._session = async_get_clientsession(hass)
-
+        self._openai_url = ABaseEmbedder.format_url(**self._url_base, path="/v1")
+    
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
         return "Embedder: OpenAI Compatible"
 
-    def _headers(self, config_subentry: dict) -> Dict[str, str]:
-        api_key = str(config_subentry.get(CONF_EMBEDDING_API_KEY, "")).strip()
-        headers = {"Content-Type": "application/json"}
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-        return headers
-
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
+        client = None
         try:
-            session = async_get_clientsession(hass)
-            url = ABaseEmbedder._format_url(
+            base_url = ABaseEmbedder.format_url(
                 hostname=user_input.get(CONF_EMBEDDING_HOST),
                 port=user_input.get(CONF_EMBEDDING_PORT),
                 ssl=user_input.get(CONF_EMBEDDING_SSL),
-                path="/v1/models",
+                path="/v1",
             )
-            headers = {"Content-Type": "application/json"}
-            api_key = str(user_input.get(CONF_EMBEDDING_API_KEY, "")).strip()
-            if api_key:
-                headers["Authorization"] = f"Bearer {api_key}"
-
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5), headers=headers) as response:
-                if response.ok:
-                    return None
-                return f"HTTP Status {response.status}"
+            api_key = str(user_input.get(CONF_EMBEDDING_API_KEY, "") or "").strip()
+            client = await hass.async_add_executor_job(
+                partial(
+                    AsyncOpenAI,
+                    base_url=base_url,
+                    api_key=api_key or "not-needed",
+                )
+            )
+            await client.models.list()
+            return None
         except Exception as ex:
             return str(ex)
+        finally:
+            if client:
+                await client.close()
+    
+    async def _async_get_model_info(self, model_name: str) -> Dict[str, Any]:
+        async with self._session.get(
+            self._models_url,
+            timeout=ABaseEmbedder._default_timeout,
+        ) as response:
+            response.raise_for_status()
+            result = await response.json()
+
+        for model in result.get("data", []):
+            if model.get("id") == model_name:
+                meta = model.get("meta") or {}
+
+                return {
+                    "name": model_name,
+                    "supports_tools": False,
+                    "is_embedding": True,
+                    "embedding_size": meta.get("n_embd"),
+                    "context_size": meta.get("n_ctx_train"),
+                    "parameters": meta.get("n_params"),
+                    "size": meta.get("size"),
+                }
+
+        raise ValueError(f"Model not found: {model_name}")
 
     async def async_preload_model(self, config_subentry: dict) -> None:
-        _logger.debug("OpenAI-compatible embeddings do not support explicit preload")
+        _logger.info("Preloading not supported for OpenAI Compatible Embedder backend.")
 
     async def async_unload_model(self, config_subentry: dict) -> None:
-        _logger.debug("OpenAI-compatible embeddings do not support explicit unload")
+        _logger.info("Unloading not supported for OpenAI Compatible Embedder backend.")
 
     async def async_get_available_models(self) -> List[str]:
         async with self._session.get(
             self._models_url,
-            timeout=self._default_timeout,
-            headers={"Content-Type": "application/json"},
+            timeout=ABaseEmbedder._default_timeout,
         ) as response:
             response.raise_for_status()
-            models_result = await response.json()
+            result = await response.json()
 
-        model_entries = models_result.get("data", []) or models_result.get("models", [])
-        available = []
-        for entry in model_entries:
-            model_name = entry.get("id") or entry.get("name")
-            if model_name:
-                available.append(model_name)
+        return [
+            model["id"]
+            for model in result.get("data", [])
+            if model.get("id")
+        ]
 
-        return available
-
-    async def _async_embed_batch(self, config_subentry: dict, inputs: list[str]) -> list[list[float]]:
+    async def _async_embed_batch(
+        self,
+        config_subentry: dict,
+        inputs: List[str],
+    ) -> List[List[float]]:
         if not inputs:
             return []
 
         payload = {
             "model": config_subentry[CONF_EMBEDDING_MODEL],
             "input": inputs,
+            "encoding_format": "float",
         }
 
-        try:
-            async with self._session.post(
-                self._embeddings_url,
-                json=payload,
-                timeout=self._request_timeout,
-                headers=self._headers(config_subentry),
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-        except aiohttp.ClientResponseError as err:
-            if err.status >= 500 and len(inputs) > 1:
-                midpoint = max(1, len(inputs) // 2)
-                _logger.warning(
-                    "Embedding batch of %s items failed with HTTP %s; retrying in smaller chunks.",
-                    len(inputs),
-                    err.status,
-                )
-                left = await self._async_embed_batch(config_subentry, inputs[:midpoint])
-                right = await self._async_embed_batch(config_subentry, inputs[midpoint:])
-                return [*left, *right]
-            raise
+        async with self._session.post(
+            self._embed_url,
+            json=payload,
+            timeout=ABaseEmbedder._default_timeout,
+        ) as response:
+            response.raise_for_status()
+            result = await response.json()
 
-        if isinstance(data, dict) and isinstance(data.get("data"), list):
-            ordered = sorted(data["data"], key=lambda item: item.get("index", 0))
-            return [item.get("embedding", []) for item in ordered]
+        # OpenAI-compatible response:
+        #
+        # {
+        #     "data": [
+        #         {
+        #             "embedding": [...],
+        #             "index": 0,
+        #             "object": "embedding"
+        #         }
+        #     ],
+        #     ...
+        # }
 
-        return []
+        data = result.get("data", [])
 
-    async def async_embed_text(self, config_subentry: dict, text: str, **kwargs) -> list[float]:
+        # Do not blindly trust response ordering.
+        data.sort(key=lambda item: item.get("index", 0))
+
+        return [
+            item["embedding"]
+            for item in data
+            if item.get("embedding") is not None
+        ]
+
+    async def async_embed_text(self, config_subentry: dict, text: str, **kwargs) -> List[float]:
         embeddings = await self._async_embed_batch(config_subentry, [text])
         return embeddings[0] if embeddings else []
 
@@ -143,10 +159,33 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
 
         batch_size = 32
         object_embeddings = []
+
         for i in range(0, len(objects), batch_size):
-            chunk = objects[i:i + batch_size]
-            texts = [str(obj) for obj in chunk]
-            vectors = await self._async_embed_batch(config_subentry, texts)
-            for obj, vec in zip(chunk, vectors):
-                object_embeddings.append(object_type(obj, vector_embedding=vec))
+            chunk = objects[i : i + batch_size]
+
+            texts = [
+                str(obj)
+                for obj in chunk
+            ]
+
+            vectors = await self._async_embed_batch(
+                config_subentry,
+                texts,
+            )
+
+            if len(vectors) != len(chunk):
+                raise RuntimeError(
+                    "llama.cpp returned an unexpected number "
+                    f"of embeddings: expected {len(chunk)}, "
+                    f"received {len(vectors)}"
+                )
+
+            for obj, vector in zip(chunk, vectors):
+                object_embeddings.append(
+                    object_type(
+                        obj,
+                        vector_embedding=vector,
+                    )
+                )
+
         return object_embeddings

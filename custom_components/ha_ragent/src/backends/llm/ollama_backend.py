@@ -40,7 +40,7 @@ class OllamaBackend(ALlmBaseBackend):
             session = async_get_clientsession(hass)
             
             async with session.get(
-                ALlmBaseBackend._format_url(
+                ALlmBaseBackend.format_url(
                     hostname=user_input.get(CONF_LLM_HOST),
                     port=user_input.get(CONF_LLM_PORT),
                     ssl=user_input.get(CONF_LLM_SSL),

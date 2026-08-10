@@ -1,8 +1,11 @@
 from typing import Any, Dict, List
 from abc import ABC, abstractmethod
 
+import aiohttp
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigSubentry
+
+from custom_components.ha_ragent.src.const import CONF_LLM_HOST, CONF_LLM_PORT, CONF_LLM_SSL
 
 from ...models.device import Device
 from ...models.device_embedding import DeviceEmbedding
@@ -11,12 +14,23 @@ from ...models.tool_embedding import LlmToolEmbedding
 
 
 class ABaseEmbedder(ABC):
+    _default_timeout = aiohttp.ClientTimeout(total=5)
+    _chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=30)
+
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         self.hass = hass
         self.client_options = client_options
+
+        self._url_base = {
+            "hostname": client_options.get(CONF_LLM_HOST),
+            "port": client_options.get(CONF_LLM_PORT),
+            "ssl": client_options.get(CONF_LLM_SSL),
+        }
+
+        self._api_key = str(client_options.get("api_key", "") or "").strip()
     
     @staticmethod
-    def _format_url(hostname: str, port: str, ssl: bool, path: str) -> str:
+    def format_url(hostname: str, port: str, ssl: bool, path: str) -> str:
         return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"
 
     @staticmethod
