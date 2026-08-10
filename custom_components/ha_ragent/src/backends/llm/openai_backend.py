@@ -29,8 +29,8 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
         self._openai_url = ALlmBaseBackend.format_url(**self._url_base, path="/v1")
 
     @staticmethod
-    def get_name(client_options: Dict[str, Any]):
-        return "LLM: OpenAI Compatible"
+    def get_name() -> str:
+        return f"{ALlmBaseBackend.get_name()}: OpenAI API"
 
     @staticmethod
     async def async_validate_connection(

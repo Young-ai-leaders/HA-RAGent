@@ -29,8 +29,8 @@ class OllamaEmbedder(ABaseEmbedder):
         self._embed_url = ABaseEmbedder.format_url(**self._url_base, path="/api/embed")
 
     @staticmethod
-    def get_name(client_options: Dict[str, Any]):
-        return "Embedder: Ollama"
+    def get_name() -> str:
+        return f"{ABaseEmbedder.get_name()}: Ollama"
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:

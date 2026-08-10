@@ -30,8 +30,8 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
         self._openai_url = ABaseEmbedder.format_url(**self._url_base, path="/v1")
     
     @staticmethod
-    def get_name(client_options: Dict[str, Any]):
-        return "Embedder: OpenAI Compatible"
+    def get_name() -> str:
+        return f"{ABaseEmbedder.get_name()}: OpenAI Compatible"
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:

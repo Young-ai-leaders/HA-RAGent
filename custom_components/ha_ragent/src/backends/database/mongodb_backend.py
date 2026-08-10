@@ -40,8 +40,8 @@ class MongoDbBackend(ABaseDbBackend):
         )
     
     @staticmethod
-    def get_name(client_options: Dict[str, Any]):
-        return f"DB: MongoDB"
+    def get_name() -> str:
+        return f"{ABaseDbBackend.get_name()}: MongoDB"
 
     @staticmethod
     def _format_url(username: str, password: str, hostname: str, port: str, ssl: bool) -> str:

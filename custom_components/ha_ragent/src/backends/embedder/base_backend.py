@@ -23,24 +23,23 @@ class ABaseEmbedder(ABC):
     _chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=30)
 
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
-        self.hass = hass
-        self.client_options = client_options
+        self._hass = hass
+        self._client_options = client_options
+        self._api_key = str(client_options.get(CONF_EMBEDDING_API_KEY, "") or "").strip()
 
         self._url_base = {
             "hostname": client_options.get(CONF_EMBEDDING_HOST),
             "port": client_options.get(CONF_EMBEDDING_PORT),
             "ssl": client_options.get(CONF_EMBEDDING_SSL),
         }
-
-        self._api_key = str(client_options.get(CONF_EMBEDDING_API_KEY, "") or "").strip()
     
     @staticmethod
     def format_url(hostname: str, port: str, ssl: bool, path: str) -> str:
         return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"
 
     @staticmethod
-    def get_name(client_options: dict[str, Any]):
-        raise NotImplementedError()
+    def get_name() -> str:
+        return "Embedder"
     
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:

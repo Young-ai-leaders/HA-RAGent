@@ -36,8 +36,8 @@ class ChromaDbBackend(ABaseDbBackend):
         self._client = None
 
     @staticmethod
-    def get_name(client_options: dict[str, Any]):
-        return "DB: ChromaDB"
+    def get_name() -> str:
+        return f"{ABaseDbBackend.get_name()}: ChromaDB"
 
     @staticmethod
     def _validate_connection(client_options: dict[str, Any]) -> Optional[str]:

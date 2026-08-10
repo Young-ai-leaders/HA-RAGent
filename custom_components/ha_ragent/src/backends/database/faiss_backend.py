@@ -33,8 +33,8 @@ class FaissDbBackend(ABaseDbBackend):
         self._metadata: Dict[str, List[Dict[str, Any]]] = {}
 
     @staticmethod
-    def get_name(client_options: dict[str, Any]):
-        return "DB: Local FAISS"
+    def get_name() -> str:
+        return f"{ABaseDbBackend.get_name()}: Local FAISS"
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:

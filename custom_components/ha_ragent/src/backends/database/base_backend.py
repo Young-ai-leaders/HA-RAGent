@@ -15,8 +15,8 @@ class ABaseDbBackend(ABC):
 
     @staticmethod
     @abstractmethod
-    def get_name(client_options: dict[str, Any]):
-        raise NotImplementedError()
+    def get_name() -> str:
+        return "DB"
     
     @staticmethod
     @abstractmethod

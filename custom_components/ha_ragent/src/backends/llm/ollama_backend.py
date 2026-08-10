@@ -31,8 +31,8 @@ class OllamaBackend(ALlmBaseBackend):
         self._chat_url = ALlmBaseBackend.format_url(**self._url_base, path="/api/chat")
 
     @staticmethod
-    def get_name(client_options: Dict[str, Any]):
-        return "LLM: Ollama"
+    def get_name() -> str:
+        return f"{ALlmBaseBackend.get_name()}: Ollama"
     
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
