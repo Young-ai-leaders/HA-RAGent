@@ -9,14 +9,18 @@ from .backends.database.mongodb_backend import MongoDbBackend
 from .backends.database.chromadb_backend import ChromaDbBackend
 from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
+from .backends.embedder.openai_backend import OpenAICompatibleEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
 from .backends.llm.ollama_backend import OllamaBackend
+from .backends.llm.openai_backend import OpenAICompatibleBackend
 from .const import (
     BACKEND_VECTOR_DB_TYPE_FAISS,
     BACKEND_VECTOR_DB_TYPE_MONGODB, 
     BACKEND_VECTOR_DB_TYPE_CHROMA,
     BACKEND_EMBEDDING_TYPE_OLLAMA, 
+    BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE,
     BACKEND_LLM_TYPE_OLLAMA, 
+    BACKEND_LLM_TYPE_OPENAI_COMPATIBLE,
     DEVICE_ATTRIBUTES_TO_EXCLUDE, 
     DEVICE_ATTRIBUTES_MAX_JSON_LENGTH
 )
@@ -54,13 +58,15 @@ def vector_db_to_class(vector_db_type: str) -> ABaseDbBackend:
 
 def embedding_backend_to_class(backend_type: str) -> ABaseEmbedder:
     backend_to_class = {
-        BACKEND_EMBEDDING_TYPE_OLLAMA: OllamaEmbedder
+        BACKEND_EMBEDDING_TYPE_OLLAMA: OllamaEmbedder,
+        BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE: OpenAICompatibleEmbedder,
     }
     return backend_to_class.get(backend_type)
 
 def llm_backend_to_class(backend_type: str) -> ALlmBaseBackend:
     backend_to_class = {
-        BACKEND_LLM_TYPE_OLLAMA: OllamaBackend
+        BACKEND_LLM_TYPE_OLLAMA: OllamaBackend,
+        BACKEND_LLM_TYPE_OPENAI_COMPATIBLE: OpenAICompatibleBackend,
     }
     return backend_to_class.get(backend_type)
 

@@ -10,11 +10,8 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_LLM_API_NAME,
 )
 
-from .tools.search_devices import (
-    RAGentSemanticSearchDevicesTool,
-)
 from .tools.search_tools import (
-    RAGentSemanticSearchToolsTool,
+    RAGentSemanticSearchTool,
 )
 
 
@@ -29,10 +26,8 @@ class RAGentSearchAugmentedAPIInstance(llm.APIInstance):
 
         wrapped_tools = list(getattr(wrapped_api, "tools", []) or [])
         missing_tools = []
-        if not any(getattr(tool, "name", None) == RAGentSemanticSearchDevicesTool.name for tool in wrapped_tools):
-            missing_tools.append(RAGentSemanticSearchDevicesTool(hass))
-        if not any(getattr(tool, "name", None) == RAGentSemanticSearchToolsTool.name for tool in wrapped_tools):
-            missing_tools.append(RAGentSemanticSearchToolsTool(hass))
+        if not any(getattr(tool, "name", None) == RAGentSemanticSearchTool.name for tool in wrapped_tools):
+            missing_tools.append(RAGentSemanticSearchTool(hass))
         self.tools = [*wrapped_tools, *missing_tools]
 
     def __getattr__(self, name: str) -> Any:
@@ -40,10 +35,7 @@ class RAGentSearchAugmentedAPIInstance(llm.APIInstance):
         return getattr(self._wrapped_api, name)
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:
-        if tool_input.tool_name in {
-            RAGentSemanticSearchDevicesTool.name,
-            RAGentSemanticSearchToolsTool.name,
-        }:
+        if tool_input.tool_name == RAGentSemanticSearchTool.name:
             for tool in self.tools:
                 if tool.name == tool_input.tool_name:
                     return await tool.async_call(tool_input)
@@ -57,10 +49,7 @@ def augment_api_with_search_tool(hass: HomeAssistant, llm_api: llm.APIInstance |
         return None
 
     tool_names = {getattr(tool, "name", None) for tool in getattr(llm_api, "tools", []) or []}
-    if {
-        RAGentSemanticSearchDevicesTool.name,
-        RAGentSemanticSearchToolsTool.name,
-    }.issubset(tool_names):
+    if RAGentSemanticSearchTool.name in tool_names:
         return llm_api
 
     return RAGentSearchAugmentedAPIInstance(hass, llm_api)
@@ -76,7 +65,7 @@ class RAGentLLMAPIInstance(llm.APIInstance):
         self.id = api.id
         self.name = api.name
         self.prompt = ""
-        self.tools = [RAGentSemanticSearchDevicesTool(hass), RAGentSemanticSearchToolsTool(hass)]
+        self.tools = [RAGentSemanticSearchTool(hass)]
         self.custom_serializer = None
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:

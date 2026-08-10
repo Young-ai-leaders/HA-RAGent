@@ -1,6 +1,6 @@
 services:
   homeassistant:
-    image: ghcr.io/home-assistant/home-assistant:2026.6.4
+    image: ghcr.io/home-assistant/home-assistant:2026.7.4
     container_name: homeassistant
     restart: unless-stopped
     ports:
@@ -24,6 +24,56 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+  llamacpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llamacpp
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./containers/llamacpp:/models
+    environment:
+      LLAMA_CACHE: /models/cache
+    command:
+      - --hf-repo
+      - ibm-granite/granite-4.1-3b-GGUF:Q4_K_M
+      - --embeddings
+      - --parallel
+      - "1"
+      - --ubatch-size
+      - "1024"
+      - --ctx-size
+      - "8192"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+
+  llamacpp_embed:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: llamacpp_embed
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./containers/llamacpp_embed:/models
+    environment:
+      LLAMA_CACHE: /models/cache
+    command:
+      - --hf-repo
+      - nomic-ai/nomic-embed-text-v1.5-GGUF:Q4_K_M
+      - --embeddings
+      - --parallel
+      - "1"
+      - --ubatch-size
+      - "1024"
+      - --ctx-size
+      - "2048"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
 
   mongo:
     image: mongodb/mongodb-atlas-local:7.0.9

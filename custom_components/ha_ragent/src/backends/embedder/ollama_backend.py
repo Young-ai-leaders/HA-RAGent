@@ -24,50 +24,39 @@ _logger = logging.getLogger(__name__)
 class OllamaEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
+        self._tags_url = ABaseEmbedder.format_url(**self._url_base, path="/api/tags")
+        self._info_url = ABaseEmbedder.format_url(**self._url_base, path="/api/show")
+        self._embed_url = ABaseEmbedder.format_url(**self._url_base, path="/api/embed")
 
-        base = {
-            "hostname": client_options.get(CONF_EMBEDDING_HOST),
-            "port": client_options.get(CONF_EMBEDDING_PORT),
-            "ssl": client_options.get(CONF_EMBEDDING_SSL),
-        }
-        self._tags_url = self._format_url(**base, path="/api/tags")
-        self._info_url = self._format_url(**base, path="/api/show")
-        self._embed_url = self._format_url(**base, path="/api/embed")
-
-        self._default_timeout = aiohttp.ClientTimeout(total=5)
-        self._embed_timeout = aiohttp.ClientTimeout(total=30)
-
-        self._session = async_get_clientsession(hass)
-    
     @staticmethod
     def get_name(client_options: Dict[str, Any]):
         return "Embedder: Ollama"
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
-        headers = {}
         try:
             session = async_get_clientsession(hass)
+            
             async with session.get(
-                ABaseEmbedder._format_url(
+                ABaseEmbedder.format_url(
                     hostname=user_input.get(CONF_EMBEDDING_HOST),
                     port=user_input.get(CONF_EMBEDDING_PORT),
                     ssl=user_input.get(CONF_EMBEDDING_SSL),
                     path="/api/tags"
                 ),
-                timeout=aiohttp.ClientTimeout(total=5),
-                headers=headers
+                timeout=ABaseEmbedder._default_timeout
             ) as response:
                 return None if response.ok else f"HTTP Status {response.status}"
         except Exception as ex:
             return str(ex)
     
     async def _async_get_model_info(self, model_name: str) -> Dict[str, Any]:
-        async with self._session.post(
+        session = async_get_clientsession(self.hass)
+
+        async with session.post(
             self._info_url,
             json={"model": model_name},
-            timeout=self._default_timeout,
-            headers={},
+            timeout=ABaseEmbedder._default_timeout,
         ) as response:
             response.raise_for_status()
             model_result = await response.json()
@@ -89,10 +78,10 @@ class OllamaEmbedder(ABaseEmbedder):
         await self.async_embed_text(config_subentry, "Unloading model with a test embedding request.", keep_alive=0)
     
     async def async_get_available_models(self) -> List[str]:
-        async with self._session.get(
+        session = async_get_clientsession(self.hass)
+        async with session.get(
             self._tags_url,
-            timeout=self._default_timeout,
-            headers={}
+            timeout=ABaseEmbedder._default_timeout,
         ) as response:
             response.raise_for_status()
             models_result = await response.json()
@@ -115,7 +104,8 @@ class OllamaEmbedder(ABaseEmbedder):
         else:
             payload["input"] = inputs
 
-        async with self._session.post(self._embed_url, json=payload, timeout=self._embed_timeout) as response:
+        session = async_get_clientsession(self.hass)
+        async with session.post(self._embed_url, json=payload, timeout=ABaseEmbedder._default_timeout) as response:
             response.raise_for_status()
             data = await response.json()
             return data.get("embeddings", [])

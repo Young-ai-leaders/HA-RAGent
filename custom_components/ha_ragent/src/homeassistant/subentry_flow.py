@@ -24,10 +24,12 @@ from ..const import (
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
+    CONF_ALLOW_AUTO_EMBEDDING,
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_SELECTED_LANGUAGE,
 
+    DEFAULT_ALLOW_AUTO_EMBEDDING,
     DEFAULT_OPTIONS,
     DEFAULT_PROMPT,
 )
@@ -78,7 +80,12 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
         llm_models = await self._llm_client.async_get_available_models()
         _logger.debug("Available embedding models: %s", embedding_models)
         _logger.debug("Available LLM models: %s", llm_models)
-        schema = ui_schema_pick_models(embedding_models, llm_models)
+        schema = ui_schema_pick_models(
+            embedding_models,
+            llm_models,
+            embedding_model=self.model_config.get(CONF_EMBEDDING_MODEL),
+            llm_model=self.model_config.get(CONF_LLM_MODEL),
+        )
 
         if user_input and "result" not in user_input:
             self.model_config.update(user_input)

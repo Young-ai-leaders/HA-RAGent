@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 
@@ -9,9 +10,7 @@ from homeassistant.helpers import area_registry, device_registry, entity_registr
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
 from ..ragent_config_entry import RAGentConfigEntry
-from ...const import (
-    DOMAIN
-)
+from ...const import DOMAIN
 
 _logger = logging.getLogger(__name__)
 
@@ -82,7 +81,7 @@ class DeviceExtractor:
         
         return devices
     
-    async def async_embed_all_exposed_devices(self) -> None:
+    async def async_embed_all_exposed_devices(self, subentry_ids: Iterable[str] | None = None) -> None:
         total_embedded_devices = 0
         try:
             _logger.debug("Device embedding function starting, checking for subentries")
@@ -90,7 +89,20 @@ class DeviceExtractor:
                 _logger.debug("No subentries found in config entry! Cannot embed devices.")
                 return
 
-            _logger.debug(f"Found {len(self._entry.subentries)} subentries to process.")
+            selected_subentry_ids = set(subentry_ids) if subentry_ids is not None else None
+            subentries = (
+                {
+                    subentry_id: subentry
+                    for subentry_id, subentry in self._entry.subentries.items()
+                    if selected_subentry_ids is None or subentry_id in selected_subentry_ids
+                }
+            )
+
+            if not subentries:
+                _logger.debug("No matching subentries found for device embedding.")
+                return
+
+            _logger.debug(f"Found {len(subentries)} subentries to process.")
 
             all_entities = list(self._hass.states.async_entity_ids())
             exposed_entities = [entity_id for entity_id in all_entities if async_should_expose(self._hass, "conversation", entity_id)]
@@ -100,7 +112,7 @@ class DeviceExtractor:
                 _logger.warning("No entities are exposed to Conversation. Skipping embedding and preserving existing vectors.")
                 return
 
-            for subentry_id, subentry in self._entry.subentries.items():
+            for subentry_id, subentry in subentries.items():
                 try:
                     collection_name = f"devices_{subentry_id}"
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))

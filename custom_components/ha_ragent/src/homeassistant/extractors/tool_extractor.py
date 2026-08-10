@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Iterable, List, Tuple
+from collections.abc import Iterable
+from typing import Any, List, Tuple
 
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
@@ -197,7 +198,7 @@ class ToolExtractor:
 
         return tool_list
 
-    async def async_embed_all_exposed_tools(self) -> None:
+    async def async_embed_all_exposed_tools(self, subentry_ids: Iterable[str] | None = None) -> None:
         total_embedded_tools = 0
         try:
             _logger.debug("Device embedding function starting, checking for subentries")
@@ -205,9 +206,20 @@ class ToolExtractor:
                 _logger.debug("No subentries found in config entry. Cannot embed tools.")
                 return
 
-            _logger.debug(f"Found {len(self._entry.subentries)} subentries to process.")
+            selected_subentry_ids = set(subentry_ids) if subentry_ids is not None else None
+            subentries = {
+                subentry_id: subentry
+                for subentry_id, subentry in self._entry.subentries.items()
+                if selected_subentry_ids is None or subentry_id in selected_subentry_ids
+            }
 
-            for subentry_id, subentry in self._entry.subentries.items():
+            if not subentries:
+                _logger.debug("No matching subentries found for tool embedding.")
+                return
+
+            _logger.debug(f"Found {len(subentries)} subentries to process.")
+
+            for subentry_id, subentry in subentries.items():
                 try:
                     exposed_tools = await self._async_get_embeddable_tools(subentry)
                     _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")

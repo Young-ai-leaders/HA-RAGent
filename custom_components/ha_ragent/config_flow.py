@@ -11,7 +11,6 @@ from homeassistant.config_entries import (
     OptionsFlow,
     ConfigSubentryFlow
 )
-from homeassistant.helpers import llm
 
 from .src.homeassistant.ragent_config_entry import RAGentConfigEntry
 
@@ -21,8 +20,6 @@ from .src.const import (
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_VECTOR_DB_NAME,
     DOMAIN,
-    RAGENT_LLM_API_ID,
-    
     CONF_LLM_BACKEND_TYPE,
     CONF_SELECTED_LANGUAGE,
     
@@ -74,15 +71,12 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
             case _: return self.async_abort(reason="unknown_step") 
                 
     async def _init_flow_async(self) -> ConfigFlowResult:
-        if not any([x.id == RAGENT_LLM_API_ID for x in llm.async_get_apis(self.hass)]):
-            self.flow_step = "configure_backend"
-            return self.async_show_form(
-                step_id="user", 
-                data_schema=ui_schema_pick_backends(), 
-                last_step=False
-            )
-            
-        return self.async_abort(reason="already_configured")
+        self.flow_step = "configure_backend"
+        return self.async_show_form(
+            step_id="user",
+            data_schema=ui_schema_pick_backends(),
+            last_step=False
+        )
             
     async def _configure_backend_async(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input:
@@ -143,16 +137,16 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
                 vector_db_backend_type=self.client_config[CONF_VECTOR_DB_BACKEND_TYPE],
                 embedding_backend_type=self.client_config[CONF_EMBEDDING_BACKEND_TYPE],
                 llm_backend_type=self.client_config[CONF_LLM_BACKEND_TYPE],
-                vector_db_host=self.client_config[CONF_VECTOR_DB_HOST],
-                vector_db_port=self.client_config[CONF_VECTOR_DB_PORT],
-                vector_db_ssl=self.client_config[CONF_VECTOR_DB_SSL],
-                vector_db_name=self.client_config[CONF_VECTOR_DB_NAME],
-                embedding_host=self.client_config[CONF_EMBEDDING_HOST],
-                embedding_port=self.client_config[CONF_EMBEDDING_PORT],
-                embedding_ssl=self.client_config[CONF_EMBEDDING_SSL],
-                llm_host=self.client_config[CONF_LLM_HOST],
-                llm_port=self.client_config[CONF_LLM_PORT],
-                llm_ssl=self.client_config[CONF_LLM_SSL]), 
+                vector_db_host=self.client_config.get(CONF_VECTOR_DB_HOST),
+                vector_db_port=self.client_config.get(CONF_VECTOR_DB_PORT),
+                vector_db_ssl=self.client_config.get(CONF_VECTOR_DB_SSL),
+                vector_db_name=self.client_config.get(CONF_VECTOR_DB_NAME),
+                embedding_host=self.client_config.get(CONF_EMBEDDING_HOST),
+                embedding_port=self.client_config.get(CONF_EMBEDDING_PORT),
+                embedding_ssl=self.client_config.get(CONF_EMBEDDING_SSL),
+                llm_host=self.client_config.get(CONF_LLM_HOST),
+                llm_port=self.client_config.get(CONF_LLM_PORT),
+                llm_ssl=self.client_config.get(CONF_LLM_SSL)), 
             errors=errors,
             description_placeholders=description_placeholders,
             last_step=True

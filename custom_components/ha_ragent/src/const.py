@@ -6,8 +6,7 @@ import re
 DOMAIN = "ha_ragent"
 RAGENT_LLM_API_ID = "ha_ragent_api"
 RAGENT_LLM_API_NAME = "HA RAGent"
-RAGENT_SEARCH_DEVICES_TOOL_NAME = "HassSearchDevices"
-RAGENT_SEARCH_TOOLS_TOOL_NAME = "HassSearchTools"
+RAGENT_SEMANTIC_SEARCH_TOOL_NAME = "HassSemanticSearch"
 INTEGRATION_VERSION = "0.3.0"
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
@@ -58,11 +57,18 @@ CONF_EMBEDDING_MODEL = "rag_embedding_model"
 CONF_EMBEDDING_HOST = "rag_embedding_host"
 CONF_EMBEDDING_PORT = "rag_embedding_port"
 CONF_EMBEDDING_SSL = "rag_embedding_ssl"
+CONF_EMBEDDING_API_KEY = "rag_embedding_api_key"
 
 BACKEND_EMBEDDING_TYPE_OLLAMA = "ollama"
+BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE = "openai_compatible"
 
 BACKEND_EMBEDDING_TYPE_OPTIONS = [ 
-    BACKEND_EMBEDDING_TYPE_OLLAMA 
+    BACKEND_EMBEDDING_TYPE_OLLAMA,
+    BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE,
+]
+
+EMBEDDING_BACKENDS_WITH_API_KEY = [
+    BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE,
 ]
 
 DEFAULT_EMBEDDING_BACKEND_TYPE = BACKEND_EMBEDDING_TYPE_OLLAMA
@@ -75,11 +81,18 @@ CONF_LLM_MODEL = "rag_llm_model"
 CONF_LLM_HOST = "rag_llm_host"
 CONF_LLM_PORT = "rag_llm_port"
 CONF_LLM_SSL = "rag_llm_ssl"
+CONF_LLM_API_KEY = "rag_llm_api_key"
 
 BACKEND_LLM_TYPE_OLLAMA = "ollama"
+BACKEND_LLM_TYPE_OPENAI_COMPATIBLE = "openai_compatible"
 
 BACKEND_LLM_TYPE_OPTIONS = [ 
-    BACKEND_LLM_TYPE_OLLAMA 
+    BACKEND_LLM_TYPE_OLLAMA,
+    BACKEND_LLM_TYPE_OPENAI_COMPATIBLE,
+]
+
+LLM_BACKENDS_WITH_API_KEY = [
+    BACKEND_LLM_TYPE_OPENAI_COMPATIBLE,
 ]
 
 DEFAULT_LLM_BACKEND_TYPE = BACKEND_LLM_TYPE_OLLAMA
@@ -97,6 +110,7 @@ CONF_MAX_TOOL_CALL_ITERATIONS = "rag_max_tool_call_iterations"
 CONF_PROMPT = "rag_prompt"
 
 CONF_ENABLE_MODEL_THINKING = "rag_enable_model_thinking"
+CONF_ALLOW_AUTO_EMBEDDING = "rag_allow_auto_embedding"
 
 CONF_REMEMBER_CONVERSATION_TIME_MINUTES = "rag_remember_conversation_time_minutes"
 CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS = "rag_remember_conversation_num_interactions"
@@ -152,12 +166,12 @@ DEVICE_CONTROL_PROMPT = {
 - Wenn die neueste Nachricht eine Folgeanweisung wie "auch", "dann", "zusätzlich" oder eine weitere direkte Aktion enthält, behandle sie als neue auszufuehrende Steuerungsanweisung.
 - Löse Ziele ueber Name, entity_id, Domain, device_class und Bereich auf.
 - Wenn Bereich und Kategorie genannt sind, nimm alle passenden Geräte in diesem Bereich.
-- Wenn der Benutzer nur einen Bereich nennt oder die Formulierung ungenau ist, nutze `HassSearchDevices`, um das wahrscheinlichste Ziel in diesem Bereich zu finden.
-- Wenn `HassSearchDevices` für einen genannten Bereich nur ein plausibles Gerät zur Aktion liefert, behandle dieses Gerät als aufgelöst und führe die Aktion aus statt nachzufragen.
+- Wenn der Benutzer nur einen Bereich nennt oder die Formulierung ungenau ist, nutze `HassSemanticSearch` mit `scope: "devices"`, um das wahrscheinlichste Ziel in diesem Bereich zu finden.
+- Wenn `HassSemanticSearch` für einen genannten Bereich nur ein plausibles Gerät zur Aktion liefert, behandle dieses Gerät als aufgelöst und führe die Aktion aus statt nachzufragen.
 - Interpretiere offensichtliche Speech-to-Text- oder Tippfehler bei direkten Steuerbefehlen sinnvoll. Beispiel: "turn one the fountain" meint sehr wahrscheinlich "turn on the fountain", wenn ein passender Brunnen-Schalter gefunden wird.
 - Wenn ein natürlicher Name wie "the fountain" semantisch genau zu einem Schalter, Licht oder anderem steuerbaren Gerät passt, wähle dieses konkrete Gerät auch ohne exakten Entitätsnamen.
 - Steuere nie irrelevante Geräte oder Geräte aus nicht genannten Bereichen.
-- Nutze `HassSearchDevices` nur als Fallback zur Auflösung, nicht um erst Optionen vorzuschlagen oder um Erlaubnis für eine bereits klare Steuerungsanweisung zu erfragen. Verwende Treffer danach wie normale Geräte und bevorzuge ihre exakte `entity_id`.
+- Nutze `HassSemanticSearch` nur als Fallback zur Auflösung, nicht um erst Optionen vorzuschlagen oder um Erlaubnis für eine bereits klare Steuerungsanweisung zu erfragen. Verwende Treffer danach wie normale Geräte und bevorzuge ihre exakte `entity_id`.
 2. Tool-Aufrufe
 - Bei mehreren Treffern gib pro Gerät einen eigenen `homeassistant`-Block aus.
 - Gib erst alle Tool-Blöcke aus, danach kurzen natürlichen Text.
@@ -174,13 +188,13 @@ DEVICE_CONTROL_PROMPT = {
 - If the user names an area and a category, include all matching devices in that area.
 - Map the requested action strictly to the state the user asked for. "turn on" means on, "turn off" means off, and "toggle" means toggle.
 - Do not use a generic light-setting tool when a dedicated on or off tool is available and matches the user's intent more precisely.
-- If the user only names an area or the wording is fuzzy, use `HassSearchDevices` to find the most likely target in that area.
-- If `HassSearchDevices` returns only one plausible device for the named area and requested action, treat that device as resolved and execute the action instead of asking a follow-up question.
+- If the user only names an area or the wording is fuzzy, use `HassSemanticSearch` with `scope: "devices"` to find the most likely target in that area.
+- If `HassSemanticSearch` returns only one plausible device for the named area and requested action, treat that device as resolved and execute the action instead of asking a follow-up question.
 - Interpret obvious speech-to-text or typo mistakes in direct control commands sensibly. Example: "turn one the fountain" most likely means "turn on the fountain" if a matching fountain switch is found.
 - If a natural phrase like "the fountain" semantically matches a switch, light, or other controllable entity, pick that concrete device even when the exact entity name was not said.
-- If you only see one matching device but the request sounds like a category or room-wide action, you may use `HassSearchDevices` once to check whether more matching devices exist.
+- If you only see one matching device but the request sounds like a category or room-wide action, you may use `HassSemanticSearch` once with `scope: "devices"` to check whether more matching devices exist.
 - Never control irrelevant devices or devices from areas the user did not mention.
-- Use `HassSearchDevices` only as a fallback for resolution, not to preview options or ask permission for an already clear control request. Treat returned devices like normal available devices and prefer their exact `entity_id`.
+- Use `HassSemanticSearch` only as a fallback for resolution, not to preview options or ask permission for an already clear control request. Treat returned devices like normal available devices and prefer their exact `entity_id`.
 2. Tool Calls
 - If multiple devices match, emit one `homeassistant` block per device.
 - Output all tool blocks first, then the short natural-language response.
@@ -193,8 +207,8 @@ DEVICE_CONTROL_PROMPT = {
 }
 
 CONVERSATION_PRIORITY_PROMPT = {
-    "de": """Die neueste Benutzernachricht hat Priorität. Direkte Folgeanweisungen sind auszuführende Befehle, keine Bitte um Bestätigung. Antworte bei Folgeanweisungen nur über die neueste Aktion. Nutze `HassSearchDevices` als Auflösungshilfe bei ungenauen Namen, Bereichsreferenzen oder offensichtlichen Speech-to-Text-Fehlern, aber nicht zum Vorschlagen von Optionen. Wenn genau ein plausibles Ziel übrig bleibt, handle selbstständig. Simuliere keine erfolgreiche Gerätesteuerung: gib Tool-Aufrufe aus, frage nur bei echter Unklarheit nach oder antworte auf Basis echter Tool-Ergebnisse.""",
-    "en": """The latest user message has priority. Direct follow-up commands should be executed, not turned into confirmation questions. For follow-up commands, respond only about the newest action. Use `HassSearchDevices` as a resolution aid for fuzzy names, area-based references, or obvious speech-to-text mistakes, but not to preview options. If exactly one plausible target remains, act on it confidently. For clear on or off commands, choose the semantically correct action rather than a similar tool with different default behavior. Do not simulate successful device control: emit tool calls, ask only when genuinely unclear, or respond from real tool results.""",
+    "de": """Die neueste Benutzernachricht hat Priorität. Direkte Folgeanweisungen sind auszuführende Befehle, keine Bitte um Bestätigung. Antworte bei Folgeanweisungen nur über die neueste Aktion. Nutze `HassSemanticSearch` als Auflösungshilfe bei ungenauen Namen, Bereichsreferenzen oder offensichtlichen Speech-to-Text-Fehlern, aber nicht zum Vorschlagen von Optionen. Wenn genau ein plausibles Ziel übrig bleibt, handle selbstständig. Simuliere keine erfolgreiche Gerätesteuerung: gib Tool-Aufrufe aus, frage nur bei echter Unklarheit nach oder antworte auf Basis echter Tool-Ergebnisse.""",
+    "en": """The latest user message has priority. Direct follow-up commands should be executed, not turned into confirmation questions. For follow-up commands, respond only about the newest action. Use `HassSemanticSearch` as a resolution aid for fuzzy names, area-based references, or obvious speech-to-text mistakes, but not to preview options. If exactly one plausible target remains, act on it confidently. For clear on or off commands, choose the semantically correct action rather than a similar tool with different default behavior. Do not simulate successful device control: emit tool calls, ask only when genuinely unclear, or respond from real tool results.""",
 }
 
 DEVICE_ATTRIBUTES_TO_EXCLUDE = ["friendly_name", "persistent", "supported_features"]
@@ -226,6 +240,7 @@ DEFAULT_PROMPT = """<persona>
 """
 
 DEFAULT_ENABLE_MODEL_THINKING = False
+DEFAULT_ALLOW_AUTO_EMBEDDING = True
 DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES = 5
 DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS = 10
 DEFAULT_SELECTED_LANGUAGE = "en"
@@ -246,6 +261,7 @@ DEFAULT_OPTIONS = {
     CONF_P_MIN: DEFAULT_P_MIN,
     CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
     CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
+    CONF_ALLOW_AUTO_EMBEDDING: DEFAULT_ALLOW_AUTO_EMBEDDING,
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES: DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS: DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_CONTEXT_LENGTH: DEFAULT_CONTEXT_LENGTH,
