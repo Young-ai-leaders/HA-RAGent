@@ -21,7 +21,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_PORT,
     CONF_LLM_SSL,
     CONF_MAX_TOKENS,
-    CONF_TEMPERATURE,
+    CONF_TEMPERATURE
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -97,8 +97,6 @@ class OllamaLlmBackend(ALlmBaseBackend):
 
         names = [x["name"] for x in models_result.get("models", [])]
         infos = await asyncio.gather(*(self.async_get_model_info(name) for name in names), return_exceptions=True)
-
-        print(f"Available models: {infos}")
         available = []
         for info in infos:
             if isinstance(info, Exception):

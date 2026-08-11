@@ -19,6 +19,8 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_SSL,
     CONF_MAX_TOKENS,
     CONF_TEMPERATURE,
+    RAGENT_CHAT_TRUNCATE_MAX_CHARS,
+    RAGENT_CHAT_TRUNCATE_RETRIES
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -147,8 +149,13 @@ class OpenAiLlmBackend(ALlmBaseBackend):
             _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request")
 
         try:
-            context_retry = False
-            while True:
+            max_chars = RAGENT_CHAT_TRUNCATE_MAX_CHARS
+            for attempt in range(RAGENT_CHAT_TRUNCATE_RETRIES + 1):
+                request["messages"] = (
+                    messages
+                    if attempt == 0
+                    else self._truncate_messages(messages, max_chars)
+                )
                 pending_tool_calls: Dict[int, Dict[str, str]] = {}
                 try:
                     stream = await self._client.chat.completions.create(**request)
@@ -175,11 +182,11 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                                     pending["arguments"] += function.arguments
                     break
                 except Exception as err:
-                    if context_retry or not self._is_context_length_error(err):
+                    if not self._is_context_length_error(err) or attempt == RAGENT_CHAT_TRUNCATE_RETRIES:
                         raise
-                    context_retry = True
-                    request["messages"] = self._truncate_messages(request["messages"])
-                    _logger.warning("LLM context size overflow detected. Retrying with truncated messages.")
+
+                    max_chars //= 2
+                    _logger.warning(f"LLM input is too large. Retrying with messages limited to {max_chars} characters.")
 
             # Tool-call arguments are often split across many SSE chunks.
             # Emit only after the complete JSON document has been assembled.

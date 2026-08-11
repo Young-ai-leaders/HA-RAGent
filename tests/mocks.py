@@ -3,6 +3,11 @@ from __future__ import annotations
 from custom_components.ha_ragent.src.const import (
     CONF_CONTEXT_LENGTH,
     CONF_ENABLE_MODEL_THINKING,
+    CONF_EMBEDDING_API_KEY,
+    CONF_EMBEDDING_HOST,
+    CONF_EMBEDDING_MODEL,
+    CONF_EMBEDDING_PORT,
+    CONF_EMBEDDING_SSL,
     CONF_LLM_API_KEY,
     CONF_LLM_HOST,
     CONF_LLM_MODEL,
@@ -76,8 +81,6 @@ MOCK_OLLAMA_CHAT_CONFIG_INVALID = {
     CONF_CONTEXT_LENGTH: 4096,
 }
 
-MOCK_LLM_CHAT_CONFIG = MOCK_OPENAI_CHAT_CONFIG
-
 MOCK_LLM_TOOLS = [
     LlmTool(
         name="test_tool",
@@ -97,10 +100,76 @@ MOCK_LLM_TOOLS = [
     ),
 ]
 
+MOCK_LLM_TOOLS_EMBEDDING_OVERFLOW = [
+    *MOCK_LLM_TOOLS,
+    LlmTool(
+        name="overflow_tool",
+        description="A tool with a very long description to test embedding context overflow.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "".join(f"Overflow text INDEX: {i}" for i in range(10000)),
+                }
+            },
+        },
+    ),
+]
+
+MOCK_EMBEDDING_DEFAULT_OPTIONS = {
+    CONF_EMBEDDING_HOST: "127.0.0.1",
+    CONF_EMBEDDING_SSL: False,
+    CONF_EMBEDDING_API_KEY: None,
+}
+
+MOCK_OPENAI_EMBEDDING_CONNECTION_USER_INPUT = {
+    **MOCK_EMBEDDING_DEFAULT_OPTIONS,
+    CONF_EMBEDDING_PORT: 8081,
+}
+
+MOCK_OPENAI_EMBEDDING_CONNECTION_USER_INPUT_INVALID = {
+    **MOCK_EMBEDDING_DEFAULT_OPTIONS,
+    CONF_EMBEDDING_HOST: "invalid_host",
+    CONF_EMBEDDING_PORT: 8081,
+}
+
+MOCK_OLLAMA_EMBEDDING_CONNECTION_USER_INPUT = {
+    **MOCK_EMBEDDING_DEFAULT_OPTIONS,
+    CONF_EMBEDDING_PORT: 11434,
+}
+
+MOCK_OLLAMA_EMBEDDING_CONNECTION_USER_INPUT_INVALID = {
+    **MOCK_EMBEDDING_DEFAULT_OPTIONS,
+    CONF_EMBEDDING_HOST: "invalid_host",
+    CONF_EMBEDDING_PORT: 11434,
+}
+
+MOCK_OPENAI_EMBEDDING_CONFIG = {
+    **MOCK_OPENAI_EMBEDDING_CONNECTION_USER_INPUT,
+    CONF_EMBEDDING_MODEL: "nomic-ai/nomic-embed-text-v1.5-GGUF:Q4_K_M",
+}
+
+MOCK_OPENAI_EMBEDDING_CONFIG_INVALID = {
+    **MOCK_OPENAI_EMBEDDING_CONNECTION_USER_INPUT,
+    CONF_EMBEDDING_MODEL: "invalid_model",
+}
+
+MOCK_OLLAMA_EMBEDDING_CONFIG = {
+    **MOCK_OLLAMA_EMBEDDING_CONNECTION_USER_INPUT,
+    CONF_EMBEDDING_MODEL: "nomic-embed-text",
+}
+
+MOCK_OLLAMA_EMBEDDING_CONFIG_INVALID = {
+    **MOCK_OLLAMA_EMBEDDING_CONNECTION_USER_INPUT,
+    CONF_EMBEDDING_MODEL: "invalid_model",
+}
+
 MOCK_MESSAGES = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "Hello"}
 ]
+
 MOCK_MESSAGE_CONTEXT_OVERFLOW = [
     {"role": "system", "content": "You are a helpful assistant."},
     {"role": "user", "content": "".join(f"Message Overflow INDEX: {i}" for i in range(10000))}

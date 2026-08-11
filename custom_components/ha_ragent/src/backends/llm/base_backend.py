@@ -11,7 +11,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_API_KEY,
     CONF_LLM_HOST,
     CONF_LLM_PORT,
-    CONF_LLM_SSL,
+    CONF_LLM_SSL
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo

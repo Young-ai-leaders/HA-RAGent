@@ -52,6 +52,10 @@ DEFAULT_VECTOR_DB_NAME = "ha_ragent_db"
 #-----------------------------------------------
 # Embedding backend constants
 #-----------------------------------------------
+RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS = 12000
+RAGENT_EMBEDDING_TRUNCATE_RETRIES = 3
+RAGENT_EMBEDDING_BATCH_SIZE = 16
+
 CONF_EMBEDDING_BACKEND_TYPE = "rag_embedding_backend"
 CONF_EMBEDDING_MODEL = "rag_embedding_model"
 CONF_EMBEDDING_HOST = "rag_embedding_host"
@@ -76,6 +80,9 @@ DEFAULT_EMBEDDING_BACKEND_TYPE = BACKEND_EMBEDDING_TYPE_OLLAMA
 #-----------------------------------------------
 # Chat backend constants
 #-----------------------------------------------
+RAGENT_CHAT_TRUNCATE_MAX_CHARS = 12000
+RAGENT_CHAT_TRUNCATE_RETRIES = 3
+
 CONF_LLM_BACKEND_TYPE = "rag_llm_backend"
 CONF_LLM_MODEL = "rag_llm_model"
 CONF_LLM_HOST = "rag_llm_host"

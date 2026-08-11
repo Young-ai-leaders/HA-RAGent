@@ -1,37 +1,54 @@
-import asyncio
-from typing import Any, Dict, List
-import logging
-
 from functools import partial
-from openai import AsyncOpenAI
+import logging
+from typing import Any, Dict, List
+from openai import AsyncOpenAI, InternalServerError
 
-from .base_backend import ABaseEmbedder
-from ...models.device import Device
-from ...models.device_embedding import DeviceEmbedding
-from ...models.tool import LlmTool
-from ...models.tool_embedding import LlmToolEmbedding
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from ...const import (
+try:
+    from homeassistant.core import HomeAssistant
+except ImportError:
+    from custom_components.ha_ragent.src.backends.homeassistant_mock import MockHomeAssistant as HomeAssistant
+
+    from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_API_KEY,
-    CONF_EMBEDDING_MODEL,
     CONF_EMBEDDING_HOST,
     CONF_EMBEDDING_PORT,
-    CONF_EMBEDDING_SSL
+    CONF_EMBEDDING_SSL,
+    CONF_EMBEDDING_MODEL,
+    RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS
 )
+from custom_components.ha_ragent.src.const import RAGENT_EMBEDDING_BATCH_SIZE, RAGENT_EMBEDDING_TRUNCATE_RETRIES
+from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
+from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
     
-class OpenAICompatibleEmbedder(ABaseEmbedder):
+class OpenAiEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
         self._openai_url = ABaseEmbedder.format_url(**self._url_base, path="/v1")
+        self._client = AsyncOpenAI(
+            base_url=self._openai_url,
+            api_key=self._api_key or "not-needed",
+        )
     
     @staticmethod
     def get_name() -> str:
-        return f"{ABaseEmbedder.get_name()}: OpenAI Compatible"
+        return f"{ABaseEmbedder.get_name()}: OpenAI API"
+
+    @staticmethod
+    def _is_context_length_error(error: Exception) -> bool:
+        return isinstance(error, InternalServerError) and error.status_code == 500 and "increase the physical batch size" in str(error).lower()
+
+    @staticmethod
+    def _truncate_inputs(inputs: List[str], max_chars: int = RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS) -> List[str]:
+        """Keep embedding requests within a conservative context-size limit."""
+        return [text[-max_chars:] if len(text) > max_chars else text for text in inputs]
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -43,7 +60,7 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
                 ssl=user_input.get(CONF_EMBEDDING_SSL),
                 path="/v1",
             )
-            api_key = str(user_input.get(CONF_EMBEDDING_API_KEY, "") or "").strip()
+            api_key = ABaseEmbedder.normalize_api_key(user_input.get(CONF_EMBEDDING_API_KEY))
             client = await hass.async_add_executor_job(
                 partial(
                     AsyncOpenAI,
@@ -59,40 +76,27 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
             if client:
                 await client.close()
 
-    async def _async_create_client(self) -> AsyncOpenAI:
-        return await self.hass.async_add_executor_job(
-            partial(
-                AsyncOpenAI,
-                base_url=self._openai_url,
-                api_key=self._api_key or "not-needed",
-            )
-        )
-
-    async def _async_get_model_info(
-        self,
-        model_name: str,
-    ) -> Dict[str, Any]:
-        client = await self._async_create_client()
-
+    async def async_get_model_info(self, model_name: str) -> ModelInfo:
         try:
-            model = await client.models.retrieve(model_name)
+            models = await self._client.models.list()
+            model = next((m for m in models.data if m.id == model_name), None)
 
-            model_data = model.model_dump()
+            if not model:
+                raise ValueError(f"Model not found: {model_name}")
 
-            meta = model_data.get("meta") or {}
+            data = model.model_dump() 
+            meta = data.get("meta") or {}
+            context_size = int(meta.get("n_ctx") or 0) 
 
-            return {
-                "name": model.id,
-                "supports_tools": False,
-                "is_embedding": True,
-                "embedding_size": meta.get("n_embd"),
-                "context_size": meta.get("n_ctx_train"),
-                "parameters": meta.get("n_params"),
-                "size": meta.get("size"),
-            }
-
-        finally:
-            await client.close()
+            return ModelInfo( 
+                name=model.id, 
+                context_size=context_size, 
+                is_embedding_model=None, 
+                is_tool_model=None
+            )
+        except Exception as ex:
+            _logger.error(f"Error retrieving model info for {model_name}: {ex}", exc_info=True)
+            raise
 
     async def async_preload_model(self, config_subentry: dict) -> None:
         _logger.info("Preloading not supported for OpenAI Compatible Embedder backend.")
@@ -101,109 +105,51 @@ class OpenAICompatibleEmbedder(ABaseEmbedder):
         _logger.info("Unloading not supported for OpenAI Compatible Embedder backend.")
 
     async def async_get_available_models(self) -> List[str]:
-        client = await self._async_create_client()
+        result = await self._client.models.list()
+        return [model.id for model in result.data if model.id]
 
-        try:
-            result = await client.models.list()
-
-            return [
-                model.id
-                for model in result.data
-                if model.id
-            ]
-
-        finally:
-            await client.close()
-
-    async def _async_embed_batch(
-        self,
-        config_subentry: dict,
-        inputs: List[str],
-    ) -> List[List[float]]:
+    async def _async_embed_batch(self, config_subentry: dict, inputs: List[str]) -> List[List[float]]:
         if not inputs:
             return []
+        
+        max_chars = RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS
 
-        client = await self._async_create_client()
+        for attempt in range(RAGENT_EMBEDDING_TRUNCATE_RETRIES + 1):
+            request_inputs = self._truncate_inputs(inputs, max_chars) if attempt else inputs
+            try:
+                response = await self._client.embeddings.create(
+                    model=config_subentry[CONF_EMBEDDING_MODEL],
+                    input=request_inputs,
+                    encoding_format="float",
+                )
+                break
+            except Exception as err:
+                if not self._is_context_length_error(err) or attempt == RAGENT_EMBEDDING_TRUNCATE_RETRIES:
+                    raise
 
-        try:
-            response = await client.embeddings.create(
-                model=config_subentry[CONF_EMBEDDING_MODEL],
-                input=inputs,
-                encoding_format="float",
-            )
+                max_chars //= 2
+                _logger.warning(f"Embedding input is too large. Retrying with inputs limited to {max_chars} characters.")
 
-            # OpenAI-compatible embedding responses contain
-            # an index for every input. Sort explicitly instead
-            # of relying on response ordering.
-            data = sorted(
-                response.data,
-                key=lambda item: item.index,
-            )
+        # OpenAI-compatible embedding responses contain
+        # an index for every input. Sort explicitly instead
+        # of relying on response ordering.
+        data = sorted(response.data, key=lambda item: item.index)
+        return [list(item.embedding) for item in data]
 
-            return [
-                list(item.embedding)
-                for item in data
-            ]
-
-        finally:
-            await client.close()
-
-    async def async_embed_text(
-        self,
-        config_subentry: dict,
-        text: str,
-        **kwargs,
-    ) -> List[float]:
-        embeddings = await self._async_embed_batch(
-            config_subentry,
-            [text],
-        )
-
+    async def async_embed_text(self, config_subentry: dict, text: str, **kwargs) -> List[float]:
+        embeddings = await self._async_embed_batch(config_subentry, [text])
         return embeddings[0] if embeddings else []
 
-    async def async_embed_object(
-        self,
-        object_type: type[
-            DeviceEmbedding | LlmToolEmbedding
-        ],
-        config_subentry: dict,
-        objects: List[Device | LlmTool],
-    ) -> List[
-        DeviceEmbedding | LlmToolEmbedding
-    ]:
+    async def async_embed_object(self, config_subentry: dict, objects: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
         if not objects:
             return []
 
-        batch_size = 32
-        object_embeddings = []
-
-        for i in range(0, len(objects), batch_size):
-            chunk = objects[i : i + batch_size]
-
-            texts = [
-                str(obj)
-                for obj in chunk
-            ]
-
-            vectors = await self._async_embed_batch(
-                config_subentry,
-                texts,
-            )
-
-            if len(vectors) != len(chunk):
-                raise RuntimeError(
-                    "OpenAI-compatible embedding server "
-                    "returned an unexpected number of embeddings: "
-                    f"expected {len(chunk)}, "
-                    f"received {len(vectors)}"
-                )
-
-            for obj, vector in zip(chunk, vectors):
-                object_embeddings.append(
-                    object_type(
-                        obj,
-                        vector_embedding=vector,
-                    )
-                )
-
-        return object_embeddings
+        device_embeddings = []
+        object_type = DeviceEmbedding if issubclass(objects[0].__class__, Device) else LlmToolEmbedding
+        for i in range(0, len(objects), RAGENT_EMBEDDING_BATCH_SIZE):
+            chunk = objects[i:i + RAGENT_EMBEDDING_BATCH_SIZE]
+            texts = [str(d) for d in chunk]
+            vectors = await self._async_embed_batch(config_subentry, texts)
+            for obj, vec in zip(chunk, vectors):
+                device_embeddings.append(object_type(obj, vector_embedding=vec))
+        return device_embeddings

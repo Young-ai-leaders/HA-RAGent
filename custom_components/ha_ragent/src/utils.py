@@ -9,7 +9,7 @@ from .backends.database.mongodb_backend import MongoDbBackend
 from .backends.database.chromadb_backend import ChromaDbBackend
 from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
-from .backends.embedder.openai_backend import OpenAICompatibleEmbedder
+from .backends.embedder.openai_backend import OpenAiEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
 from .backends.llm.ollama_backend import OllamaLlmBackend
 from .backends.llm.openai_backend import OpenAiLlmBackend
@@ -59,7 +59,7 @@ def vector_db_to_class(vector_db_type: str) -> ABaseDbBackend:
 def embedding_backend_to_class(backend_type: str) -> ABaseEmbedder:
     backend_to_class = {
         BACKEND_EMBEDDING_TYPE_OLLAMA: OllamaEmbedder,
-        BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE: OpenAICompatibleEmbedder,
+        BACKEND_EMBEDDING_TYPE_OPENAI_COMPATIBLE: OpenAiEmbedder,
     }
     return backend_to_class.get(backend_type)
 

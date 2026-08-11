@@ -4,10 +4,9 @@ import asyncio
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
-from openai import BadRequestError
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -52,27 +51,26 @@ def suppress_logging() -> Any:
     finally:
         logging.disable(previous_disable_level)
 
-def test_init(backend_class: type[ALlmBaseBackend], llm_client_options: dict[str, Any]) -> None:
+def test_init(backend_class: type[ALlmBaseBackend], connection_input: dict[str, Any]) -> None:
     """Test that the backend can be initialized with a mocked Home Assistant."""
-    backend = backend_class(hass, llm_client_options)
+    backend = backend_class(hass, connection_input)
     assert backend._url_base == {
-        "hostname": llm_client_options[CONF_LLM_HOST],
-        "port": llm_client_options[CONF_LLM_PORT],
-        "ssl": llm_client_options[CONF_LLM_SSL],
+        "hostname": connection_input[CONF_LLM_HOST],
+        "port": connection_input[CONF_LLM_PORT],
+        "ssl": connection_input[CONF_LLM_SSL],
     }
     return backend
 
-def test_url_format(backend: ALlmBaseBackend, llm_client_options: dict[str, Any]) -> None:
+def test_url_format(backend: ALlmBaseBackend, connection_input: dict[str, Any]) -> None:
     """Test that the backend can format URLs correctly."""
     url = backend.format_url(
-        hostname=llm_client_options[CONF_LLM_HOST],
-        port=llm_client_options[CONF_LLM_PORT],
-        ssl=llm_client_options[CONF_LLM_SSL],
+        hostname=connection_input[CONF_LLM_HOST],
+        port=connection_input[CONF_LLM_PORT],
+        ssl=connection_input[CONF_LLM_SSL],
         path="/v1",
     )
-    expected_url = f"{'https' if llm_client_options[CONF_LLM_SSL] else 'http'}://{llm_client_options[CONF_LLM_HOST]}{':' + str(llm_client_options[CONF_LLM_PORT]) if llm_client_options[CONF_LLM_PORT] else ''}/v1"
+    expected_url = f"{'https' if connection_input[CONF_LLM_SSL] else 'http'}://{connection_input[CONF_LLM_HOST]}{':' + str(connection_input[CONF_LLM_PORT]) if connection_input[CONF_LLM_PORT] else ''}/v1"
     assert url == expected_url
-
 
 # These are reusable helpers invoked by test_all_llm_backends, not standalone tests.
 test_init.__test__ = False
