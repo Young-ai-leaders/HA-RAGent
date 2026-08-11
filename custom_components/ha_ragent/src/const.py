@@ -160,62 +160,95 @@ AREAS_PROMPT = {
 {% endif %}"""
 }
 
-USER_INSTRUCTION = {
-    "de": "## Benutzeranweisung:",
-    "en": "## User instruction:"
-}
-
-
 DEVICE_CONTROL_PROMPT = {
-    "de": """## Geräte Steuerungsanweisungen:
-1. Auflösung
-- Nutze zuerst die neueste Benutzernachricht. Älterer Verlauf ist nur Hilfskontext.
-- Wenn die neueste Nachricht eine Folgeanweisung wie "auch", "dann", "zusätzlich" oder eine weitere direkte Aktion enthält, behandle sie als neue auszufuehrende Steuerungsanweisung.
-- Löse Ziele ueber Name, entity_id, Domain, device_class und Bereich auf.
-- Wenn Bereich und Kategorie genannt sind, nimm alle passenden Geräte in diesem Bereich.
-- Wenn der Benutzer nur einen Bereich nennt oder die Formulierung ungenau ist, nutze `HassSemanticSearch` mit `scope: "devices"`, um das wahrscheinlichste Ziel in diesem Bereich zu finden.
-- Wenn `HassSemanticSearch` für einen genannten Bereich nur ein plausibles Gerät zur Aktion liefert, behandle dieses Gerät als aufgelöst und führe die Aktion aus statt nachzufragen.
-- Interpretiere offensichtliche Speech-to-Text- oder Tippfehler bei direkten Steuerbefehlen sinnvoll. Beispiel: "turn one the fountain" meint sehr wahrscheinlich "turn on the fountain", wenn ein passender Brunnen-Schalter gefunden wird.
-- Wenn ein natürlicher Name wie "the fountain" semantisch genau zu einem Schalter, Licht oder anderem steuerbaren Gerät passt, wähle dieses konkrete Gerät auch ohne exakten Entitätsnamen.
-- Steuere nie irrelevante Geräte oder Geräte aus nicht genannten Bereichen.
-- Nutze `HassSemanticSearch` nur als Fallback zur Auflösung, nicht um erst Optionen vorzuschlagen oder um Erlaubnis für eine bereits klare Steuerungsanweisung zu erfragen. Verwende Treffer danach wie normale Geräte und bevorzuge ihre exakte `entity_id`.
-2. Tool-Aufrufe
-- Bei mehreren Treffern gib pro Gerät einen eigenen `homeassistant`-Block aus.
-- Gib erst alle Tool-Blöcke aus, danach kurzen natürlichen Text.
-3. Antworten
-- Behaupte nie Erfolg ohne Tool-Aufruf und bestätige Erfolg nur aus echten Tool-Ergebnissen.
-- Bei Folgeanweisungen beziehe dich im Text nur auf die neueste Aktion und wiederhole keine früheren Bereiche oder Geräte, ausser der Benutzer verlangt eine Gesamtsummary.
-- Wenn nichts passt oder das Ziel unklar ist, antworte kurz oder frage nach Klarstellung.
-- Nutze im Text nur freundliche Namen, keine technischen IDs.""",
+    "de": """## Anweisungen zur Gerätesteuerung:
+
+1. Auflösen
+
+- Priorisiere die neueste Benutzernachricht; verwende frühere Nachrichten nur als Kontext für Referenzen.
+- Folgeanweisungen sind neue Aktionen.
+- Löse Geräte nur anhand von bekanntem Kontext oder Tool-Ergebnissen auf.
+- Erfinde, errate, konstruiere oder leite niemals einen `name` ab.
+- Verwende einen `name` nur, wenn er ausdrücklich im Kontext vorhanden ist oder von einem Tool zurückgegeben wurde.
+- Bereich + Kategorie bedeutet alle passenden Geräte in diesem Bereich.
+- Ordne Aktionen exakt zu: an → an, aus → aus, umschalten → umschalten.
+- Korrigiere offensichtliche Tippfehler oder Speech-to-Text-Fehler, wenn die Absicht klar ist.
+- Steuere niemals irrelevante Geräte oder Geräte außerhalb des angeforderten Bereichs.
+
+2. Suchen
+
+- Verwende die semantische Suche, wenn die angeforderte Zielmenge anhand der verfügbaren Geräte nicht vollständig aufgelöst werden kann.
+- Verwende die semantische Suche bei ungenauen Namen, natürlichsprachlichen Bezeichnungen, Bereichen, Tippfehlern, Kategorien oder möglichen Mehrfachtreffern.
+- Leite niemals einen `name` aus einem Anzeigenamen ab.
+- Verwende nur exakte `name`-Werte, die von der semantischen Suche zurückgegeben wurden oder bereits im Kontext vorhanden sind.
+- Wenn genau ein eindeutiger Treffer gefunden wird, führe die Aktion ohne Rückfrage aus.
+- Frage nur nach, wenn mehrere widersprüchliche Ziele übrig bleiben.
+
+3. Ausführen
+
+- Prüfe vor jedem Steuerungsaufruf, dass der `name` aus dem Kontext oder einem Tool-Ergebnis stammt.
+- Wenn kein gültiger `name` verfügbar ist, suche statt die Aktion auszuführen.
+- Bevorzuge dedizierte Ein-/Aus-Tools gegenüber allgemeinen Tools zum Setzen eines Zustands.
+- Bei mehreren Geräten gib pro Gerät einen `homeassistant`-Block aus.
+- Führe eindeutige Befehle direkt aus.
+
+4. Antworten
+
+- Zuerst Tool-Aufrufe, danach die Antwort.
+- Behaupte niemals einen Erfolg ohne erfolgreiches Tool-Ergebnis.
+- Bei Teilerfolgen gib an, was funktioniert hat und was fehlgeschlagen ist.
+- Erwähne bei Folgeanweisungen nur die neueste Aktion.
+- Halte Antworten kurz und verwende benutzerfreundliche Gerätenamen, niemals technische IDs.
+""",
     "en": """## Device Control Instructions:
-1. Resolution
-- Use the latest user message first. Older conversation is supporting context only.
-- If the latest message is a follow-up command like "also", "then", or another direct action, treat it as a new command to execute.
-- Resolve targets by name, entity_id, domain, device_class, and area.
-- If the user names an area and a category, include all matching devices in that area.
-- Map the requested action strictly to the state the user asked for. "turn on" means on, "turn off" means off, and "toggle" means toggle.
-- Do not use a generic light-setting tool when a dedicated on or off tool is available and matches the user's intent more precisely.
-- If the user only names an area or the wording is fuzzy, use `HassSemanticSearch` with `scope: "devices"` to find the most likely target in that area.
-- If `HassSemanticSearch` returns only one plausible device for the named area and requested action, treat that device as resolved and execute the action instead of asking a follow-up question.
-- Interpret obvious speech-to-text or typo mistakes in direct control commands sensibly. Example: "turn one the fountain" most likely means "turn on the fountain" if a matching fountain switch is found.
-- If a natural phrase like "the fountain" semantically matches a switch, light, or other controllable entity, pick that concrete device even when the exact entity name was not said.
-- If you only see one matching device but the request sounds like a category or room-wide action, you may use `HassSemanticSearch` once with `scope: "devices"` to check whether more matching devices exist.
-- Never control irrelevant devices or devices from areas the user did not mention.
-- Use `HassSemanticSearch` only as a fallback for resolution, not to preview options or ask permission for an already clear control request. Treat returned devices like normal available devices and prefer their exact `entity_id`.
-2. Tool Calls
-- If multiple devices match, emit one `homeassistant` block per device.
-- Output all tool blocks first, then the short natural-language response.
-- For a clear control request, never output explanatory text like "please use this command". Execute the action directly with tool calls.
-3. Responses
-- Never claim an action happened without a tool call, and confirm success only from real tool results.
-- For follow-up commands, talk only about the newest action and do not repeat earlier rooms or devices unless the user asks for a full summary.
-- If nothing matches or the target is unclear, reply briefly or ask for clarification.
-- Use friendly names in text, never technical IDs."""
+
+1. Resolve
+
+- Prioritize the latest user message; use earlier context only for references.
+- Follow-up commands are new actions.
+- Resolve devices only from known context or tool results.
+- Never invent, guess, construct, or infer an `name`.
+- Use an `name` only if it was explicitly provided in context or returned by a tool.
+- Area + category means all matching devices in that area.
+- Map actions exactly: on → on, off → off, toggle → toggle.
+- Correct obvious typos/STT errors when intent is clear.
+- Never control unrelated devices or devices outside the requested area.
+
+2. Search
+
+- Use semantic search when the requested target set cannot be fully resolved from available devices.
+- Use semantic search for fuzzy names, natural-language names, areas, typos, categories, or possible multiple matches.
+- Never derive an `name` from a friendly name.
+- Use only exact `name`s returned by semantic search or already present in context.
+- If one clear match is found, execute it without asking.
+- Ask only if multiple conflicting targets remain.
+
+3. Execute
+
+- Before every control call, verify that the `name` came from context or a tool result.
+- If no valid `name` is available, search instead of executing.
+- Prefer dedicated on/off tools over generic state-setting tools.
+- For multiple devices, emit one homeassistant block per device.
+- Execute clear commands directly.
+
+4. Respond
+
+- Tool calls first, response second.
+- Never claim success without a successful tool result.
+- For partial failures, state what succeeded and failed.
+- For follow-ups, mention only the newest action.
+- Keep responses brief and use friendly names, never technical IDs.
+"""
 }
 
 CONVERSATION_PRIORITY_PROMPT = {
-    "de": """Die neueste Benutzernachricht hat Priorität. Direkte Folgeanweisungen sind auszuführende Befehle, keine Bitte um Bestätigung. Antworte bei Folgeanweisungen nur über die neueste Aktion. Nutze `HassSemanticSearch` als Auflösungshilfe bei ungenauen Namen, Bereichsreferenzen oder offensichtlichen Speech-to-Text-Fehlern, aber nicht zum Vorschlagen von Optionen. Wenn genau ein plausibles Ziel übrig bleibt, handle selbstständig. Simuliere keine erfolgreiche Gerätesteuerung: gib Tool-Aufrufe aus, frage nur bei echter Unklarheit nach oder antworte auf Basis echter Tool-Ergebnisse.""",
-    "en": """The latest user message has priority. Direct follow-up commands should be executed, not turned into confirmation questions. For follow-up commands, respond only about the newest action. Use `HassSemanticSearch` as a resolution aid for fuzzy names, area-based references, or obvious speech-to-text mistakes, but not to preview options. If exactly one plausible target remains, act on it confidently. For clear on or off commands, choose the semantically correct action rather than a similar tool with different default behavior. Do not simulate successful device control: emit tool calls, ask only when genuinely unclear, or respond from real tool results.""",
+    "de": """Die neueste Benutzernachricht hat Priorität. Direkte Folgeanweisungen sind auszuführende Befehle, keine Bitte um Bestätigung. Antworte bei Folgeanweisungen nur über die neueste Aktion. Nutze die semantische Suche als Auflösungshilfe bei ungenauen Namen, Bereichsreferenzen oder offensichtlichen Speech-to-Text-Fehlern, aber nicht zum Vorschlagen von Optionen. Wenn genau ein plausibles Ziel übrig bleibt, handle selbstständig. Simuliere keine erfolgreiche Gerätesteuerung: gib Tool-Aufrufe aus, frage nur bei echter Unklarheit nach oder antworte auf Basis echter Tool-Ergebnisse.""",
+    "en": """The latest user message has priority. Direct follow-up commands should be executed, not turned into confirmation questions. For follow-up commands, respond only about the newest action. Use semantic search as a resolution aid for fuzzy names, area-based references, or obvious speech-to-text mistakes, but not to preview options. If exactly one plausible target remains, act on it confidently. For clear on or off commands, choose the semantically correct action rather than a similar tool with different default behavior. Do not simulate successful device control: emit tool calls, ask only when genuinely unclear, or respond from real tool results.""",
+}
+
+MAX_RETRIES_PROMPT = {
+    "de": """Du hast maximal {{ max_retries}} Antwortversuche zur Verfügung.""",
+    "en": """You have a maximum of {{ max_retries }} response attempts."""
 }
 
 DEVICE_ATTRIBUTES_TO_EXCLUDE = ["friendly_name", "persistent", "supported_features"]
@@ -230,20 +263,19 @@ DEFAULT_CONTEXT_LENGTH = 4096
 DEFAULT_MAX_TOKENS = 1000
 DEFAULT_MAX_TOOL_CALL_ITERATIONS = 8
 
-DEFAULT_PROMPT = """<persona>
-<current_date>
+DEFAULT_PROMPT = """<persona_prompt>
+<current_date_prompt>
 <area_prompt>
 
 <device_control_prompt>
 
+<max_retries_prompt>
 <conversation_priority_prompt>
 
-<devices>
+<devices_prompt>
 {% for device in device_list %}
 - { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
 {% endfor %}
-
-<user_instruction>
 """
 
 DEFAULT_ENABLE_MODEL_THINKING = False
