@@ -97,5 +97,11 @@ MOCK_LLM_TOOLS = [
     ),
 ]
 
-MOCK_MESSAGES = [{"role": "user", "content": "Hello"}]
-MOCK_MESSAGE_CONTEXT_OVERFLOW = [{"role": "user", "content": "Message Overflow" * 10000}]
+MOCK_MESSAGES = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello"}
+]
+MOCK_MESSAGE_CONTEXT_OVERFLOW = [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "".join(f"Message Overflow INDEX: {i}" for i in range(10000))}
+]

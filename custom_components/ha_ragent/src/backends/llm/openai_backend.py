@@ -46,6 +46,7 @@ class OpenAiLlmBackend(ALlmBaseBackend):
     def _truncate_messages(
         messages: List[Dict[str, str]], max_chars: int = 12000
     ) -> List[Dict[str, str]]:
+        """Currently system messages are always placed at the beginning of the message list when truncating."""
         system_messages = [message for message in messages if message.get("role") == "system"]
         other_messages = [message for message in messages if message.get("role") != "system"]
         result = [dict(message) for message in system_messages]
