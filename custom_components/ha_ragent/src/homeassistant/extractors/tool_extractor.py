@@ -4,25 +4,22 @@ import logging
 from collections.abc import Iterable
 from typing import Any, List, Tuple
 
+import voluptuous as vol
+from voluptuous_openapi import convert
+
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
 from homeassistant.components.intent import async_register_timer_handler
 from homeassistant.components.intent.timers import TIMER_DATA, TimerEventType, TimerInfo
-
-import voluptuous as vol
-from voluptuous_openapi import convert
-
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.llm import LLMContext
 
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-
-from ..ragent_config_entry import RAGentConfigEntry
-from ...models.tool import LlmTool
-from ...const import DOMAIN, RAGENT_TIMER_DEVICE_ID
+from custom_components.ha_ragent.src.const import DOMAIN, RAGENT_TIMER_DEVICE_ID
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
 
 _logger = logging.getLogger(__name__)
 
@@ -232,7 +229,7 @@ class ToolExtractor:
                     embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
 
                     await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)    
-                    tool_embeddings = await self._entry.embedder_backend.async_embed_object(LlmToolEmbedding, dict(subentry.data), exposed_tools)
+                    tool_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), exposed_tools)
 
                     if tool_embeddings:
                         _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")

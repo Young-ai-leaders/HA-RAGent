@@ -4,16 +4,16 @@ import json
 from typing import List, Any
 
 from custom_components.ha_ragent.src.backends.database.faiss_backend import FaissDbBackend
-from .backends.database.base_backend import ABaseDbBackend
-from .backends.database.mongodb_backend import MongoDbBackend
-from .backends.database.chromadb_backend import ChromaDbBackend
-from .backends.embedder.base_backend import ABaseEmbedder
-from .backends.embedder.ollama_backend import OllamaEmbedder
-from .backends.embedder.openai_backend import OpenAiEmbedder
-from .backends.llm.base_backend import ALlmBaseBackend
-from .backends.llm.ollama_backend import OllamaLlmBackend
-from .backends.llm.openai_backend import OpenAiLlmBackend
-from .const import (
+from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
+from custom_components.ha_ragent.src.backends.database.mongodb_backend import MongoDbBackend
+from custom_components.ha_ragent.src.backends.database.chromadb_backend import ChromaDbBackend
+from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
+from custom_components.ha_ragent.src.backends.embedder.ollama_backend import OllamaEmbedder
+from custom_components.ha_ragent.src.backends.embedder.openai_backend import OpenAiEmbedder
+from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
+from custom_components.ha_ragent.src.backends.llm.ollama_backend import OllamaLlmBackend
+from custom_components.ha_ragent.src.backends.llm.openai_backend import OpenAiLlmBackend
+from custom_components.ha_ragent.src.const import (
     BACKEND_VECTOR_DB_TYPE_FAISS,
     BACKEND_VECTOR_DB_TYPE_MONGODB, 
     BACKEND_VECTOR_DB_TYPE_CHROMA,

@@ -8,17 +8,18 @@ from openai import AsyncOpenAI, InternalServerError
 try:
     from homeassistant.core import HomeAssistant
 except ImportError:
-    from custom_components.ha_ragent.src.backends.homeassistant_mock import MockHomeAssistant as HomeAssistant
+    from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant as HomeAssistant
 
-    from custom_components.ha_ragent.src.const import (
+from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_API_KEY,
     CONF_EMBEDDING_HOST,
     CONF_EMBEDDING_PORT,
     CONF_EMBEDDING_SSL,
     CONF_EMBEDDING_MODEL,
-    RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS
+    RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS,
+    RAGENT_EMBEDDING_TRUNCATE_RETRIES,
+    RAGENT_EMBEDDING_BATCH_SIZE
 )
-from custom_components.ha_ragent.src.const import RAGENT_EMBEDDING_BATCH_SIZE, RAGENT_EMBEDDING_TRUNCATE_RETRIES
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.models.device import Device
@@ -32,10 +33,18 @@ class OpenAiEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
         self._openai_url = ABaseEmbedder.format_url(**self._url_base, path="/v1")
-        self._client = AsyncOpenAI(
-            base_url=self._openai_url,
-            api_key=self._api_key or "not-needed",
-        )
+        self._client: AsyncOpenAI | None = None
+
+    async def _async_get_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = await self._hass.async_add_executor_job(
+                partial(
+                    AsyncOpenAI,
+                    base_url=self._openai_url,
+                    api_key=self._api_key or "not-needed",
+                )
+            )
+        return self._client
     
     @staticmethod
     def get_name() -> str:
@@ -78,7 +87,8 @@ class OpenAiEmbedder(ABaseEmbedder):
 
     async def async_get_model_info(self, model_name: str) -> ModelInfo:
         try:
-            models = await self._client.models.list()
+            client = await self._async_get_client()
+            models = await client.models.list()
             model = next((m for m in models.data if m.id == model_name), None)
 
             if not model:
@@ -105,7 +115,8 @@ class OpenAiEmbedder(ABaseEmbedder):
         _logger.info("Unloading not supported for OpenAI Compatible Embedder backend.")
 
     async def async_get_available_models(self) -> List[str]:
-        result = await self._client.models.list()
+        client = await self._async_get_client()
+        result = await client.models.list()
         return [model.id for model in result.data if model.id]
 
     async def _async_embed_batch(self, config_subentry: dict, inputs: List[str]) -> List[List[float]]:
@@ -114,10 +125,11 @@ class OpenAiEmbedder(ABaseEmbedder):
         
         max_chars = RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS
 
+        client = await self._async_get_client()
         for attempt in range(RAGENT_EMBEDDING_TRUNCATE_RETRIES + 1):
             request_inputs = self._truncate_inputs(inputs, max_chars) if attempt else inputs
             try:
-                response = await self._client.embeddings.create(
+                response = await client.embeddings.create(
                     model=config_subentry[CONF_EMBEDDING_MODEL],
                     input=request_inputs,
                     encoding_format="float",

@@ -1,7 +1,7 @@
 import json
 from typing import Any, List, Dict
 
-from .tool import LlmTool
+from custom_components.ha_ragent.src.models.tool import LlmTool
 
 class LlmToolEmbedding:
     def __init__(self, tool: LlmTool, vector_embedding: List[float]) -> None:

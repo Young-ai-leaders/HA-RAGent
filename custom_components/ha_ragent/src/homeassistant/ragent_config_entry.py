@@ -1,8 +1,8 @@
 from homeassistant.config_entries import ConfigEntry
 
-from ..backends.database.base_backend import ABaseDbBackend
-from ..backends.embedder.base_backend import ABaseEmbedder
-from ..backends.llm.base_backend import ALlmBaseBackend
+from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
+from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
+from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 
 class RAGentConfigEntry(ConfigEntry):
     """RAGent Config Entry"""

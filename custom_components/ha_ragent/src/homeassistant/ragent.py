@@ -25,13 +25,12 @@ from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedd
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 
-from .ragent_entity import RAGentEntity
-from .ragent_config_entry import RAGentConfigEntry
-from .search_tool_api import augment_api_with_search_tool
-from ..models.device import Device
-from ..const import RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
+from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
+from custom_components.ha_ragent.src.homeassistant.search_tool_api import augment_api_with_search_tool
+from custom_components.ha_ragent.src.models.device import Device
 
-from ..const import (
+from custom_components.ha_ragent.src.const import (
     CONF_NUM_DEVICES_TO_EXTRACT,
     CONF_NUM_TOOLS_TO_EXTRACT,
     CONF_PROMPT,
@@ -52,10 +51,11 @@ from ..const import (
     CONVERSATION_PRIORITY_PROMPT,
     USER_INSTRUCTION,
     DEVICE_CONTROL_PROMPT,
-    TOOL_REGEX_PATTERN
+    TOOL_REGEX_PATTERN,
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 )
 
-from ..utils import (
+from custom_components.ha_ragent.src.utils import (
     get_placeholder_translation,
     clean_device_attributes
 )

@@ -1,6 +1,6 @@
 from typing import Any, List, Dict
 
-from .device import Device
+from custom_components.ha_ragent.src.models.device import Device
 
 class DeviceEmbedding:
     def __init__(self, device: Device, vector_embedding: List[float]) -> None:

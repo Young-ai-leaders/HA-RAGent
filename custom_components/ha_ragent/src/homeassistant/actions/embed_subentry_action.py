@@ -13,7 +13,6 @@ from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RA
 
 _logger = logging.getLogger(__name__)
 
-
 async def _handle_embed_subentry(hass: HomeAssistant, call: ServiceCall) -> None:
     entity_reg = entity_registry.async_get(hass)
     target_selector = target.TargetSelection(call.data)
@@ -47,7 +46,6 @@ async def _handle_embed_subentry(hass: HomeAssistant, call: ServiceCall) -> None
             tool_extractor.async_embed_all_exposed_tools([entry.config_subentry_id]),
             device_extractor.async_embed_all_exposed_devices([entry.config_subentry_id]),
         )
-
 
 def register_embed_subentry_action(hass: HomeAssistant) -> None:
     hass.services.async_register(

@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator, Dict, List
 try:
     from homeassistant.core import HomeAssistant
 except ImportError:
-    from custom_components.ha_ragent.src.backends.homeassistant_mock import MockHomeAssistant as HomeAssistant
+    from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant as HomeAssistant
 
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.const import (
@@ -31,10 +31,18 @@ class OpenAiLlmBackend(ALlmBaseBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
         self._openai_url = ALlmBaseBackend.format_url(**self._url_base, path="/v1")
-        self._client = AsyncOpenAI(
-            base_url=self._openai_url,
-            api_key=self._api_key or "not-needed",
-        )
+        self._client: AsyncOpenAI | None = None
+
+    async def _async_get_client(self) -> AsyncOpenAI:
+        if self._client is None:
+            self._client = await self._hass.async_add_executor_job(
+                partial(
+                    AsyncOpenAI,
+                    base_url=self._openai_url,
+                    api_key=self._api_key or "not-needed",
+                )
+            )
+        return self._client
 
     @staticmethod
     def get_name() -> str:
@@ -93,7 +101,8 @@ class OpenAiLlmBackend(ALlmBaseBackend):
 
     async def async_get_model_info(self, model_name: str) -> ModelInfo:
         try:
-            models = await self._client.models.list()
+            client = await self._async_get_client()
+            models = await client.models.list()
             model = next((m for m in models.data if m.id == model_name), None)
 
             if not model:
@@ -120,7 +129,8 @@ class OpenAiLlmBackend(ALlmBaseBackend):
         _logger.info("Unloading not supported for OpenAI Compatible LLM backend.")
 
     async def async_get_available_models(self) -> List[str]:
-        result = await self._client.models.list()
+        client = await self._async_get_client()
+        result = await client.models.list()
         return [model.id for model in result.data if model.id]
 
     async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
@@ -149,6 +159,7 @@ class OpenAiLlmBackend(ALlmBaseBackend):
             _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request")
 
         try:
+            client = await self._async_get_client()
             max_chars = RAGENT_CHAT_TRUNCATE_MAX_CHARS
             for attempt in range(RAGENT_CHAT_TRUNCATE_RETRIES + 1):
                 request["messages"] = (
@@ -158,7 +169,7 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                 )
                 pending_tool_calls: Dict[int, Dict[str, str]] = {}
                 try:
-                    stream = await self._client.chat.completions.create(**request)
+                    stream = await client.chat.completions.create(**request)
 
                     async for chunk in stream:
                         for choice in chunk.choices:

@@ -23,7 +23,7 @@ from homeassistant.helpers.selector import (
     BooleanSelectorConfig,
 )
 
-from ..const import (
+from custom_components.ha_ragent.src.const import (
     BACKEND_VECTOR_DB_TYPE_FAISS,
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
     CONF_NUM_TOOLS_TO_EXTRACT,
@@ -98,11 +98,11 @@ from ..const import (
     SELECTED_LANGUAGE_OPTIONS,
 )
 
-from ..utils import (
+from custom_components.ha_ragent.src.utils import (
     get_value
 )
 
-from .ragent import RAGent
+from custom_components.ha_ragent.src.homeassistant.ragent import RAGent
 
 _logger = logging.getLogger(__name__)
 
@@ -382,6 +382,9 @@ def ui_schema_config_options(
             default=DEFAULT_NUM_TOOLS_TO_EXTRACT,
         ): int,
     }
+
+    if llm_backend_type == BACKEND_LLM_TYPE_OPENAI_COMPATIBLE:
+        result.pop(CONF_CONTEXT_LENGTH, None)
 
     global_order = [
         # general
