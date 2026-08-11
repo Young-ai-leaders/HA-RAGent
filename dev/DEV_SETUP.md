@@ -24,3 +24,10 @@
 5. Go to the "Settings/Devices & services" and click on "Add integration"
 6. Select "Virtual Components" and click "Submit" and then "Skip and finish"
 7. Go to the "dev/devices" folder and execute ```pip3 install -r requirements.txt``` and ```python3 assign_rooms.py``` ([creating long lived access tokens](https://community.home-assistant.io/t/how-to-get-long-lived-access-token/162159/4))
+
+### 4. Download ollama models
+1. In order to allow for proper test execution download the following models:
+```sh
+ollama pull all-minilm:33m
+ollama pull qwen3.5:0.8b 
+```

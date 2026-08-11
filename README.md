@@ -1,4 +1,4 @@
-<img src="https://raw.github.com/Young-ai-leaders/HA-RAGent/main/custom_components/ha_ragent/brand/logo.png" alt="HA-RAGent logo" title="HA-RAGent" align="right" height="80" />
+<img src="https://raw.github.com/youngaileaderslinz/HA-RAGent/main/custom_components/ha_ragent/brand/logo.png" alt="HA-RAGent logo" title="HA-RAGent" align="right" height="80" />
 
 # HA-RAGent (Home Assistant Retrieval‑Augmented‑Generation Agent)
 HA‑RAGent is a custom component that wraps an LLM and a vector database to let you talk to your smart home. Instead of hard‑coding every possible command, the agent embeds your question, looks up the most relevant devices, and then either replies in natural language or emits “tool calls” that turn into real service calls inside Home Assistant.
@@ -14,7 +14,7 @@ If HACS is installed on your system use this link to directly go to the install 
 
 ### Manual
 
-To install this integration manually you have to download the repository [HA-RAGent.zip](https://github.com/Young-ai-leaders/HA-RAGent/archive/refs/heads/main.zip) and extract its contents to `config/custom_components/ha_ragent` directory.
+To install this integration manually you have to download the repository [HA-RAGent.zip](https://github.com/youngaileaderslinz/HA-RAGent/archive/refs/heads/main.zip) and extract its contents to `config/custom_components/ha_ragent` directory.
 
 ## Configuration
 
@@ -121,4 +121,4 @@ Open an issue and I’ll take a look. ([open issue](https://github.com/youngaile
 Send a pull request (or drop a quick issue first so we can chat about it).
 
 **How to start?** <br>
-Setup development environment ([see more](https://github.com/Young-ai-leaders/HA-RAGent/blob/main/dev/DEV_SETUP.md))
+Setup development environment ([see more](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/dev/DEV_SETUP.md))

@@ -1,16 +1,13 @@
 import logging
 from collections.abc import Iterable
 
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-
-from ...models.device import Device
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry, label_registry, llm
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
-from ..ragent_config_entry import RAGentConfigEntry
-from ...const import DOMAIN
+from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
 
 _logger = logging.getLogger(__name__)
 
@@ -119,7 +116,7 @@ class DeviceExtractor:
                     
                     await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)                    
                     device_list = await self._async_get_embeddable_devices(exposed_entities)
-                    device_embeddings = await self._entry.embedder_backend.async_embed_object(DeviceEmbedding, dict(subentry.data), device_list)
+                    device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
 
                     if device_embeddings:
                         _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")

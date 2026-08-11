@@ -10,10 +10,7 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_LLM_API_NAME,
 )
 
-from .tools.search_tools import (
-    RAGentSemanticSearchTool,
-)
-
+from custom_components.ha_ragent.src.homeassistant.tools.search_tools import RAGentSemanticSearchTool
 
 class RAGentSearchAugmentedAPIInstance(llm.APIInstance):
     """Wrap an existing HA LLM API instance and append the RAGent search tool."""

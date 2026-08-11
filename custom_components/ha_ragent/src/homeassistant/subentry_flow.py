@@ -10,11 +10,11 @@ from homeassistant.config_entries import (
     SubentryFlowResult
 )
 
-from .ragent_config_entry import RAGentConfigEntry
-from ..backends.embedder.base_backend import ABaseEmbedder
-from ..backends.llm.base_backend import ALlmBaseBackend
+from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
+from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
+from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 
-from ..const import (
+from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
     CONF_LLM_BACKEND_TYPE,
@@ -34,16 +34,16 @@ from ..const import (
     DEFAULT_PROMPT,
 )
 
-from ..utils import (
+from custom_components.ha_ragent.src.utils import (
     try_parse_int
 )
 
-from .ui_schemas import (
+from custom_components.ha_ragent.src.homeassistant.ui_schemas import (
     ui_schema_pick_models,
     ui_schema_config_options
 )
 
-from .ragent import RAGent
+from custom_components.ha_ragent.src.homeassistant.ragent import RAGent
 
 _logger = logging.getLogger(__name__)
 

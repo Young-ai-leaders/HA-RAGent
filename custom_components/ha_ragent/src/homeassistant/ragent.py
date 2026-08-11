@@ -25,13 +25,12 @@ from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedd
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 
-from .ragent_entity import RAGentEntity
-from .ragent_config_entry import RAGentConfigEntry
-from .search_tool_api import augment_api_with_search_tool
-from ..models.device import Device
-from ..const import RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
+from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
+from custom_components.ha_ragent.src.homeassistant.search_tool_api import augment_api_with_search_tool
+from custom_components.ha_ragent.src.models.device import Device
 
-from ..const import (
+from custom_components.ha_ragent.src.const import (
     CONF_NUM_DEVICES_TO_EXTRACT,
     CONF_NUM_TOOLS_TO_EXTRACT,
     CONF_PROMPT,
@@ -50,12 +49,13 @@ from ..const import (
     DEVICES_PROMPT,
     AREAS_PROMPT,
     CONVERSATION_PRIORITY_PROMPT,
-    USER_INSTRUCTION,
+    MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
-    TOOL_REGEX_PATTERN
+    TOOL_REGEX_PATTERN,
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 )
 
-from ..utils import (
+from custom_components.ha_ragent.src.utils import (
     get_placeholder_translation,
     clean_device_attributes
 )
@@ -268,6 +268,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 "area_list": list(set(device.area_name for device in devices if device.area_name)),
                 "area_name": area.name if area else None,
                 "floor_name": floor.name if floor else None,
+                "max_retries": self.runtime_options.get(CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS),
             })
             return rendered
         except TemplateError as e:
@@ -277,8 +278,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
     async def _async_get_message_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, devices: List[Device], area: ar.AreaEntry, floor: fr.FloorEntry) -> List[conversation.Content]:
         """Build the prompt for the LLM, including retrieved device context."""
         raw_prompt = self.runtime_options.get(CONF_PROMPT, DEFAULT_PROMPT)
-        remember_time_minutes = self.runtime_options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES)
-        remember_num_interactions = self.runtime_options.get(CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS, DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS)
 
         try:
             system_prompt_content = await self._async_render_template(raw_prompt, devices, area, floor)
@@ -628,13 +627,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
     @staticmethod
     def build_base_prompt_template(selected_language: str, prompt_template: str):
         """Build base prompt template from constants in specified language."""
-        prompt_template = prompt_template.replace("<persona>", get_placeholder_translation(PERSONA_PROMPTS, selected_language))
-        prompt_template = prompt_template.replace("<current_date>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<persona_prompt>", get_placeholder_translation(PERSONA_PROMPTS, selected_language))
+        prompt_template = prompt_template.replace("<current_date_prompt>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<devices>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<areas>", get_placeholder_translation(AREAS_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<devices_prompt>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<max_retries_prompt>", get_placeholder_translation(MAX_RETRIES_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<conversation_priority_prompt>", get_placeholder_translation(CONVERSATION_PRIORITY_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<user_instruction>", get_placeholder_translation(USER_INSTRUCTION, selected_language))
         
         return prompt_template

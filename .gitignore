@@ -203,3 +203,5 @@ __marimo__/
 .streamlit/secrets.toml
 
 dev/containers/
+
+.vscode/

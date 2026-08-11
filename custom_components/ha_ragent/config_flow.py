@@ -157,9 +157,9 @@ class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
         embedding_backend = self.client_config[CONF_EMBEDDING_BACKEND_TYPE]
         llm_backend = self.client_config[CONF_LLM_BACKEND_TYPE]
 
-        title = vector_db_to_class(vector_db_backend).get_name(self.client_config)
-        title += " | " + embedding_backend_to_class(embedding_backend).get_name(self.client_config)
-        title += " | " + llm_backend_to_class(llm_backend).get_name(self.client_config)
+        title = vector_db_to_class(vector_db_backend).get_name()
+        title += " | " + embedding_backend_to_class(embedding_backend).get_name()
+        title += " | " + llm_backend_to_class(llm_backend).get_name()
         title += " | Language: " + self.client_config.get(CONF_SELECTED_LANGUAGE, "en") 
         _logger.debug(f"Creating provider with config: {self.client_config}")
 

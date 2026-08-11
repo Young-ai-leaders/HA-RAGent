@@ -27,8 +27,12 @@ class RAGentSemanticSearchTool(llm.Tool):
 
     name = RAGENT_SEMANTIC_SEARCH_TOOL_NAME
     description = (
-        "Search Home Assistant devices and tools using semantic similarity. "
-        "Use this when you need to resolve fuzzy device references or find matching tool capabilities from a natural-language query."
+        "Resolve Home Assistant targets with semantic search. "
+        "Use when the request contains a fuzzy name, natural-language reference, area, typo, category, "
+        "or may match multiple devices. "
+        "Use `devices` for entities, `tools` for capabilities, or `both` when needed. "
+        "Do not guess when search can resolve the target. "
+        "Describe the intended target and action briefly."
     )
     parameters = vol.Schema(
         {

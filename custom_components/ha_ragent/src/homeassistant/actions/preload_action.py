@@ -10,7 +10,6 @@ from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RA
 
 _logger = logging.getLogger(__name__)
 
-
 async def _handle_preload_models(hass: HomeAssistant, call: ServiceCall) -> None:
     entity_reg = entity_registry.async_get(hass)
     target_selector = target.TargetSelection(call.data)
