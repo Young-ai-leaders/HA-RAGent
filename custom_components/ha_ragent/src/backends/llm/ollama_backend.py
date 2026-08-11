@@ -1,29 +1,34 @@
 import asyncio
-import aiohttp
 import json
 import logging
 from typing import Any, Dict, List, AsyncGenerator
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+try:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+except ImportError:
+    from custom_components.ha_ragent.src.backends.homeassistant_mock import (
+        MockHomeAssistant as HomeAssistant,
+        async_get_clientsession,
+    )
 
-from custom_components.ha_ragent.src.models.tool import LlmTool
-
-from .base_backend import ALlmBaseBackend
-from ...const import (
+from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
+from custom_components.ha_ragent.src.const import (
     CONF_CONTEXT_LENGTH,
     CONF_ENABLE_MODEL_THINKING,
-    CONF_LLM_MODEL,
     CONF_LLM_HOST,
+    CONF_LLM_MODEL,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
-    CONF_TEMPERATURE,
     CONF_MAX_TOKENS,
+    CONF_TEMPERATURE,
 )
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.model_info import ModelInfo
 
 _logger = logging.getLogger(__name__)
 
-class OllamaBackend(ALlmBaseBackend):
+class OllamaLlmBackend(ALlmBaseBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
         self._tags_url = ALlmBaseBackend.format_url(**self._url_base, path="/api/tags")
@@ -52,8 +57,8 @@ class OllamaBackend(ALlmBaseBackend):
         except Exception as ex:
             return str(ex)
         
-    async def async_get_model_info(self, model_name: str) -> Dict[str, Any]:
-        session = async_get_clientsession(self.hass)
+    async def async_get_model_info(self, model_name: str) -> ModelInfo:
+        session = async_get_clientsession(self._hass)
         async with session.post(
             self._info_url,
             json={"model": model_name},
@@ -63,14 +68,15 @@ class OllamaBackend(ALlmBaseBackend):
             model_result = await response.json()
 
         capabilities = model_result.get("capabilities", [])
-        is_tool = "tools" in capabilities
-        is_embedding = "embedding" in capabilities
+        is_tool_model = "tools" in capabilities
+        is_embedding_model = "embedding" in capabilities
 
-        return {
-            "name": model_name,
-            "supports_tools": is_tool,
-            "is_embedding": is_embedding
-        }
+        return ModelInfo(
+            name=model_name,
+            context_size=None,
+            is_tool_model=is_tool_model,
+            is_embedding_model=is_embedding_model
+        )
     
     async def async_preload_model(self, config_subentry: dict) -> None:
         async for _ in self.async_send_chat_request(config_subentry, [{"role": "system", "content": "Preloading model with a test embedding request."}], [], keep_alive=-1):
@@ -81,7 +87,7 @@ class OllamaBackend(ALlmBaseBackend):
             pass
     
     async def async_get_available_models(self) -> List[str]:
-        session = async_get_clientsession(self.hass)
+        session = async_get_clientsession(self._hass)
         async with session.get(
             self._tags_url,
             timeout=ALlmBaseBackend._default_timeout
@@ -91,19 +97,20 @@ class OllamaBackend(ALlmBaseBackend):
 
         names = [x["name"] for x in models_result.get("models", [])]
         infos = await asyncio.gather(*(self.async_get_model_info(name) for name in names), return_exceptions=True)
+
+        print(f"Available models: {infos}")
         available = []
         for info in infos:
             if isinstance(info, Exception):
                 continue
-            if info.get("supports_tools", True):
-                available.append(info["name"])
+            if info.is_tool_model:
+                available.append(info.name)
 
         return available
     
-
     async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
-        session = async_get_clientsession(self.hass)
+        session = async_get_clientsession(self._hass)
 
         payload = {
             "model": config_subentry[CONF_LLM_MODEL],

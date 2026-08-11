@@ -1,16 +1,16 @@
+from functools import partial
 import json
 import logging
-from functools import partial
+from openai import AsyncOpenAI, BadRequestError
 from typing import Any, AsyncGenerator, Dict, List
 
-from openai import AsyncOpenAI
+try:
+    from homeassistant.core import HomeAssistant
+except ImportError:
+    from custom_components.ha_ragent.src.backends.homeassistant_mock import MockHomeAssistant as HomeAssistant
 
-from homeassistant.core import HomeAssistant
-
-from custom_components.ha_ragent.src.models.tool import LlmTool
-
-from .base_backend import ALlmBaseBackend
-from ...const import (
+from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
+from custom_components.ha_ragent.src.const import (
     CONF_ENABLE_MODEL_THINKING,
     CONF_LLM_API_KEY,
     CONF_LLM_HOST,
@@ -20,22 +20,50 @@ from ...const import (
     CONF_MAX_TOKENS,
     CONF_TEMPERATURE,
 )
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.model_info import ModelInfo
 
 _logger = logging.getLogger(__name__)
 
-class OpenAICompatibleBackend(ALlmBaseBackend):
+class OpenAiLlmBackend(ALlmBaseBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         super().__init__(hass, client_options)
         self._openai_url = ALlmBaseBackend.format_url(**self._url_base, path="/v1")
+        self._client = AsyncOpenAI(
+            base_url=self._openai_url,
+            api_key=self._api_key or "not-needed",
+        )
 
     @staticmethod
     def get_name() -> str:
         return f"{ALlmBaseBackend.get_name()}: OpenAI API"
 
     @staticmethod
-    async def async_validate_connection(
-        hass: HomeAssistant, user_input: Dict[str, Any]
-    ) -> str | None:
+    def _is_context_length_error(error: Exception) -> bool:
+        return isinstance(error, BadRequestError) and error.status_code == 400 and error.type == "exceed_context_size_error"
+
+    @staticmethod
+    def _truncate_messages(
+        messages: List[Dict[str, str]], max_chars: int = 12000
+    ) -> List[Dict[str, str]]:
+        system_messages = [message for message in messages if message.get("role") == "system"]
+        other_messages = [message for message in messages if message.get("role") != "system"]
+        result = [dict(message) for message in system_messages]
+        remaining = max_chars - sum(len(message.get("content", "")) for message in result)
+
+        for message in reversed(other_messages):
+            if remaining <= 0:
+                break
+            content = message.get("content", "")
+            if len(content) > remaining:
+                content = content[-remaining:]
+            result.insert(len(system_messages), {**message, "content": content})
+            remaining -= len(content)
+
+        return result
+
+    @staticmethod
+    async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
         client = None
         try:
             base_url = ALlmBaseBackend.format_url(
@@ -44,7 +72,7 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
                 ssl=user_input.get(CONF_LLM_SSL),
                 path="/v1",
             )
-            api_key = str(user_input.get(CONF_LLM_API_KEY, "") or "").strip()
+            api_key = ALlmBaseBackend.normalize_api_key(user_input.get(CONF_LLM_API_KEY))
             client = await hass.async_add_executor_job(
                 partial(
                     AsyncOpenAI,
@@ -60,23 +88,27 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
             if client:
                 await client.close()
 
-    async def _async_create_client(self) -> AsyncOpenAI:
-        return await self.hass.async_add_executor_job(
-            partial(
-                AsyncOpenAI,
-                base_url=self._openai_url,
-                api_key=self._api_key or "not-needed",
-            )
-        )
-
-    async def async_get_model_info(self, model_name: str) -> Dict[str, Any]:
-        client = await self._async_create_client()
-
+    async def async_get_model_info(self, model_name: str) -> ModelInfo:
         try:
-            model = await client.models.retrieve(model_name)
-            return model.model_dump()
-        finally:
-            await client.close()
+            models = await self._client.models.list()
+            model = next((m for m in models.data if m.id == model_name), None)
+
+            if not model:
+                raise ValueError(f"Model not found: {model_name}")
+
+            data = model.model_dump() 
+            meta = data.get("meta") or {}
+            context_size = int(meta.get("n_ctx") or 0) 
+
+            return ModelInfo( 
+                name=model.id, 
+                context_size=context_size, 
+                is_embedding_model=None, 
+                is_tool_model=None
+            )
+        except Exception as ex:
+            _logger.error(f"Error retrieving model info for {model_name}: {ex}", exc_info=True)
+            raise
 
     async def async_preload_model(self, config_subentry: dict) -> None:
         _logger.info("Preloading not supported for OpenAI Compatible LLM backend.")
@@ -85,23 +117,10 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
         _logger.info("Unloading not supported for OpenAI Compatible LLM backend.")
 
     async def async_get_available_models(self) -> List[str]:
-        client = await self._async_create_client()
+        result = await self._client.models.list()
+        return [model.id for model in result.data if model.id]
 
-        try:
-            result = await client.models.list()
-            return [model.id for model in result.data if model.id]
-        finally:
-            await client.close()
-
-    async def async_send_chat_request(
-        self,
-        config_subentry: dict,
-        messages: List[Dict[str, str]],
-        tools: List[LlmTool],
-        **kwargs,
-    ) -> AsyncGenerator[str, None]:
-        client = await self._async_create_client()
-
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         request: Dict[str, Any] = {
             "model": config_subentry[CONF_LLM_MODEL],
             "messages": messages,
@@ -114,9 +133,8 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
             request["tools"] = self.convert_tools_to_model_format(tools)
             request["tool_choice"] = "auto"
 
-            # llama.cpp-specific request fields go through the SDK's
-            # extension body so the OpenAI client still validates standard
-            # Chat Completions fields.
+            # llama.cpp-specific request fields go through the extension body so the 
+            # OpenAI client still validates standard Chat Completions fields.
             request["extra_body"] = {
                 "parse_tool_calls": True,
                 "chat_template_kwargs": {
@@ -128,32 +146,39 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
             _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request")
 
         try:
-            pending_tool_calls: Dict[int, Dict[str, str]] = {}
-            stream = await client.chat.completions.create(**request)
+            context_retry = False
+            while True:
+                pending_tool_calls: Dict[int, Dict[str, str]] = {}
+                try:
+                    stream = await self._client.chat.completions.create(**request)
 
-            async for chunk in stream:
-                for choice in chunk.choices:
-                    delta = choice.delta
+                    async for chunk in stream:
+                        for choice in chunk.choices:
+                            delta = choice.delta
 
-                    if delta.content:
-                        yield delta.content
+                            if delta.content:
+                                yield delta.content
 
-                    reasoning_content = getattr(delta, "reasoning_content", None)
-                    if reasoning_content:
-                        _logger.debug(f"llama.cpp reasoning: {reasoning_content}")
+                            reasoning_content = getattr(delta, "reasoning_content", None)
+                            if reasoning_content:
+                                _logger.debug(f"llama.cpp reasoning: {reasoning_content}")
 
-                    for tool_call in delta.tool_calls or []:
-                        index = tool_call.index or 0
-                        function = tool_call.function
-                        pending = pending_tool_calls.setdefault(
-                            index,
-                            {"name": "", "arguments": ""},
-                        )
+                            for tool_call in delta.tool_calls or []:
+                                index = tool_call.index or 0
+                                function = tool_call.function
+                                pending = pending_tool_calls.setdefault(index, {"name": "", "arguments": ""})
 
-                        if function and function.name:
-                            pending["name"] = function.name
-                        if function and function.arguments:
-                            pending["arguments"] += function.arguments
+                                if function and function.name:
+                                    pending["name"] = function.name
+                                if function and function.arguments:
+                                    pending["arguments"] += function.arguments
+                    break
+                except Exception as err:
+                    if context_retry or not self._is_context_length_error(err):
+                        raise
+                    context_retry = True
+                    request["messages"] = self._truncate_messages(request["messages"])
+                    _logger.warning("LLM context size overflow detected. Retrying with truncated messages.")
 
             # Tool-call arguments are often split across many SSE chunks.
             # Emit only after the complete JSON document has been assembled.
@@ -161,24 +186,17 @@ class OpenAICompatibleBackend(ALlmBaseBackend):
                 if not pending["name"]:
                     continue
 
-                try:
-                    arguments = json.loads(pending["arguments"] or "{}")
-                except json.JSONDecodeError:
-                    _logger.warning(f"Could not decode complete tool-call arguments for {pending['name']}: {pending['arguments']}")
-                    continue
-
-                tool_json = {
+                tool_dict = {
                     "tool": pending["name"],
-                    "arguments": arguments,
+                    "arguments": pending["arguments"],
                 }
+
                 yield (
                     "\n```homeassistant\n"
-                    f"{json.dumps(tool_json)}"
+                    f"{json.dumps(tool_dict)}"
                     "\n```\n"
                 )
 
         except Exception as err:
             _logger.error(f"Error calling llama.cpp API through OpenAI client: {err}", exc_info=True)
             raise
-        finally:
-            await client.close()

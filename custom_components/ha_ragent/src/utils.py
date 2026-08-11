@@ -11,8 +11,8 @@ from .backends.embedder.base_backend import ABaseEmbedder
 from .backends.embedder.ollama_backend import OllamaEmbedder
 from .backends.embedder.openai_backend import OpenAICompatibleEmbedder
 from .backends.llm.base_backend import ALlmBaseBackend
-from .backends.llm.ollama_backend import OllamaBackend
-from .backends.llm.openai_backend import OpenAICompatibleBackend
+from .backends.llm.ollama_backend import OllamaLlmBackend
+from .backends.llm.openai_backend import OpenAiLlmBackend
 from .const import (
     BACKEND_VECTOR_DB_TYPE_FAISS,
     BACKEND_VECTOR_DB_TYPE_MONGODB, 
@@ -65,8 +65,8 @@ def embedding_backend_to_class(backend_type: str) -> ABaseEmbedder:
 
 def llm_backend_to_class(backend_type: str) -> ALlmBaseBackend:
     backend_to_class = {
-        BACKEND_LLM_TYPE_OLLAMA: OllamaBackend,
-        BACKEND_LLM_TYPE_OPENAI_COMPATIBLE: OpenAICompatibleBackend,
+        BACKEND_LLM_TYPE_OLLAMA: OllamaLlmBackend,
+        BACKEND_LLM_TYPE_OPENAI_COMPATIBLE: OpenAiLlmBackend,
     }
     return backend_to_class.get(backend_type)
 
