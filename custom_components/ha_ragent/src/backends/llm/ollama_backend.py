@@ -133,9 +133,6 @@ class OllamaLlmBackend(ALlmBaseBackend):
         try:
             async with session.post(self._chat_url, json=payload, timeout=ALlmBaseBackend._chat_timeout) as response:
                 response.raise_for_status()
-                content_received = False
-                tool_calls_received = False
-                thinking_length = 0
                 async for line in response.content:
                     if not line:
                         continue
@@ -146,17 +143,11 @@ class OllamaLlmBackend(ALlmBaseBackend):
                         if "message" in data and "content" in data["message"]:
                             content = data["message"]["content"]
                             if content:
-                                content_received = True
                                 yield content
-
-                        thinking = data.get("message", {}).get("thinking", "")
-                        if thinking:
-                            thinking_length += len(thinking)
                         
                         if "message" in data and "tool_calls" in data["message"]:
                             tool_calls = data["message"]["tool_calls"]
                             if tool_calls:
-                                tool_calls_received = True
                                 _logger.debug("Received %d tool calls from Ollama", len(tool_calls))
                                 for tc in tool_calls:
                                     if "function" in tc:
@@ -166,14 +157,6 @@ class OllamaLlmBackend(ALlmBaseBackend):
                                             "arguments": func.get("arguments", {})
                                         }
                                         yield f"\n```homeassistant\n{json.dumps(tool_json)}\n```\n"
-
-                        if data.get("done"):
-                            done_reason = data.get("done_reason", "unknown")
-                            _logger.debug(f"Ollama generation finished: reason={done_reason}, prompt_tokens={data.get('prompt_eval_count')}, generated_tokens={data.get('eval_count')}, thinking_characters={thinking_length}")
-                            if done_reason == "length":
-                                _logger.warning("Ollama stopped because the configured maximum output token count was reached")
-                            if not content_received and not tool_calls_received:
-                                _logger.warning(f"Ollama returned no response content or tool calls (reason={done_reason}, thinking_characters={thinking_length}).")
 
                     except json.JSONDecodeError:
                         _logger.debug("Failed to parse Ollama response: %s", line)
