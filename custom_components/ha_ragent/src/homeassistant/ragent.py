@@ -149,6 +149,16 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 continue
 
             if isinstance(msg, conversation.ToolResultContent):
+                if msg.tool_name == RAGENT_SEMANTIC_SEARCH_TOOL_NAME:
+                    prompt_history.append(
+                        conversation.ToolResultContent(
+                            agent_id=msg.agent_id,
+                            tool_call_id=msg.tool_call_id,
+                            tool_name=msg.tool_name,
+                            tool_result={"success": True},
+                        )
+                    )
+                    continue
                 prompt_history.append(msg)
                 continue
 
