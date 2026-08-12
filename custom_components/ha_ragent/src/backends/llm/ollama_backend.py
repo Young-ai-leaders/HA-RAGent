@@ -114,9 +114,11 @@ class OllamaLlmBackend(ALlmBaseBackend):
             "model": config_subentry[CONF_LLM_MODEL],
             "stream": True,
             "think": config_subentry[CONF_ENABLE_MODEL_THINKING],
-            "temperature": config_subentry[CONF_TEMPERATURE],
-            "num_ctx": config_subentry[CONF_CONTEXT_LENGTH],
-            "num_predict": config_subentry[CONF_MAX_TOKENS],
+            "options": {
+                "temperature": config_subentry[CONF_TEMPERATURE],
+                "num_ctx": config_subentry[CONF_CONTEXT_LENGTH],
+                "num_predict": config_subentry[CONF_MAX_TOKENS],
+            },
         }
         
         if "keep_alive" in kwargs:

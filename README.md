@@ -5,21 +5,24 @@ HA‑RAGent is a custom component that wraps an LLM and a vector database to let
 
 This is particularly useful on self‑hosted installs, where you deliberately keep the model’s prompt window small to keep responses snappy. As soon as you move past a dozen or so entities, a plain conversation agent has to dump the entire device list into every prompt. A large or growing device set quickly blows out the context window and drags performance. Additionally, smaller models struggle even more, getting confused by the noise and sometimes emitting seemingly random tool calls.
 
+## Disclaimers
+### Default System Prompt
+Changes to the default system prompt apply only to newly created RAGent entries. Existing entries retain the prompt saved in their configuration. To use the latest default prompt with an existing entry, copy it into the entry’s **System Prompt** field and save the configuration or recreate the entry.
+
+### OpenAI-Compatible Backends
+OpenAI-compatible backends have currently been tested only with llamaccp. Compatibility with other providers is not guaranteed, so test the selected backend thoroughly before using it in production.
+
 ## Installation
 ### HACS (recommended)
-
 If HACS is installed on your system use this link to directly go to the install page:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=youngaileaderslinz&repository=HA-RAGent)
 
 ### Manual
-
 To install this integration manually you have to download the repository [HA-RAGent.zip](https://github.com/youngaileaderslinz/HA-RAGent/archive/refs/heads/main.zip) and extract its contents to `config/custom_components/ha_ragent` directory.
 
 ## Configuration
-
 ### Using UI
-
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ha_ragent)
 
 From the Home Assistant front page go to `Configuration` and then select `Devices & Services` from the list.
@@ -101,7 +104,6 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - Controls how long the assistant will retain conversation history in minutes.
 
 ## Services
-
 HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:
 
 - `ha_ragent.embed_subentry`

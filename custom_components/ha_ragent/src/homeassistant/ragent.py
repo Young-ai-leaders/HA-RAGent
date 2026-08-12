@@ -43,12 +43,12 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
+    FOLLOW_UP_MARKER,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
     DEVICES_PROMPT,
     AREAS_PROMPT,
-    CONVERSATION_PRIORITY_PROMPT,
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
     TOOL_REGEX_PATTERN,
@@ -143,7 +143,22 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 prompt_history.append(msg)
                 continue
 
+            if isinstance(msg, conversation.AssistantContent):
+                if msg.tool_calls:
+                    prompt_history.append(msg)
+                continue
+
             if isinstance(msg, conversation.ToolResultContent):
+                if msg.tool_name == RAGENT_SEMANTIC_SEARCH_TOOL_NAME:
+                    prompt_history.append(
+                        conversation.ToolResultContent(
+                            agent_id=msg.agent_id,
+                            tool_call_id=msg.tool_call_id,
+                            tool_name=msg.tool_name,
+                            tool_result={"success": True},
+                        )
+                    )
+                    continue
                 prompt_history.append(msg)
                 continue
 
@@ -308,6 +323,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     
                     parameters = tool_json.get("arguments", {})
 
+                    if isinstance(parameters, str):
+                        parameters = json.loads(parameters)
+
+                    if not isinstance(parameters, dict):
+                        _logger.warning("Invalid tool arguments: %r", parameters)
+                        continue
+
                     if "name" in parameters and "." in parameters["name"]:
                         state = self.hass.states.get(parameters["name"])
                         parameters["name"] = state.attributes.get("friendly_name") if state else parameters["name"]
@@ -330,7 +352,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 _logger.warning(f"Failed to parse homeassistant block JSON: {e}")
 
         return parsed_calls
-    
+
     def _parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""
         if not isinstance(tool_result, dict):
@@ -532,9 +554,20 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_card(title="Changes", content=f"Ran the following tools:\n{tools_str}")
 
         has_speech = False
+        continue_conversation = False
         for cur_msg in reversed(message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
-                intent_response.async_set_speech(cur_msg.content)
+                speech = cur_msg.content.strip()
+                has_follow_up_marker = FOLLOW_UP_MARKER in speech
+                if has_follow_up_marker:
+                    speech = speech.replace(f" {FOLLOW_UP_MARKER}", "").replace(FOLLOW_UP_MARKER, "").strip()
+                    if speech.endswith(("?", "？", "؟")):
+                        continue_conversation = True
+                        _logger.error("Detected valid follow-up marker in assistant response.")
+                    else:
+                        _logger.error("Ignored follow-up marker because the assistant response does not end with a question.")
+
+                intent_response.async_set_speech(speech)
                 has_speech = True
                 break
 
@@ -542,7 +575,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_speech("I don't have anything to say right now")
             _logger.debug(message_history)
 
-        return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
+        return ConversationResult(
+            response=intent_response,
+            conversation_id=user_input.conversation_id,
+            continue_conversation=continue_conversation,
+        )
         
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
@@ -631,9 +668,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         prompt_template = prompt_template.replace("<current_date_prompt>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<devices_prompt>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<max_retries_prompt>", get_placeholder_translation(MAX_RETRIES_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<conversation_priority_prompt>", get_placeholder_translation(CONVERSATION_PRIORITY_PROMPT, selected_language))
-        
+
         return prompt_template

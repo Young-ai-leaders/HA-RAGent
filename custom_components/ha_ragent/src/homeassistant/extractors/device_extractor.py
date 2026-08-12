@@ -3,7 +3,7 @@ from collections.abc import Iterable
 
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import area_registry, device_registry, entity_registry, label_registry, llm
+from homeassistant.helpers import area_registry, device_registry, entity_registry, floor_registry, label_registry, llm
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
 from custom_components.ha_ragent.src.models.device import Device
@@ -29,6 +29,7 @@ class DeviceExtractor:
         area_reg = area_registry.async_get(self._hass)
         device_reg = device_registry.async_get(self._hass)
         entity_reg = entity_registry.async_get(self._hass)
+        floor_reg = floor_registry.async_get(self._hass)
         label_reg = label_registry.async_get(self._hass)
         
         devices = []
@@ -42,16 +43,22 @@ class DeviceExtractor:
             domain = entity_id.split(".")[0] if "." in entity_id else "unknown"
 
             area_name = ""
+            floor_name = ""
             entity_entry = entity_reg.async_get(entity_id)
             if entity_entry:
+                area = None
                 if entity_entry.area_id:
                     area = area_reg.async_get_area(entity_entry.area_id)
-                    area_name = area.name if area else ""
                 elif entity_entry.device_id:
                     device = device_reg.async_get(entity_entry.device_id)
                     if device and device.area_id:
                         area = area_reg.async_get_area(device.area_id)
-                        area_name = area.name if area else ""
+
+                if area:
+                    area_name = area.name
+                    if area.floor_id:
+                        floor = floor_reg.async_get_floor(area.floor_id)
+                        floor_name = floor.name if floor else ""
                 
             device_labels = []
             if entity_entry and entity_entry.labels:
@@ -61,8 +68,11 @@ class DeviceExtractor:
                         device_labels.append(label.name)
 
             aliases = []
-            if entity_entry and entity_entry.aliases:
-                aliases = [alias for alias in entity_entry.aliases if isinstance(alias, str)]
+            if entity_entry:
+                aliases = entity_registry.async_get_entity_aliases(self._hass, entity_entry)
+
+            if aliases:
+                friendly_name = aliases[0]
 
             services = await self._async_get_services_for_domain(domain)
 
@@ -70,6 +80,7 @@ class DeviceExtractor:
                 id=entity_id,
                 name=friendly_name,
                 domain=[domain],
+                floor_name=floor_name,
                 area_name=area_name,
                 device_labels=device_labels,
                 aliases=aliases,
