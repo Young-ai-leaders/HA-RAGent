@@ -52,7 +52,6 @@ from custom_components.ha_ragent.src.const import (
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
     TOOL_REGEX_PATTERN,
-    KINDNESS_QUESTION_PATTERNS,
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 )
 
@@ -367,23 +366,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return tool_result
 
-    @staticmethod
-    def _filter_kindness_questions(response: str) -> Tuple[str, bool]:
-        """Remove generic closing questions that should not continue a conversation."""
-        filtered = response.rstrip()
-        removed = False
-
-        while True:
-            previous = filtered
-            for pattern in KINDNESS_QUESTION_PATTERNS:
-                filtered = pattern.sub("", filtered).rstrip()
-
-            if filtered == previous:
-                break
-            removed = True
-
-        return filtered, removed
-
     def _convert_api_tool(self, api_tool: Any, llm_api: llm.APIInstance | None) -> LlmTool | None:
         """Convert a Home Assistant LLM tool into the local tool schema."""
         tool_name = getattr(api_tool, "name", None)
@@ -571,11 +553,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     speech = speech[:-len(FOLLOW_UP_MARKER)].rstrip()
                     _logger.error("Detected follow-up marker in assistant response.")
 
-                speech, removed_kindness_question = self._filter_kindness_questions(speech)
-                has_question = speech.endswith(("?", "？", "؟"))
-                continue_conversation = has_question or (
-                    has_follow_up_marker and not removed_kindness_question
-                )
+                continue_conversation = has_follow_up_marker
 
                 intent_response.async_set_speech(speech)
                 has_speech = True
