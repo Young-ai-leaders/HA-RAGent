@@ -43,12 +43,13 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
+    FOLLOW_UP_INSTRUCTIONS_PROMPT,
+    FOLLOW_UP_MARKER,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
     DEVICES_PROMPT,
     AREAS_PROMPT,
-    CONVERSATION_PRIORITY_PROMPT,
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
     TOOL_REGEX_PATTERN,
@@ -532,9 +533,14 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_card(title="Changes", content=f"Ran the following tools:\n{tools_str}")
 
         has_speech = False
+        continue_conversation = False
         for cur_msg in reversed(message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
-                intent_response.async_set_speech(cur_msg.content)
+                speech = cur_msg.content.strip()
+                continue_conversation = FOLLOW_UP_MARKER in speech
+                speech = speech.replace(FOLLOW_UP_MARKER, "").strip()
+
+                intent_response.async_set_speech(speech)
                 has_speech = True
                 break
 
@@ -542,7 +548,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_speech("I don't have anything to say right now")
             _logger.debug(message_history)
 
-        return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
+        return ConversationResult(
+            response=intent_response,
+            conversation_id=user_input.conversation_id,
+            continue_conversation=continue_conversation,
+        )
         
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
@@ -631,9 +641,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         prompt_template = prompt_template.replace("<current_date_prompt>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<devices_prompt>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<max_retries_prompt>", get_placeholder_translation(MAX_RETRIES_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<conversation_priority_prompt>", get_placeholder_translation(CONVERSATION_PRIORITY_PROMPT, selected_language))
-        
+        prompt_template = prompt_template.replace("<follow_up_instructions_prompt>", get_placeholder_translation(FOLLOW_UP_INSTRUCTIONS_PROMPT, selected_language))
+
         return prompt_template
