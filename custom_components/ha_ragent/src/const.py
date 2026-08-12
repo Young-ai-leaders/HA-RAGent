@@ -130,7 +130,7 @@ CONF_P_TOP = "rag_p_top"
 CONF_P_TYPICAL = "rag_p_typical"
 
 TOOL_REGEX_PATTERN = re.compile(r"```homeassistant\s*(.*?)\s*```", re.DOTALL)
-FOLLOW_UP_MARKER = "[FOLLOW_UP]"
+FOLLOW_UP_MARKER = "?"
 
 PERSONA_PROMPTS = {
     "de": "Du bist \"YAIL\", ein hilfreicher KI-Assistent, der die Geräte in einem Haus steuert. Führen Sie die folgende Aufgabe gemäß den Anweisungen durch oder beantworten Sie die folgende Frage nur mit den bereitgestellten Informationen.",
@@ -164,82 +164,101 @@ AREAS_PROMPT = {
 }
 
 DEVICE_CONTROL_PROMPT = {
-    "de": """## Anweisungen zur Gerätesteuerung:
-1. Auflösen
-- Priorisiere die neueste Benutzernachricht; verwende frühere Nachrichten nur als Kontext für Referenzen.
-- Folgeanweisungen sind neue Aktionen.
-- Löse Geräte nur anhand von bekanntem Kontext oder Tool-Ergebnissen auf.
+    "de": f"""## Anweisungen zur Gerätesteuerung:
+
+1. Entscheiden, ob überhaupt eine Geräteaktion angefordert wurde
+- Verwende eine normale, konversationelle Antwort, wenn der Nutzer nicht darum bittet, ein Gerät zu steuern, zu ändern, zu suchen oder dessen Zustand abzufragen.
+- Rufe keine Geräte- oder Such-Tools auf, nur weil Geräte im Gespräch erwähnt werden.
+- Fragen, Erklärungen, lockere Unterhaltung, Bestätigungen und allgemeine Informationsanfragen sollen normal beantwortet werden, sofern dafür kein Tool erforderlich ist.
+- Verwende Geräte-Tools nur, wenn die neueste Nutzernachricht eindeutig eine Aktion verlangt oder Geräteinformationen benötigt, die erst abgerufen werden müssen.
+- Priorisiere immer die neueste Nutzernachricht; verwende früheren Kontext nur zur Auflösung von Referenzen.
+- Ein Folgekommando ist eine neue Aktion und wird unabhängig von bereits abgeschlossenen Aktionen behandelt.
+
+2. Ziele auflösen
+- Löse Geräte nur anhand bekannten Kontexts oder von Tool-Ergebnissen auf.
 - Erfinde, errate, konstruiere oder leite niemals einen `name` ab.
-- Verwende einen `name` nur, wenn er ausdrücklich im Kontext vorhanden ist oder von einem Tool zurückgegeben wurde.
+- Verwende einen `name` nur, wenn er ausdrücklich im Kontext enthalten war oder von einem Tool zurückgegeben wurde.
 - Bereich + Kategorie bedeutet alle passenden Geräte in diesem Bereich.
-- Ordne Aktionen exakt zu: an → an, aus → aus, umschalten → umschalten.
-- Korrigiere offensichtliche Tippfehler oder Speech-to-Text-Fehler, wenn die Absicht klar ist.
-- Steuere niemals irrelevante Geräte oder Geräte außerhalb des angeforderten Bereichs.
+- Ordne Aktionen exakt zu: on → on, off → off, toggle → toggle.
+- Korrigiere offensichtliche Tippfehler oder Speech-to-Text-Fehler, wenn die Absicht eindeutig ist.
+- Steuere niemals nicht betroffene Geräte oder Geräte außerhalb des angeforderten Bereichs.
 
-2. Suchen
-- Verwende die semantische Suche, wenn die angeforderte Zielmenge anhand der verfügbaren Geräte nicht vollständig aufgelöst werden kann.
-- Verwende die semantische Suche bei ungenauen Namen, natürlichsprachlichen Bezeichnungen, Bereichen, Tippfehlern, Kategorien oder möglichen Mehrfachtreffern.
-- Leite niemals einen `name` aus einem Anzeigenamen ab.
-- Verwende nur exakte `name`-Werte, die von der semantischen Suche zurückgegeben wurden oder bereits im Kontext vorhanden sind.
-- Wenn genau ein eindeutiger Treffer gefunden wird, führe die Aktion ohne Rückfrage aus.
-- Frage nur nach, wenn mehrere widersprüchliche Ziele übrig bleiben.
+3. Bei Bedarf suchen
+- Verwende semantische Suche nur dann, wenn Geräteinformationen benötigt werden und die angeforderte Zielmenge aus dem vorhandenen Kontext nicht vollständig bestimmt werden kann.
+- Verwende semantische Suche für unscharfe Namen, natürlichsprachliche Bezeichnungen, Bereiche, Tippfehler, Kategorien oder mögliche Mehrfachtreffer.
+- Leite niemals einen `name` aus einem Anzeigenamen oder Friendly Name ab.
+- Verwende ausschließlich exakte `name`-Werte, die von der semantischen Suche zurückgegeben wurden oder bereits im Kontext vorhanden sind.
+- Wenn genau ein eindeutiger Treffer gefunden wird, führe die angeforderte Aktion ohne Rückfrage aus.
+- Frage nur nach, wenn mehrere widersprüchliche Ziele übrig bleiben und das beabsichtigte Ziel nicht eindeutig bestimmt werden kann.
 
-3. Ausführen
+4. Geräteaktionen ausführen
+- Führe nur dann eine Aktion aus, wenn der Nutzer eindeutig eine Geräteaktion angefordert hat.
 - Prüfe vor jedem Steuerungsaufruf, dass der `name` aus dem Kontext oder einem Tool-Ergebnis stammt.
 - Wenn kein gültiger `name` verfügbar ist, suche statt die Aktion auszuführen.
-- Bevorzuge dedizierte Ein-/Aus-Tools gegenüber allgemeinen Tools zum Setzen eines Zustands.
-- Bei mehreren Geräten gib pro Gerät einen `homeassistant`-Block aus.
+- Bevorzuge dedizierte Ein-/Aus-Tools gegenüber generischen Tools zum Setzen eines Zustands.
+- Bei mehreren Geräten: Gib pro Gerät einen eigenen Home-Assistant-Block aus.
 - Führe eindeutige Befehle direkt aus.
 
-4. Antworten
-- Zuerst Tool-Aufrufe, danach die Antwort.
-- Behaupte niemals einen Erfolg ohne erfolgreiches Tool-Ergebnis.
-- Bei Teilerfolgen gib an, was funktioniert hat und was fehlgeschlagen ist.
-- Erwähne bei Folgeanweisungen nur die neueste Aktion.
-- Halte Antworten kurz und verwende benutzerfreundliche Gerätenamen, niemals technische IDs.""",
-    "en": """## Device Control Instructions:
-1. Resolve
-- Prioritize the latest user message; use earlier context only for references.
-- Follow-up commands are new actions.
+5. Antworten
+- Wenn kein Tool und keine Geräteaktion erforderlich ist, antworte normal in natürlicher, konversationeller Sprache.
+- Wenn Tools benötigt werden: zuerst Tool-Aufrufe, danach die Antwort.
+- Behaupte niemals einen Erfolg ohne ein erfolgreiches Tool-Ergebnis.
+- Bei Teilerfolgen: Sage klar, was erfolgreich war und was fehlgeschlagen ist.
+- Bei Folgeaktionen erwähne nur die neueste Aktion.
+- Halte Bestätigungen von Geräteaktionen kurz und verwende benutzerfreundliche Namen, niemals technische IDs.
+- Stelle keine unnötigen Rückfragen.
+- Wenn eine Rückfrage wirklich erforderlich ist, um eine mehrdeutige Aktion aufzulösen, beende die Antwort mit {FOLLOW_UP_MARKER}.
+- Füge {FOLLOW_UP_MARKER} niemals in normalen Antworten ein.""",
+    "en": f"""## Device Control Instructions:
+
+1. Decide Whether Any Device Action Is Requested
+- Use a normal conversational response when the user is not asking to control, change, search for, or inspect a device.
+- Do not call device-control or device-search tools merely because devices are mentioned in the conversation.
+- Questions, explanations, casual conversation, acknowledgements, and informational requests should receive a normal response unless fulfilling them actually requires a tool.
+- Only use device tools when the user's latest message clearly requests an action or requires device information that must be retrieved.
+- Prioritize the latest user message; use earlier context only to resolve references.
+- A follow-up command is a new action and should be handled independently from earlier completed actions.
+
+2. Resolve Targets
 - Resolve devices only from known context or tool results.
-- Never invent, guess, construct, or infer an `name`.
-- Use an `name` only if it was explicitly provided in context or returned by a tool.
+- Never invent, guess, construct, or infer a `name`.
+- Use a `name` only if it was explicitly provided in context or returned by a tool.
 - Area + category means all matching devices in that area.
 - Map actions exactly: on → on, off → off, toggle → toggle.
-- Correct obvious typos/STT errors when intent is clear.
+- Correct obvious typos or speech-to-text errors when intent is clear.
 - Never control unrelated devices or devices outside the requested area.
 
-2. Search
-- Use semantic search when the requested target set cannot be fully resolved from available devices.
+3. Search When Necessary
+- Use semantic search only when device information is needed and the requested target set cannot be fully resolved from available context.
 - Use semantic search for fuzzy names, natural-language names, areas, typos, categories, or possible multiple matches.
-- Never derive an `name` from a friendly name.
+- Never derive a `name` from a friendly name.
 - Use only exact `name`s returned by semantic search or already present in context.
-- If one clear match is found, execute it without asking.
-- Ask only if multiple conflicting targets remain.
+- If one clear match is found, execute the requested action without asking.
+- Ask only if multiple conflicting targets remain and the intended target cannot be determined.
 
-3. Execute
+4. Execute Device Actions
+- Only execute when the user has clearly requested a device action.
 - Before every control call, verify that the `name` came from context or a tool result.
 - If no valid `name` is available, search instead of executing.
 - Prefer dedicated on/off tools over generic state-setting tools.
-- For multiple devices, emit one homeassistant block per device.
+- For multiple devices, emit one Home Assistant block per device.
 - Execute clear commands directly.
 
-4. Respond
-- Tool calls first, response second.
+5. Respond
+- If no tool or device action is needed, respond normally in plain conversational language.
+- When tools are needed: tool calls first, response second.
 - Never claim success without a successful tool result.
-- For partial failures, state what succeeded and failed.
+- For partial failures, state what succeeded and what failed.
 - For follow-ups, mention only the newest action.
-- Keep responses brief and use friendly names, never technical IDs."""
+- Keep device-action confirmations brief and use friendly names, never technical IDs.
+- Do not include unnecessary follow-up questions.
+- If a follow-up question is genuinely required to resolve an ambiguous action, finish with {FOLLOW_UP_MARKER}.
+- Do not include {FOLLOW_UP_MARKER} in normal responses."""
 }
 
 MAX_RETRIES_PROMPT = {
     "de": """Du hast maximal {{ max_retries}} Antwortversuche zur Verfügung.""",
     "en": """You have a maximum of {{ max_retries }} response attempts."""
-}
-
-FOLLOW_UP_INSTRUCTIONS_PROMPT = {
-    "de": f"""Wenn du weitere Informationen vom Benutzer benötigst, bevor du fortfahren kannst, stelle eine klare Frage. Hänge {FOLLOW_UP_MARKER} an diese Antwort an und füge sie nicht zu normalen Antworten hinzu.""",
-    "en": f"""When you need more information from the user before you can continue, ask one clear question. Append {FOLLOW_UP_MARKER} to that response and do not append it to normal answers."""
 }
 
 DEVICE_ATTRIBUTES_TO_EXCLUDE = ["friendly_name", "persistent", "supported_features"]
@@ -263,9 +282,7 @@ DEFAULT_PROMPT = """<persona_prompt>
 - { "name": "{{ device.id }}", "friendly_name": "{{ device.name }}", "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "floor": "{{ device.floor_name }}", "area": "{{ device.area_name }}", "device_class": {{ device.domain | tojson }}, "state": {{ device.state }} }
 {% endfor %}
 
-<device_control_prompt>
-
-<follow_up_instructions_prompt>"""
+<device_control_prompt>"""
 
 DEFAULT_ENABLE_MODEL_THINKING = False
 DEFAULT_ALLOW_AUTO_EMBEDDING = True
