@@ -551,9 +551,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 has_follow_up_marker = speech.endswith(FOLLOW_UP_MARKER)
                 if has_follow_up_marker:
                     speech = speech[:-len(FOLLOW_UP_MARKER)].rstrip()
-                    _logger.error("Detected follow-up marker in assistant response.")
-
-                continue_conversation = has_follow_up_marker
+                    if speech.endswith(("?", "？", "؟")):
+                        continue_conversation = True
+                        _logger.error("Detected valid follow-up marker in assistant response.")
+                    else:
+                        _logger.error(
+                            "Ignored follow-up marker because the assistant response does not end with a question."
+                        )
 
                 intent_response.async_set_speech(speech)
                 has_speech = True
