@@ -44,7 +44,6 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     FOLLOW_UP_MARKER,
-    CLOSING_HELP_PATTERN,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
@@ -53,6 +52,7 @@ from custom_components.ha_ragent.src.const import (
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
     TOOL_REGEX_PATTERN,
+    KINDNESS_QUESTION_PATTERNS,
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 )
 
@@ -344,12 +344,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return parsed_calls
 
-    @staticmethod
-    def _filter_response(response: str) -> str:
-        """Remove generic closing offers from model responses."""
-        filtered = CLOSING_HELP_PATTERN.sub("", response.strip()).rstrip()
-        return filtered
-    
     def _parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""
         if not isinstance(tool_result, dict):
@@ -372,6 +366,23 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             return parsed_result
 
         return tool_result
+
+    @staticmethod
+    def _filter_kindness_questions(response: str) -> Tuple[str, bool]:
+        """Remove generic closing questions that should not continue a conversation."""
+        filtered = response.rstrip()
+        removed = False
+
+        while True:
+            previous = filtered
+            for pattern in KINDNESS_QUESTION_PATTERNS:
+                filtered = pattern.sub("", filtered).rstrip()
+
+            if filtered == previous:
+                break
+            removed = True
+
+        return filtered, removed
 
     def _convert_api_tool(self, api_tool: Any, llm_api: llm.APIInstance | None) -> LlmTool | None:
         """Convert a Home Assistant LLM tool into the local tool schema."""
@@ -554,10 +565,17 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         continue_conversation = False
         for cur_msg in reversed(message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
-                speech = cur_msg.content
-                continue_conversation = FOLLOW_UP_MARKER in self._filter_response(speech)
-                if continue_conversation:
+                speech = cur_msg.content.strip()
+                has_follow_up_marker = speech.endswith(FOLLOW_UP_MARKER)
+                if has_follow_up_marker:
                     speech = speech[:-len(FOLLOW_UP_MARKER)].rstrip()
+                    _logger.error("Detected follow-up marker in assistant response.")
+
+                speech, removed_kindness_question = self._filter_kindness_questions(speech)
+                has_question = speech.endswith(("?", "？", "؟"))
+                continue_conversation = has_question or (
+                    has_follow_up_marker and not removed_kindness_question
+                )
 
                 intent_response.async_set_speech(speech)
                 has_speech = True
