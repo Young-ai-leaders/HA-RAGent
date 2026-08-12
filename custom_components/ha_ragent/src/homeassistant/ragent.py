@@ -143,6 +143,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 prompt_history.append(msg)
                 continue
 
+            if isinstance(msg, conversation.AssistantContent):
+                if msg.tool_calls:
+                    prompt_history.append(msg)
+                continue
+
             if isinstance(msg, conversation.ToolResultContent):
                 prompt_history.append(msg)
                 continue
@@ -307,6 +312,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     tool_json = json.loads(json_str)
                     
                     parameters = tool_json.get("arguments", {})
+
+                    if isinstance(parameters, str):
+                        parameters = json.loads(parameters)
+
+                    if not isinstance(parameters, dict):
+                        _logger.warning("Invalid tool arguments: %r", parameters)
+                        continue
 
                     if "name" in parameters and "." in parameters["name"]:
                         state = self.hass.states.get(parameters["name"])
