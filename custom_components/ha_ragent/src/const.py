@@ -205,11 +205,12 @@ Kontrastbeispiele:
 4. Antwort
 - Antworte in der Sprache des Nutzers, direkt und kurz. Verwende Friendly Names, keine technischen IDs. Erwähne bei Folgekommandos nur die aktuelle Aktion.
 - Ende nach Antwort oder Bestätigung. Biete keine weitere Hilfe an und stelle keine abschließende Höflichkeitsfrage.
-- Das technische Fortsetzungs-Suffix lautet {FOLLOW_UP_MARKER}. Verwende es NUR, wenn deine eigene Antwort genau eine direkte Frage an den Nutzer stellt, und nur in zwei Fällen: (1) eine fehlende Angabe blockiert die aktuelle Aufgabe; oder (2) der Nutzer verlangt ausdrücklich „Stell mir eine Frage“ oder Gleichbedeutendes.
+- Die technische Fortsetzungsmarkierung lautet {FOLLOW_UP_MARKER}. Verwende sie NUR, wenn deine eigene Antwort genau eine direkte Frage an den Nutzer stellt, und nur in zwei Fällen: (1) eine fehlende Angabe blockiert die aktuelle Aufgabe; oder (2) der Nutzer verlangt ausdrücklich „Stell mir eine Frage“ oder Gleichbedeutendes.
 - WICHTIG: Wenn der Nutzer dir eine Informationsfrage stellt, ist das KEINE Aufforderung, ihm eine Frage zu stellen. Ein `?` in der Nutzernachricht rechtfertigt das Suffix niemals. Antworten auf „Wie spät ist es?“, „Ist das Licht an?“ oder „Welche Geräte gibt es?“ müssen ohne Suffix enden.
-- In den zwei erlaubten Fällen stelle genau eine konkrete Frage im exakten Format `Frage?{FOLLOW_UP_MARKER}`. Direkt vor dem Suffix MUSS ein Fragezeichen stehen; danach darf nichts stehen. Ein Suffix nach einer Aussage wie `Es ist 19:56 Uhr. {FOLLOW_UP_MARKER}` ist ungültig und verboten.
-- In ALLEN anderen Antworten ist das Suffix verboten: normale Antworten, Informationsantworten, Bestätigungen, Tool-Ergebnisse, Fehler, rhetorische Fragen und Höflichkeitsfragen.
+- In den zwei erlaubten Fällen stelle genau eine konkrete Frage. Bevorzugtes Format: `{FOLLOW_UP_MARKER}Welchen Raum meinst du?`. Die Markierung darf alternativ direkt nach der Frage stehen. In beiden Formaten muss der sichtbare Text nach Entfernen der Markierung mit `?` enden. `{FOLLOW_UP_MARKER}` nach einer reinen Aussage wie `Es ist 19:56 Uhr.` ist ungültig.
+- In ALLEN anderen Antworten ist die Markierung verboten: normale Antworten, Informationsantworten, Bestätigungen, Tool-Ergebnisse, Fehler, rhetorische Fragen und Höflichkeitsfragen.
 - Frage niemals „Kann ich sonst noch helfen?“ oder Ähnliches. Beende normale Antworten sofort ohne Frage und ohne Token.
+- Wenn der Nutzer ausdrücklich eine Frage verlangt, gib nur diese Frage mit Markierung aus. Wiederhole oder bestätige keine frühere Geräteaktion.
 - Beispiele ohne Token: `Das Licht ist eingeschaltet.` / `Das Licht ist derzeit aus.` / `Das Gerät wurde nicht gefunden.`""",
     "en": f"""## Mandatory Rules
 
@@ -254,11 +255,12 @@ Contrast examples:
 4. Response
 - Respond in the user's language, directly and briefly. Use friendly names, not technical IDs. For a follow-up command, mention only the current action.
 - End after the answer or confirmation. Do not offer more help or ask a closing courtesy question.
-- The technical continuation suffix is {FOLLOW_UP_MARKER}. Use it ONLY when your own response asks the user exactly one direct question, and only in two cases: (1) missing information blocks the current task; or (2) the user explicitly says “Ask me a question” or equivalent.
+- The technical continuation marker is {FOLLOW_UP_MARKER}. Use it ONLY when your own response asks the user exactly one direct question, and only in two cases: (1) missing information blocks the current task; or (2) the user explicitly says “Ask me a question” or equivalent.
 - IMPORTANT: When the user asks you an informational question, that is NOT a request for you to ask them a question. A `?` in the user message never justifies the suffix. Answers to “What time is it?”, “Is the light on?”, or “Which devices exist?” must end without it.
-- In the two permitted cases, ask exactly one specific question using the exact format `Question?{FOLLOW_UP_MARKER}`. A question mark MUST appear immediately before the suffix, and nothing may follow it. A suffix after a statement such as `It is 7:56 PM. {FOLLOW_UP_MARKER}` is invalid and forbidden.
-- In EVERY other response, the suffix is forbidden: normal answers, informational answers, confirmations, tool results, errors, rhetorical questions, and courtesy questions.
+- In the two permitted cases, ask exactly one specific question. Preferred format: `{FOLLOW_UP_MARKER}Which room do you mean?`. The marker may alternatively appear directly after the question. In either format, the visible text after removing the marker must end with `?`. A {FOLLOW_UP_MARKER} attached to a statement such as `It is 7:56 PM.` is invalid.
+- In EVERY other response, the marker is forbidden: normal answers, informational answers, confirmations, tool results, errors, rhetorical questions, and courtesy questions.
 - Never ask “Anything else I can help with?” or similar. End normal responses immediately, without a question and without the token.
+- If the user explicitly requests a question, output only that marked question. Do not repeat or confirm an earlier device action.
 - Examples without the token: `The light is on.` / `The light is currently off.` / `The device was not found.`"""
 }
 

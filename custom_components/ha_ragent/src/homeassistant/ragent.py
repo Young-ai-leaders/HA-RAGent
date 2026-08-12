@@ -548,9 +548,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         for cur_msg in reversed(message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
                 speech = cur_msg.content.strip()
-                has_follow_up_marker = speech.endswith(FOLLOW_UP_MARKER)
+                has_follow_up_marker = FOLLOW_UP_MARKER in speech
                 if has_follow_up_marker:
-                    speech = speech[:-len(FOLLOW_UP_MARKER)].rstrip()
+                    speech = speech.replace(f" {FOLLOW_UP_MARKER}", "").replace(
+                        FOLLOW_UP_MARKER, ""
+                    ).strip()
                     if speech.endswith(("?", "？", "؟")):
                         continue_conversation = True
                         _logger.error("Detected valid follow-up marker in assistant response.")
