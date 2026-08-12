@@ -12,7 +12,6 @@ Changes to the default system prompt apply only to newly created RAGent entries.
 ### OpenAI-Compatible Backends
 OpenAI-compatible backends have currently been tested only with llamaccp. Compatibility with other providers is not guaranteed, so test the selected backend thoroughly before using it in production.
 
-
 ## Installation
 ### HACS (recommended)
 If HACS is installed on your system use this link to directly go to the install page:

@@ -132,6 +132,13 @@ CONF_P_TYPICAL = "rag_p_typical"
 TOOL_REGEX_PATTERN = re.compile(r"```homeassistant\s*(.*?)\s*```", re.DOTALL)
 FOLLOW_UP_MARKER = "?"
 
+CLOSING_HELP_PATTERN = re.compile(
+    r"(?:is there anything(?: else)? i can help(?: you)? with|"
+    r"how can i help(?: you)?|anything(?: else)? i can help with|"
+    r"kann ich sonst noch helfen|wie kann ich helfen)[\s?!.,]*$",
+    re.IGNORECASE,
+)
+
 PERSONA_PROMPTS = {
     "de": "Du bist \"YAIL\", ein hilfreicher KI-Assistent, der die Geräte in einem Haus steuert. Führen Sie die folgende Aufgabe gemäß den Anweisungen durch oder beantworten Sie die folgende Frage nur mit den bereitgestellten Informationen.",
     "en": "You are 'YAIL', a helpful AI Assistant that controls the devices in a house. Complete the following task as instructed with the information provided only.",
@@ -251,15 +258,16 @@ DEVICE_CONTROL_PROMPT = {
 - Execute clear commands directly.
 
 5. Respond
-- If no tool or device action is needed, respond normally.
+- Respond directly and briefly.
 - When tools are needed: tool calls first, response second.
 - Never claim success without a successful tool result.
-- For partial failures, state what succeeded and failed.
-- For follow-ups, mention only the newest action.
-- Keep confirmations brief and use friendly names, never technical IDs.
-- Do not ask unnecessary follow-up questions.
-- If clarification is genuinely required, finish with {FOLLOW_UP_MARKER}.
-- Do not include {FOLLOW_UP_MARKER} in normal responses."""
+- Mention partial failures clearly.
+- Use friendly names, never technical IDs.
+- End immediately after the answer or action confirmation.
+- Never offer additional help or ask closing questions.
+- Ask a question only if clarification is required to complete the current request.
+- If clarification is required, finish with {FOLLOW_UP_MARKER}.
+- Otherwise, never include {FOLLOW_UP_MARKER}."""
 }
 
 MAX_RETRIES_PROMPT = {

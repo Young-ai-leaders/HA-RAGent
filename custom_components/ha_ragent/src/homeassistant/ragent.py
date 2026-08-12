@@ -44,6 +44,7 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     FOLLOW_UP_MARKER,
+    CLOSING_HELP_PATTERN,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
@@ -342,6 +343,12 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 _logger.warning(f"Failed to parse homeassistant block JSON: {e}")
 
         return parsed_calls
+
+    @staticmethod
+    def _filter_response(response: str) -> str:
+        """Remove generic closing offers from model responses."""
+        filtered = CLOSING_HELP_PATTERN.sub("", response.strip()).rstrip()
+        return filtered
     
     def _parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""
@@ -547,9 +554,10 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         continue_conversation = False
         for cur_msg in reversed(message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
-                speech = cur_msg.content.strip()
-                continue_conversation = FOLLOW_UP_MARKER in speech
-                speech = speech.replace(FOLLOW_UP_MARKER, "").strip()
+                speech = cur_msg.content
+                continue_conversation = FOLLOW_UP_MARKER in self._filter_response(speech)
+                if continue_conversation:
+                    speech = speech[:-len(FOLLOW_UP_MARKER)].rstrip()
 
                 intent_response.async_set_speech(speech)
                 has_speech = True
