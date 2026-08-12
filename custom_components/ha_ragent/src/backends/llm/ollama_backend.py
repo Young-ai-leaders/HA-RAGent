@@ -173,7 +173,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
                             if done_reason == "length":
                                 _logger.warning("Ollama stopped because the configured maximum output token count was reached")
                             if not content_received and not tool_calls_received:
-                                _logger.warning(f"Ollama returned no response content or tool calls (reason={done_reason}, thinking_characters={thinking_length})."))
+                                _logger.warning(f"Ollama returned no response content or tool calls (reason={done_reason}, thinking_characters={thinking_length}).")
 
                     except json.JSONDecodeError:
                         _logger.debug("Failed to parse Ollama response: %s", line)
