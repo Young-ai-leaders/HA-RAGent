@@ -43,7 +43,6 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-    FOLLOW_UP_INSTRUCTIONS_PROMPT,
     FOLLOW_UP_MARKER,
     DOMAIN,
     PERSONA_PROMPTS,
@@ -643,6 +642,5 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         prompt_template = prompt_template.replace("<devices_prompt>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<max_retries_prompt>", get_placeholder_translation(MAX_RETRIES_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<follow_up_instructions_prompt>", get_placeholder_translation(FOLLOW_UP_INSTRUCTIONS_PROMPT, selected_language))
 
         return prompt_template
