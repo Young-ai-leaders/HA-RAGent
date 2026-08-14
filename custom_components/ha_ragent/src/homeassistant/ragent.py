@@ -330,6 +330,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                         _logger.warning("Invalid tool arguments: %r", parameters)
                         continue
 
+                    if "entity_id" in parameters:
+                        parameters["name"] = parameters.pop("entity_id")
+
                     if "name" in parameters and "." in parameters["name"]:
                         state = self.hass.states.get(parameters["name"])
                         parameters["name"] = state.attributes.get("friendly_name") if state else parameters["name"]
