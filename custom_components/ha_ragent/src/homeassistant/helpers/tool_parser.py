@@ -10,7 +10,6 @@ from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
 _logger = logging.getLogger(__name__)
 
 class ToolParser:
-    """Parse tool input and return the appropriate tool."""
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
 
@@ -18,6 +17,8 @@ class ToolParser:
         """Safely load a JSON string into a dictionary."""
         if not isinstance(json_string, str):
             return None
+
+        json_string = json_string.replace("'", '"').strip()
 
         try:
             return json.loads(json_string)
@@ -43,51 +44,48 @@ class ToolParser:
         return tool_json
 
     def parse_tool_calls(self, llm_response: str) -> List[ToolInput]:
-            """Parse tool calls from LLM response."""
-            parsed_calls = []
-            
-            _logger.debug("Parsing tool calls from LLM response.")
-            for match in TOOL_REGEX_PATTERN.finditer(llm_response):
-                tool_json = self._tool_string_to_dict(match.group(1))
+        """Parse tool calls from LLM response."""
+        parsed_calls = []
+        
+        for match in TOOL_REGEX_PATTERN.finditer(llm_response):
+            tool_json = self._tool_string_to_dict(match.group(1))
 
-                if tool_json is None:
-                    _logger.debug(f"Failed to parse tool call from LLM response: {match.group(1)}")
-                    continue
+            if tool_json is None:
+                _logger.debug(f"Failed to parse tool call from LLM response: {match.group(1)}")
+                continue
 
-                tool_name = tool_json.get("tool")
+            tool_name = tool_json.get("tool")
+            if not tool_name:
+                _logger.debug(f"Tool name missing in tool call: {tool_json}")
+                continue
 
-                if not tool_name:
-                    _logger.debug(f"Tool name missing in tool call: {tool_json}")
-                    continue
+            parameters = tool_json.get("arguments")
+            if isinstance(parameters, str):
+                parameters = self._save_json_load(parameters)
 
-                parameters = self._save_json_load(tool_json.get("arguments", "{}"))
+            if not isinstance(parameters, dict):
+                _logger.debug(f"Empty tool arguments: {tool_json.get('arguments')}")
+                continue
 
-                if parameters is None or not isinstance(parameters, dict):
-                    _logger.debug(f"Empty tool arguments: {tool_json.get('arguments')}")
-                    continue
+            if "name" in parameters:
+                name = parameters.pop("name")
+                if "." in name:
+                    state = self._hass.states.get(name)
+                    parameters["name"] = state.attributes.get("friendly_name") if state else name
 
-                if "name" in parameters:
-                    name = parameters.pop("name")
-                    if "." in name:
-                        state = self._hass.states.get(name)
-                        parameters["name"] = state.attributes.get("friendly_name") if state else name
+            if "entity_id" in parameters:
+                entity_id = parameters.pop("entity_id")
+                state = self._hass.states.get(entity_id)
+                parameters["name"] = state.attributes.get("friendly_name") if state else entity_id
 
-                if "entity_id" in parameters:
-                    entity_id = parameters.pop("entity_id")
-                    state = self._hass.states.get(entity_id)
-                    parameters["name"] = state.attributes.get("friendly_name") if state else entity_id
+            if "device_class" in parameters:
+                device_class = parameters.pop("device_class")
+                if "domain" not in parameters:
+                    parameters["domain"] = device_class
 
-                if "device_class" in parameters:
-                    device_class = parameters.pop("device_class")
-                    if "domain" not in parameters:
-                        parameters["domain"] = device_class
+            parsed_calls.append(ToolInput(tool_name=tool_name, tool_args=parameters))
 
-                parsed_calls.append(ToolInput(
-                    tool_name=tool_name,
-                    tool_args=parameters
-                ))
-    
-            return parsed_calls
+        return parsed_calls
 
     def parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""

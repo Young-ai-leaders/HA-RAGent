@@ -195,7 +195,7 @@ class ToolExtractor:
 
         return tool_list
 
-    async def async_embed_all_exposed_tools(self, subentry_ids: Iterable[str] | None = None) -> None:
+    async def async_embed_exposed_tools(self, subentry_id: str) -> None:
         total_embedded_tools = 0
         try:
             _logger.debug("Device embedding function starting, checking for subentries")
@@ -203,43 +203,30 @@ class ToolExtractor:
                 _logger.debug("No subentries found in config entry. Cannot embed tools.")
                 return
 
-            selected_subentry_ids = set(subentry_ids) if subentry_ids is not None else None
-            subentries = {
-                subentry_id: subentry
-                for subentry_id, subentry in self._entry.subentries.items()
-                if selected_subentry_ids is None or subentry_id in selected_subentry_ids
-            }
-
-            if not subentries:
+            subentry = self._entry.subentries.get(subentry_id)
+            if not subentry:
                 _logger.debug("No matching subentries found for tool embedding.")
                 return
+            try:
+                exposed_tools = await self._async_get_embeddable_tools(subentry)
+                _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")
+                if not exposed_tools:
+                    _logger.debug(f"No tools to embed for subentry {subentry_id}")
+                    return
 
-            _logger.debug(f"Found {len(subentries)} subentries to process.")
+                collection_name = f"tools_{subentry_id}"
+                embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
+                await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
+                tool_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), exposed_tools)
 
-            for subentry_id, subentry in subentries.items():
-                try:
-                    exposed_tools = await self._async_get_embeddable_tools(subentry)
-                    _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")
-
-                    if not exposed_tools:
-                        _logger.debug(f"No tools to embed for subentry {subentry_id}")
-                        continue
-
-                    collection_name = f"tools_{subentry_id}"
-                    embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
-
-                    await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)    
-                    tool_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), exposed_tools)
-
-                    if tool_embeddings:
-                        _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
-                        await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, tool_embeddings)
-                        total_embedded_tools += len(tool_embeddings)
-                    else:
-                        _logger.warning(f"No tools to embed for subentry {subentry_id}")
-                except Exception as err:
-                    _logger.error(f"Error in background embedding job for subentry {subentry_id}: {err}", exc_info=True)
-                    continue
+                if tool_embeddings:
+                    _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
+                    await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, tool_embeddings)
+                    total_embedded_tools += len(tool_embeddings)
+                else:
+                    _logger.warning(f"No tools to embed for subentry {subentry_id}")
+            except Exception as err:
+                _logger.error(f"Error in background embedding job for subentry {subentry_id}: {err}", exc_info=True)
         except Exception as err:
             _logger.error(f"Error in tool embedding job: {err}", exc_info=True)
         finally:

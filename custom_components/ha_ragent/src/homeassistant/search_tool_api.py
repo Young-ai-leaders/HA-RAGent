@@ -15,17 +15,20 @@ from custom_components.ha_ragent.src.homeassistant.tools.search_tools import RAG
 class RAGentSearchAugmentedAPIInstance(llm.APIInstance):
     """Wrap an existing HA LLM API instance and append the RAGent search tool."""
 
-    def __init__(self, hass: HomeAssistant, wrapped_api: llm.APIInstance) -> None:
+    def __init__(self, hass: HomeAssistant, wrapped_api: llm.APIInstance, entry_id: str, subentry_id: str) -> None:
         self.hass = hass
         self._wrapped_api = wrapped_api
         self.prompt = getattr(wrapped_api, "prompt", "")
         self.custom_serializer = getattr(wrapped_api, "custom_serializer", None)
 
         wrapped_tools = list(getattr(wrapped_api, "tools", []) or [])
-        missing_tools = []
+        scoped_search_tool = RAGentSemanticSearchTool(hass, entry_id, subentry_id)
+        self.tools = [
+            scoped_search_tool if getattr(tool, "name", None) == RAGentSemanticSearchTool.name else tool
+            for tool in wrapped_tools
+        ]
         if not any(getattr(tool, "name", None) == RAGentSemanticSearchTool.name for tool in wrapped_tools):
-            missing_tools.append(RAGentSemanticSearchTool(hass))
-        self.tools = [*wrapped_tools, *missing_tools]
+            self.tools.append(scoped_search_tool)
 
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to the wrapped API instance."""
@@ -40,16 +43,17 @@ class RAGentSearchAugmentedAPIInstance(llm.APIInstance):
         return await self._wrapped_api.async_call_tool(tool_input)
 
 
-def augment_api_with_search_tool(hass: HomeAssistant, llm_api: llm.APIInstance | None) -> llm.APIInstance | None:
+def augment_api_with_search_tool(
+    hass: HomeAssistant,
+    llm_api: llm.APIInstance | None,
+    entry_id: str,
+    subentry_id: str,
+) -> llm.APIInstance | None:
     """Expose the semantic search tool on top of an existing HA LLM API instance."""
     if llm_api is None:
         return None
 
-    tool_names = {getattr(tool, "name", None) for tool in getattr(llm_api, "tools", []) or []}
-    if RAGentSemanticSearchTool.name in tool_names:
-        return llm_api
-
-    return RAGentSearchAugmentedAPIInstance(hass, llm_api)
+    return RAGentSearchAugmentedAPIInstance(hass, llm_api, entry_id, subentry_id)
 
 
 class RAGentLLMAPIInstance(llm.APIInstance):
@@ -62,7 +66,7 @@ class RAGentLLMAPIInstance(llm.APIInstance):
         self.id = api.id
         self.name = api.name
         self.prompt = ""
-        self.tools = [RAGentSemanticSearchTool(hass)]
+        self.tools = [RAGentSemanticSearchTool(hass, "", "")]
         self.custom_serializer = None
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:

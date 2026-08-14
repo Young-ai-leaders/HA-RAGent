@@ -43,8 +43,8 @@ async def _handle_embed_subentry(hass: HomeAssistant, call: ServiceCall) -> None
         tool_extractor = ToolExtractor(hass, parent)
         device_extractor = DeviceExtractor(hass, parent)
         await asyncio.gather(
-            tool_extractor.async_embed_all_exposed_tools([entry.config_subentry_id]),
-            device_extractor.async_embed_all_exposed_devices([entry.config_subentry_id]),
+            tool_extractor.async_embed_exposed_tools(entry.config_subentry_id),
+            device_extractor.async_embed_exposed_devices(entry.config_subentry_id),
         )
 
 def register_embed_subentry_action(hass: HomeAssistant) -> None:

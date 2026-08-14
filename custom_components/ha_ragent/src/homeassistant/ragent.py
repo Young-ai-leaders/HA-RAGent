@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import math
 from datetime import timedelta
-from typing import Any, List, Tuple, Dict
+from typing import Any, List, Tuple
 
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
 from homeassistant.components.conversation.models import AbstractConversationAgent
@@ -16,7 +15,7 @@ from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
 from homeassistant.exceptions import TemplateError, HomeAssistantError
 from homeassistant.helpers import chat_session, intent, llm
 from homeassistant.helpers.template import Template
-from homeassistant.helpers.llm import ToolInput, LLMContext
+from homeassistant.helpers.llm import LLMContext
 from homeassistant.helpers import area_registry as ar, device_registry as dr, floor_registry as fr
 from homeassistant.util import dt as dt_util
 from voluptuous_openapi import convert
@@ -52,7 +51,6 @@ from custom_components.ha_ragent.src.const import (
     AREAS_PROMPT,
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
-    TOOL_REGEX_PATTERN,
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 )
 
@@ -379,7 +377,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         formatted_messages = []
         last_formatted_index = 0
-        tool_calls: List[Tuple[llm.ToolInput, Any]] = []
+        tool_calls_overall: List[Tuple[llm.ToolInput, Any]] = []
 
         for idx in range(max(1, max_tool_call_iterations)):
             _logger.debug(f"Generating response for {user_input.text}, iteration {idx + 1}/{max_tool_call_iterations}.")
@@ -435,7 +433,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 tool_result = await llm_api.async_call_tool(tool_call)
                                 _logger.debug(f"Tool result: {tool_result}.")
                                 
-                                tool_calls.append((tool_call, tool_result))
+                                tool_calls_overall.append((tool_call, tool_result))
                                 
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
@@ -480,8 +478,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             chat_log.content = message_history
             
         intent_response = intent.IntentResponse(language=user_input.language)
-        if len(tool_calls) > 0:
-            str_tools = [f"{input.tool_name}({', '.join(str(x) for x in input.tool_args.values())})" for input, response in tool_calls]
+        if len(tool_calls_overall) > 0:
+            str_tools = [f"{input.tool_name}({', '.join(str(x) for x in input.tool_args.values())})" for input, response in tool_calls_overall]
             tools_str = '\n'.join(str_tools)
             intent_response.async_set_card(title="Changes", content=f"Ran the following tools:\n{tools_str}")
 
@@ -530,7 +528,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                             self.runtime_options[CONF_LLM_HASS_API],
                             llm_context=user_input.as_llm_context(DOMAIN)
                         )
-                        llm_api = augment_api_with_search_tool(self.hass, llm_api)
+                        llm_api = augment_api_with_search_tool(
+                            self.hass, llm_api, self.entry_id, self.subentry_id
+                        )
                     except HomeAssistantError as err:
                         _logger.error("Error getting LLM API: %s", err)
                         intent_response = intent.IntentResponse(language=user_input.language)

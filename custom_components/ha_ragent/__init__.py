@@ -152,8 +152,14 @@ async def _async_run_startup_embeddings(hass: HomeAssistant, entry: RAGentConfig
         tool_extractor = ToolExtractor(hass, entry)
         device_extractor = DeviceExtractor(hass, entry)
         await asyncio.gather(
-            tool_extractor.async_embed_all_exposed_tools(auto_embedding_subentry_ids),
-            device_extractor.async_embed_all_exposed_devices(auto_embedding_subentry_ids),
+            *(
+                extractor_method(subentry_id)
+                for extractor_method in (
+                    tool_extractor.async_embed_exposed_tools,
+                    device_extractor.async_embed_exposed_devices,
+                )
+                for subentry_id in auto_embedding_subentry_ids
+            )
         )
     finally:
         running_entries.discard(entry.entry_id)
