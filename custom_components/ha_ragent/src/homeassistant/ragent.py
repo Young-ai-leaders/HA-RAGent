@@ -11,7 +11,7 @@ from homeassistant.components.conversation import ConversationInput, Conversatio
 from homeassistant.components.conversation.models import AbstractConversationAgent
 from homeassistant.components import conversation
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.core import HomeAssistant, JsonObjectType
+from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_LLM_HASS_API, MATCH_ALL
 from homeassistant.exceptions import TemplateError, HomeAssistantError
 from homeassistant.helpers import chat_session, intent, llm
@@ -21,6 +21,7 @@ from homeassistant.helpers import area_registry as ar, device_registry as dr, fl
 from homeassistant.util import dt as dt_util
 from voluptuous_openapi import convert
 
+from custom_components.ha_ragent.src.homeassistant.helpers.tool_parser import ToolParser
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
@@ -307,78 +308,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return message_history
 
-    def _parse_tool_calls(self, response_text: str) -> List[dict]:
-        """Parse tool calls from LLM response."""
-        parsed_calls = []
-        
-        _logger.debug("Parsing tool calls from LLM response.")
-        for match in TOOL_REGEX_PATTERN.finditer(response_text):
-            try:
-                content = match.group(1).strip()
-                first_brace = content.find('{')
-                last_brace = content.rfind('}')
-                if first_brace >= 0 and last_brace > first_brace:
-                    json_str = content[first_brace:last_brace + 1]
-                    tool_json = json.loads(json_str)
-                    
-                    parameters = tool_json.get("arguments", {})
-
-                    if isinstance(parameters, str):
-                        parameters = json.loads(parameters)
-
-                    if not isinstance(parameters, dict):
-                        _logger.warning("Invalid tool arguments: %r", parameters)
-                        continue
-
-                    if "entity_id" in parameters:
-                        parameters["name"] = parameters.pop("entity_id")
-
-                    if "name" in parameters and "." in parameters["name"]:
-                        state = self.hass.states.get(parameters["name"])
-                        parameters["name"] = state.attributes.get("friendly_name") if state else parameters["name"]
-
-                    if "device_class" in parameters:
-                        device_class = parameters.pop("device_class")
-                        if "domain" not in parameters:
-                            parameters["domain"] = device_class
-
-                    if "floor" in parameters:
-                        parameters.pop("floor")
-
-                    parsed_calls.append({
-                        "name": tool_json.get("tool"),
-                        "parameters": parameters
-                    })
-
-                    _logger.debug(f"Parsed tool call from homeassistant block: {tool_json}")
-            except (json.JSONDecodeError, AttributeError) as e:
-                _logger.warning(f"Failed to parse homeassistant block JSON: {e}")
-
-        return parsed_calls
-
-    def _parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
-        """Parse tool results from LLM response."""
-        if not isinstance(tool_result, dict):
-            return {"result": tool_result}
-
-        data = tool_result.get("data", {})
-        success = data.get("success", [])
-        failed = data.get("failed", [])
-        parsed_result: Dict[str, Any] = {}
-        
-        success_ids = [x["id"] for x in success if x.get("type") == "entity"]
-        if success_ids:
-            parsed_result["success"] = success_ids
-
-        failed_ids = [x["id"] for x in failed if x.get("type") == "entity"]
-        if failed_ids:
-            parsed_result["failed"] = failed_ids
-
-        if parsed_result:
-            return parsed_result
-
-        return tool_result
-
     def _convert_api_tool(self, api_tool: Any, llm_api: llm.APIInstance | None) -> LlmTool | None:
         """Convert a Home Assistant LLM tool into the local tool schema."""
         tool_name = getattr(api_tool, "name", None)
@@ -445,6 +374,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
     async def _async_prompt_model(self, llm_api: llm.APIInstance, user_input: ConversationInput, tool_list: List[LlmTool], chat_log: conversation.ChatLog, message_history: List[conversation.Content]) -> ConversationResult:
         """Process a prompt through the RAGent."""
+        tool_parser = ToolParser(self.hass)
         max_tool_call_iterations = self.runtime_options.get(CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS)
 
         formatted_messages = []
@@ -483,7 +413,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 _logger.debug("LLM response: %s", assistant_content)
                 
-                tool_calls_in_iteration = self._parse_tool_calls(assistant_content)
+                tool_calls_in_iteration = tool_parser.parse_tool_calls(assistant_content)
                 
                 message = conversation.AssistantContent(
                     agent_id=user_input.agent_id,
@@ -496,30 +426,29 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     _logger.info("Executing %d tool calls", len(tool_calls_in_iteration))
                     
                     for tool_call in tool_calls_in_iteration:
-                        tool_name = tool_call.get("name")
-                        tool_args = tool_call.get("parameters", {})
+                        tool_name = tool_call.tool_name
+                        tool_args = tool_call.tool_args
                         _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
                         
-                        tool_input = ToolInput(tool_name=tool_name, tool_args=tool_args)
                         try:
                             if llm_api:
-                                tool_result = await llm_api.async_call_tool(tool_input)
+                                tool_result = await llm_api.async_call_tool(tool_call)
                                 _logger.debug(f"Tool result: {tool_result}.")
                                 
-                                tool_calls.append((tool_input, tool_result))
+                                tool_calls.append((tool_call, tool_result))
                                 
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
-                                    tool_call_id=tool_input.id,
+                                    tool_call_id=tool_call.id,
                                     tool_name=tool_name,
-                                    tool_result=self._parse_tool_results(tool_result)
+                                    tool_result=tool_parser.parse_tool_results(tool_result)
                                 )
                                 message_history.append(tool_result_msg)
                             else:
                                 _logger.warning("LLM API not available, skipping tool execution for tool: %s", tool_name)
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
-                                    tool_call_id=tool_input.id,
+                                    tool_call_id=tool_call.id,
                                     tool_name=tool_name,
                                     tool_result="Tool calling is not active on this instance instruct the user to activate it manually."
                                 )
@@ -528,7 +457,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                         except Exception as tool_err:
                             tool_result_msg = conversation.ToolResultContent(
                                 agent_id=user_input.agent_id,
-                                tool_call_id=tool_input.id,
+                                tool_call_id=tool_call.id,
                                 tool_name=tool_name,
                                 tool_result={"failed": f"{tool_name}: {str(tool_err)}"}
                             )
