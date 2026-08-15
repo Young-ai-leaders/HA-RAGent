@@ -235,6 +235,9 @@ class OpenAiLlmBackend(ALlmBaseBackend):
 
             # Tool-call arguments are often split across many SSE chunks.
             # Emit only after the complete JSON document has been assembled.
+            if pending_tool_calls:
+                _logger.debug(f"LLM tool calls received from OpenAI-compatible backend: {list(pending_tool_calls.values())}")
+
             for pending in pending_tool_calls.values():
                 if not pending["name"]:
                     continue

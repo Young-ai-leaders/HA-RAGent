@@ -83,7 +83,9 @@ class ToolParser:
                 if "domain" not in parameters:
                     parameters["domain"] = device_class
 
-            parsed_calls.append(ToolInput(tool_name=tool_name, tool_args=parameters))
+            parsed_call = ToolInput(tool_name=tool_name, tool_args=parameters)
+            _logger.debug(f"Parsed tool call: name={parsed_call.tool_name}, arguments={parsed_call.tool_args}")
+            parsed_calls.append(parsed_call)
 
         return parsed_calls
 

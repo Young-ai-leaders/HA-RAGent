@@ -23,8 +23,6 @@ from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbeddi
 
 
 class RAGentSemanticSearchTool(llm.Tool):
-    """Semantic search tool over embedded devices and tools."""
-
     name = RAGENT_SEMANTIC_SEARCH_TOOL_NAME
     description = (
         "Resolve Home Assistant targets with semantic search. "

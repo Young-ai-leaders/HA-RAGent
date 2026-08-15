@@ -150,7 +150,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
 
         if tools:
             payload["tools"] = [tool.to_tool_dict() for tool in tools]
-            _logger.info("Added %d tools to Ollama request", len(tools))
+            _logger.info(f"Added {len(tools)} tools to Ollama request")
         
         try:
             async with session.post(self._chat_url, json=payload, timeout=ALlmBaseBackend._chat_timeout) as response:
@@ -170,7 +170,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
                         if "message" in data and "tool_calls" in data["message"]:
                             tool_calls = data["message"]["tool_calls"]
                             if tool_calls:
-                                _logger.debug("Received %d tool calls from Ollama", len(tool_calls))
+                                _logger.debug(f"LLM tool calls received from Ollama: {tool_calls}")
                                 for tc in tool_calls:
                                     if "function" in tc:
                                         func = tc["function"]
@@ -181,7 +181,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
                                         yield f"\n```homeassistant\n{json.dumps(tool_json)}\n```\n"
 
                     except json.JSONDecodeError:
-                        _logger.debug("Failed to parse Ollama response: %s", line)
+                        _logger.debug(f"Failed to parse Ollama response: {line}")
                         continue
         except Exception as err:
             _logger.error("Error calling Ollama API: %s", err, exc_info=True)
