@@ -24,6 +24,7 @@ from custom_components.ha_ragent.src.const import (
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 
 _logger = logging.getLogger(__name__)
 
@@ -53,25 +54,57 @@ class OpenAiLlmBackend(ALlmBaseBackend):
         return isinstance(error, BadRequestError) and error.status_code == 400 and error.type == "exceed_context_size_error"
 
     @staticmethod
-    def _truncate_messages(
-        messages: List[Dict[str, str]], max_chars: int = 12000
-    ) -> List[Dict[str, str]]:
-        """Currently system messages are always placed at the beginning of the message list when truncating."""
+    def _truncate_messages(messages: List[ChatMessage], max_chars: int = 12000) -> List[ChatMessage]:
+        """Truncate oldest complete turns while keeping system messages first."""
         system_messages = [message for message in messages if message.get("role") == "system"]
         other_messages = [message for message in messages if message.get("role") != "system"]
         result = [dict(message) for message in system_messages]
-        remaining = max_chars - sum(len(message.get("content", "")) for message in result)
+        remaining = max_chars - sum(len(json.dumps(message, default=str)) for message in result)
 
-        for message in reversed(other_messages):
-            if remaining <= 0:
+        turns: List[List[ChatMessage]] = []
+        for message in other_messages:
+            if message.get("role") == "user":
+                turns.append([message])
+            elif turns:
+                turns[-1].append(message)
+
+        selected_turns: List[List[ChatMessage]] = []
+        for turn in reversed(turns):
+            turn_size = sum(len(json.dumps(message, default=str)) for message in turn)
+            if turn_size > remaining:
                 break
-            content = message.get("content", "")
-            if len(content) > remaining:
-                content = content[-remaining:]
-            result.insert(len(system_messages), {**message, "content": content})
-            remaining -= len(content)
+            selected_turns.insert(0, [dict(message) for message in turn])
+            remaining -= turn_size
+
+        for turn in selected_turns:
+            result.extend(turn)
 
         return result
+
+    def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:
+        """Convert canonical history messages to OpenAI Chat Completions format."""
+        prepared: List[ChatMessage] = []
+        for message in messages:
+            item = dict(message)
+            if item.get("role") == "assistant" and item.get("tool_calls"):
+                item["tool_calls"] = [
+                    {
+                        **tool_call,
+                        "function": {
+                            **tool_call["function"],
+                            "arguments": (
+                                tool_call["function"]["arguments"]
+                                if isinstance(tool_call["function"]["arguments"], str)
+                                else json.dumps(tool_call["function"]["arguments"])
+                            ),
+                        },
+                    }
+                    for tool_call in item["tool_calls"]
+                ]
+            if item.get("role") == "tool":
+                item.pop("tool_name", None)
+            prepared.append(item)
+        return prepared
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -133,10 +166,11 @@ class OpenAiLlmBackend(ALlmBaseBackend):
         result = await client.models.list()
         return [model.id for model in result.data if model.id]
 
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+        prepared_messages = self.format_messages_for_backend(messages)
         request: Dict[str, Any] = {
             "model": config_subentry[CONF_LLM_MODEL],
-            "messages": messages,
+            "messages": prepared_messages,
             "stream": True,
             "temperature": config_subentry[CONF_TEMPERATURE],
             "max_tokens": config_subentry[CONF_MAX_TOKENS],
@@ -163,9 +197,9 @@ class OpenAiLlmBackend(ALlmBaseBackend):
             max_chars = RAGENT_CHAT_TRUNCATE_MAX_CHARS
             for attempt in range(RAGENT_CHAT_TRUNCATE_RETRIES + 1):
                 request["messages"] = (
-                    messages
+                    prepared_messages
                     if attempt == 0
-                    else self._truncate_messages(messages, max_chars)
+                    else self._truncate_messages(prepared_messages, max_chars)
                 )
                 pending_tool_calls: Dict[int, Dict[str, str]] = {}
                 try:
