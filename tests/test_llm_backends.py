@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sys
 from pathlib import Path
@@ -19,6 +20,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_SSL,
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant
 
@@ -27,6 +29,7 @@ from tests.mocks import (
     MOCK_LLM_TOOLS,
     MOCK_MESSAGES,
     MOCK_MESSAGE_CONTEXT_OVERFLOW,
+    MOCK_TOOL_HISTORY,
     MOCK_OLLAMA_CHAT_CONFIG,
     MOCK_OLLAMA_CHAT_CONFIG_INVALID,
     MOCK_OLLAMA_CONNECTION_USER_INPUT,
@@ -40,6 +43,36 @@ from custom_components.ha_ragent.src.backends.llm.openai_backend import OpenAiLl
 from custom_components.ha_ragent.src.backends.llm.ollama_backend import OllamaLlmBackend
 
 hass = MockHomeAssistant()
+
+
+def test_openai_prepares_linked_tool_history() -> None:
+    """OpenAI history links tool results to structured assistant calls."""
+    backend = OpenAiLlmBackend(hass, MOCK_OPENAI_CONNECTION_USER_INPUT)
+    messages = backend.format_messages_for_backend(MOCK_TOOL_HISTORY)
+
+    assert json.loads(messages[2]["tool_calls"][0]["function"]["arguments"]) == { "name": "Desk light" }
+    assert messages[3]["tool_call_id"] == messages[2]["tool_calls"][0]["id"]
+    assert "tool_name" not in messages[3]
+
+
+def test_ollama_prepares_linked_tool_history() -> None:
+    """Ollama history uses tool_name and object-valued arguments."""
+    backend = OllamaLlmBackend(hass, MOCK_OLLAMA_CONNECTION_USER_INPUT)
+    messages = backend.format_messages_for_backend(MOCK_TOOL_HISTORY)
+
+    assert messages[2]["tool_calls"][0]["function"]["arguments"] == { "name": "Desk light" }
+    assert messages[3]["tool_name"] == "HassTurnOn"
+    assert "tool_call_id" not in messages[3]
+
+
+def test_openai_truncation_keeps_complete_turns() -> None:
+    """Context truncation must not leave orphaned tool results."""
+    messages = [*MOCK_TOOL_HISTORY, ChatMessage(role="user", content="What is its state now?")]
+    max_chars = sum(len(json.dumps(message, default=str)) for message in (messages[0], messages[-1]))
+    truncated = OpenAiLlmBackend._truncate_messages(messages, max_chars)
+
+    assert [message["role"] for message in truncated] == ["system", "user"]
+    assert truncated[-1]["content"] == "What is its state now?"
 
 @pytest.fixture(autouse=True)
 def suppress_logging() -> Any:

@@ -16,6 +16,11 @@ from custom_components.ha_ragent.src.const import (
     CONF_MAX_TOKENS,
     CONF_TEMPERATURE,
 )
+from custom_components.ha_ragent.src.models.chat_message import (
+    ChatFunction,
+    ChatMessage,
+    ChatToolCall,
+)
 from custom_components.ha_ragent.src.models.tool import LlmTool
 
 
@@ -170,7 +175,35 @@ MOCK_MESSAGES = [
     {"role": "user", "content": "Hello"}
 ]
 
-MOCK_MESSAGE_CONTEXT_OVERFLOW = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "".join(f"Message Overflow INDEX: {i}" for i in range(10000))}
+MOCK_TOOL_HISTORY: list[ChatMessage] = [
+    ChatMessage(role="system", content="Follow instructions."),
+    ChatMessage(role="user", content="Turn on the desk light."),
+    ChatMessage(
+        role="assistant",
+        content="",
+        tool_calls=[
+            ChatToolCall(
+                id="call_1",
+                type="function",
+                function=ChatFunction(
+                    name="HassTurnOn",
+                    arguments={"name": "Desk light"},
+                ),
+            )
+        ],
+    ),
+    ChatMessage(
+        role="tool",
+        content='{"success": ["light.desk"]}',
+        tool_call_id="call_1",
+        tool_name="HassTurnOn",
+    ),
+]
+
+MOCK_MESSAGE_CONTEXT_OVERFLOW: list[ChatMessage] = [
+    ChatMessage(role="system", content="You are a helpful assistant."),
+    ChatMessage(
+        role="user",
+        content="".join(f"Message Overflow INDEX: {i}" for i in range(10000)),
+    ),
 ]
