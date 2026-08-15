@@ -7,6 +7,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from collections.abc import Awaitable
 
 import pytest
 
@@ -43,8 +44,6 @@ from tests.mocks import (
 from custom_components.ha_ragent.src.backends.llm.openai_backend import OpenAiLlmBackend
 from custom_components.ha_ragent.src.backends.llm.ollama_backend import OllamaLlmBackend
 
-hass = MockHomeAssistant()
-
 @dataclass(frozen=True)
 class BackendCase:
     """Configuration for one LLM backend test case."""
@@ -76,6 +75,21 @@ def backend_case(request: pytest.FixtureRequest) -> BackendCase:
     """Provide every supported backend from the central backend list."""
     return request.param
 
+@pytest.fixture
+def hass() -> MockHomeAssistant:
+    """Provide an isolated Home Assistant mock for each test."""
+    return MockHomeAssistant()
+
+def _run_async_test(hass: MockHomeAssistant, test: Awaitable[None]) -> None:
+    """Run an async test and close resources before its event loop exits."""
+    async def run() -> None:
+        try:
+            await test
+        finally:
+            await hass.async_close()
+
+    asyncio.run(run())
+
 @pytest.fixture(autouse=True)
 def suppress_logging() -> Any:
     """Suppress backend log output for this test module."""
@@ -88,12 +102,12 @@ def suppress_logging() -> Any:
 
 async def _async_test_connection_success(backend: ALlmBaseBackend, connection_input: dict[str, Any]) -> None:
     """Test that the backend can validate a connection with a mocked Home Assistant."""
-    validation_error = await backend.async_validate_connection(hass, connection_input)
+    validation_error = await backend.async_validate_connection(backend._hass, connection_input)
     assert validation_error is None, validation_error
 
 async def _async_test_connection_failure(backend: ALlmBaseBackend, connection_input_invalid: dict[str, Any]) -> None:
     """Test that the backend can handle connection failures with a mocked Home Assistant."""
-    validation_error = await backend.async_validate_connection(hass, connection_input_invalid)
+    validation_error = await backend.async_validate_connection(backend._hass, connection_input_invalid)
     assert validation_error is not None, "Expected a validation error for invalid input"
 
 async def _async_test_validate_connection(
@@ -209,7 +223,7 @@ async def _async_test_send_chat_request(
     await _async_test_send_chat_request_overflow_failure(backend_valid, chat_config)
     await _async_test_send_chat_request_connection_failure(backend_invalid, chat_config_invalid)
 
-def test_init(backend_case: BackendCase) -> None:
+def test_init(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test that the backend can be initialized with a mocked Home Assistant."""
     backend = backend_case.backend_class(hass, backend_case.user_input)
     assert backend._url_base == {
@@ -218,7 +232,7 @@ def test_init(backend_case: BackendCase) -> None:
         "ssl": backend_case.user_input[CONF_LLM_SSL],
     }
 
-def test_url_format(backend_case: BackendCase) -> None:
+def test_url_format(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test that the backend can format URLs correctly."""
     backend = backend_case.backend_class(hass, backend_case.user_input)
     connection_input = backend_case.user_input
@@ -231,11 +245,11 @@ def test_url_format(backend_case: BackendCase) -> None:
     expected_url = f"{'https' if connection_input[CONF_LLM_SSL] else 'http'}://{connection_input[CONF_LLM_HOST]}{':' + str(connection_input[CONF_LLM_PORT]) if connection_input[CONF_LLM_PORT] else ''}/v1"
     assert url == expected_url
 
-def test_validate_connection(backend_case: BackendCase) -> None:
+def test_validate_connection(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test connection validation for every backend."""
     backend_valid = backend_case.backend_class(hass, backend_case.user_input)
     backend_invalid = backend_case.backend_class(hass, backend_case.user_input_invalid)
-    asyncio.run(
+    _run_async_test(hass,
         _async_test_validate_connection(
             backend_valid,
             backend_invalid,
@@ -244,17 +258,17 @@ def test_validate_connection(backend_case: BackendCase) -> None:
         )
     )
 
-def test_get_available_models(backend_case: BackendCase) -> None:
+def test_get_available_models(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test model discovery for every backend."""
     backend_valid = backend_case.backend_class(hass, backend_case.user_input)
     backend_invalid = backend_case.backend_class(hass, backend_case.user_input_invalid)
-    asyncio.run(_async_test_get_available_models(backend_valid, backend_invalid))
+    _run_async_test(hass, _async_test_get_available_models(backend_valid, backend_invalid))
 
-def test_get_model_info(backend_case: BackendCase) -> None:
+def test_get_model_info(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test model information retrieval for every backend."""
     backend_valid = backend_case.backend_class(hass, backend_case.user_input)
     backend_invalid = backend_case.backend_class(hass, backend_case.user_input_invalid)
-    asyncio.run(
+    _run_async_test(hass,
         _async_test_get_model_info(
             backend_valid,
             backend_invalid,
@@ -263,12 +277,12 @@ def test_get_model_info(backend_case: BackendCase) -> None:
         )
     )
 
-def test_preload_and_unload_model(backend_case: BackendCase) -> None:
+def test_preload_and_unload_model(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test model lifecycle operations for every backend."""
     backend = backend_case.backend_class(hass, backend_case.user_input)
-    asyncio.run(_async_test_preload_and_unload_model(backend, backend_case.chat_config))
+    _run_async_test(hass, _async_test_preload_and_unload_model(backend, backend_case.chat_config))
 
-def test_prepares_linked_tool_history(backend_case: BackendCase) -> None:
+def test_prepares_linked_tool_history(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test that a backend preserves the link between tool calls and results."""
     backend = backend_case.backend_class(hass, backend_case.user_input)
     messages = backend.format_messages_for_backend(MOCK_TOOL_HISTORY)
@@ -300,11 +314,11 @@ def test_openai_truncation_keeps_complete_turns() -> None:
     assert [message["role"] for message in truncated] == ["system", "user"]
     assert truncated[-1]["content"] == "What is its state now?"
 
-def test_send_chat_request(backend_case: BackendCase) -> None:
+def test_send_chat_request(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test chat requests for every backend."""
     backend_valid = backend_case.backend_class(hass, backend_case.user_input)
     backend_invalid = backend_case.backend_class(hass, backend_case.user_input_invalid)
-    asyncio.run(
+    _run_async_test(hass,
         _async_test_send_chat_request(
             backend_valid,
             backend_invalid,
