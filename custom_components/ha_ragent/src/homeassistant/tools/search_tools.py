@@ -23,8 +23,6 @@ from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbeddi
 
 
 class RAGentSemanticSearchTool(llm.Tool):
-    """Semantic search tool over embedded devices and tools."""
-
     name = RAGENT_SEMANTIC_SEARCH_TOOL_NAME
     description = (
         "Resolve Home Assistant targets with semantic search. "
@@ -41,8 +39,10 @@ class RAGentSemanticSearchTool(llm.Tool):
         }
     )
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, entry_id: str, subentry_id: str) -> None:
         self.hass = hass
+        self.entry_id = entry_id
+        self.subentry_id = subentry_id
 
     @staticmethod
     def _get_effective_limits(entry: Any) -> tuple[int, int]:
@@ -57,19 +57,16 @@ class RAGentSemanticSearchTool(llm.Tool):
         return query or None
 
     def _iter_searchable_entries(self):
-        """Yield searchable entry and subentry combinations."""
+        """Yield only the active entry and subentry."""
         domain_data = self.hass.data.get(DOMAIN, {})
-        for _, entry in domain_data.items():
-            if not hasattr(entry, "subentries") or not hasattr(entry, "embedder_backend"):
-                continue
-
-            device_limit, tool_limit = self._get_effective_limits(entry)
-
-            for subentry_id, subentry in entry.subentries.items():
-                if subentry.data.get(CONF_LLM_HASS_API) == "none":
-                    continue
-
-                yield entry, subentry_id, subentry, device_limit, tool_limit
+        entry = domain_data.get(self.entry_id)
+        if not entry or not hasattr(entry, "subentries") or not hasattr(entry, "embedder_backend"):
+            return
+        subentry = entry.subentries.get(self.subentry_id)
+        if not subentry or subentry.data.get(CONF_LLM_HASS_API) == "none":
+            return
+        device_limit, tool_limit = self._get_effective_limits(entry)
+        yield entry, self.subentry_id, subentry, device_limit, tool_limit
 
     async def _embed_query_for_subentry(self, entry: Any, subentry: Any, query: str) -> list[float]:
         """Embed a search query for a specific subentry."""

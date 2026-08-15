@@ -15,6 +15,7 @@ from custom_components.ha_ragent.src.const import (
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 
 class ALlmBaseBackend(ABC):
     _default_timeout = aiohttp.ClientTimeout(total=5)
@@ -51,6 +52,10 @@ class ALlmBaseBackend(ABC):
         return [tool.to_tool_dict() for tool in tools]
 
     @abstractmethod
+    def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:
+        raise NotImplementedError()
+
+    @abstractmethod
     async def async_get_model_info(self, model_name: str) -> ModelInfo:
         raise NotImplementedError()
     
@@ -67,5 +72,5 @@ class ALlmBaseBackend(ABC):
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         raise NotImplementedError()

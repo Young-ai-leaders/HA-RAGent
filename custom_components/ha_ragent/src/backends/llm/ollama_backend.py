@@ -25,6 +25,7 @@ from custom_components.ha_ragent.src.const import (
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 
 _logger = logging.getLogger(__name__)
 
@@ -105,8 +106,29 @@ class OllamaLlmBackend(ALlmBaseBackend):
                 available.append(info.name)
 
         return available
+
+    def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:
+        """Convert canonical history messages to Ollama chat format."""
+        prepared: List[ChatMessage] = []
+        for message in messages:
+            item = dict(message)
+            if item.get("role") == "assistant" and item.get("tool_calls"):
+                item["tool_calls"] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool_call["function"]["name"],
+                            "arguments": tool_call["function"]["arguments"],
+                        },
+                    }
+                    for tool_call in item["tool_calls"]
+                ]
+            if item.get("role") == "tool":
+                item.pop("tool_call_id", None)
+            prepared.append(item)
+        return prepared
     
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self._hass)
 
@@ -124,11 +146,11 @@ class OllamaLlmBackend(ALlmBaseBackend):
         if "keep_alive" in kwargs:
             payload["keep_alive"] = kwargs["keep_alive"]
         else:
-            payload["messages"] = messages
+            payload["messages"] = self.format_messages_for_backend(messages)
 
         if tools:
             payload["tools"] = [tool.to_tool_dict() for tool in tools]
-            _logger.info("Added %d tools to Ollama request", len(tools))
+            _logger.info(f"Added {len(tools)} tools to Ollama request")
         
         try:
             async with session.post(self._chat_url, json=payload, timeout=ALlmBaseBackend._chat_timeout) as response:
@@ -148,7 +170,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
                         if "message" in data and "tool_calls" in data["message"]:
                             tool_calls = data["message"]["tool_calls"]
                             if tool_calls:
-                                _logger.debug("Received %d tool calls from Ollama", len(tool_calls))
+                                _logger.debug(f"LLM tool calls received from Ollama: {tool_calls}")
                                 for tc in tool_calls:
                                     if "function" in tc:
                                         func = tc["function"]
@@ -159,7 +181,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
                                         yield f"\n```homeassistant\n{json.dumps(tool_json)}\n```\n"
 
                     except json.JSONDecodeError:
-                        _logger.debug("Failed to parse Ollama response: %s", line)
+                        _logger.debug(f"Failed to parse Ollama response: {line}")
                         continue
         except Exception as err:
             _logger.error("Error calling Ollama API: %s", err, exc_info=True)

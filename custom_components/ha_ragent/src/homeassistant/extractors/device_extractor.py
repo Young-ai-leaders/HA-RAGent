@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Iterable
 
 
 from homeassistant.core import HomeAssistant
@@ -89,7 +88,7 @@ class DeviceExtractor:
         
         return devices
     
-    async def async_embed_all_exposed_devices(self, subentry_ids: Iterable[str] | None = None) -> None:
+    async def async_embed_exposed_devices(self, subentry_id: str) -> None:
         total_embedded_devices = 0
         try:
             _logger.debug("Device embedding function starting, checking for subentries")
@@ -97,20 +96,10 @@ class DeviceExtractor:
                 _logger.debug("No subentries found in config entry! Cannot embed devices.")
                 return
 
-            selected_subentry_ids = set(subentry_ids) if subentry_ids is not None else None
-            subentries = (
-                {
-                    subentry_id: subentry
-                    for subentry_id, subentry in self._entry.subentries.items()
-                    if selected_subentry_ids is None or subentry_id in selected_subentry_ids
-                }
-            )
-
-            if not subentries:
+            subentry = self._entry.subentries.get(subentry_id)
+            if not subentry:
                 _logger.debug("No matching subentries found for device embedding.")
                 return
-
-            _logger.debug(f"Found {len(subentries)} subentries to process.")
 
             all_entities = list(self._hass.states.async_entity_ids())
             exposed_entities = [entity_id for entity_id in all_entities if async_should_expose(self._hass, "conversation", entity_id)]
@@ -120,24 +109,21 @@ class DeviceExtractor:
                 _logger.warning("No entities are exposed to Conversation. Skipping embedding and preserving existing vectors.")
                 return
 
-            for subentry_id, subentry in subentries.items():
-                try:
-                    collection_name = f"devices_{subentry_id}"
-                    embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
-                    
-                    await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)                    
-                    device_list = await self._async_get_embeddable_devices(exposed_entities)
-                    device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
+            try:
+                collection_name = f"devices_{subentry_id}"
+                embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
+                await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
+                device_list = await self._async_get_embeddable_devices(exposed_entities)
+                device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
 
-                    if device_embeddings:
-                        _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
-                        await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, device_embeddings)
-                        total_embedded_devices += len(device_embeddings)
-                    else:
-                        _logger.warning("No devices to embed for subentry %s", subentry_id)
-                except Exception as err:
-                    _logger.error(f"Error in background embedding job for subentry {subentry_id}: {err}", exc_info=True)
-                    continue
+                if device_embeddings:
+                    _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
+                    await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, device_embeddings)
+                    total_embedded_devices += len(device_embeddings)
+                else:
+                    _logger.warning("No devices to embed for subentry %s", subentry_id)
+            except Exception as err:
+                _logger.error(f"Error in background embedding job for subentry {subentry_id}: {err}", exc_info=True)
         except Exception as err:
             _logger.error(f"Error in tool embedding job: {err}", exc_info=True)
         finally:
