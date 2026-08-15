@@ -25,6 +25,7 @@ from custom_components.ha_ragent.src.const import (
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 
 _logger = logging.getLogger(__name__)
 
@@ -105,8 +106,29 @@ class OllamaLlmBackend(ALlmBaseBackend):
                 available.append(info.name)
 
         return available
+
+    def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:
+        """Convert canonical history messages to Ollama chat format."""
+        prepared: List[ChatMessage] = []
+        for message in messages:
+            item = dict(message)
+            if item.get("role") == "assistant" and item.get("tool_calls"):
+                item["tool_calls"] = [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": tool_call["function"]["name"],
+                            "arguments": tool_call["function"]["arguments"],
+                        },
+                    }
+                    for tool_call in item["tool_calls"]
+                ]
+            if item.get("role") == "tool":
+                item.pop("tool_call_id", None)
+            prepared.append(item)
+        return prepared
     
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[Dict[str, str]], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         """Send a chat request to Ollama and stream responses."""
         session = async_get_clientsession(self._hass)
 
@@ -124,7 +146,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
         if "keep_alive" in kwargs:
             payload["keep_alive"] = kwargs["keep_alive"]
         else:
-            payload["messages"] = messages
+            payload["messages"] = self.format_messages_for_backend(messages)
 
         if tools:
             payload["tools"] = [tool.to_tool_dict() for tool in tools]
