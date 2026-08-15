@@ -2,8 +2,15 @@ import logging
 import json
 from typing import Any, Dict, List
 
-from homeassistant.core import HomeAssistant, JsonObjectType
-from homeassistant.helpers.llm import ToolInput
+try:
+    from homeassistant.core import HomeAssistant, JsonObjectType
+    from homeassistant.helpers.llm import ToolInput
+except ImportError:
+    from custom_components.ha_ragent.src.backends.mock import (
+        MockHomeAssistant as HomeAssistant,
+        MockToolInput as ToolInput,
+    )
+    JsonObjectType = dict[str, Any]
 
 from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
 
@@ -68,8 +75,8 @@ class ToolParser:
                 continue
 
             if "name" in parameters:
-                name = parameters.pop("name")
-                if "." in name:
+                name = parameters["name"]
+                if isinstance(name, str) and "." in name:
                     state = self._hass.states.get(name)
                     parameters["name"] = state.attributes.get("friendly_name") if state else name
 
