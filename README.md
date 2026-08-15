@@ -103,6 +103,20 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 - `Conversation Memory Duration`
     - Controls how long the assistant will retain conversation history in minutes.
 
+### Available Prompt Variables
+The **System Prompt** is rendered as a Home Assistant Jinja template for every request. The following variables are passed to it:
+
+- `device_list`
+    - The retrieved device candidates whose entities currently exist in Home Assistant. Each device provides `id`, `name`, `area_name`, `floor_name`, `domain`, `device_labels`, `services`, `aliases`, `state` and `attributes`.
+- `area_list`
+    - A list of the distinct, non-empty area names found in `device_list`. It contains only areas associated with the retrieved candidates, not every area in Home Assistant.
+- `area_name`
+    - The area of the device through which the conversation was started, or `None` when no area is available.
+- `floor_name`
+    - The floor of the device through which the conversation was started, or `None` when no floor is available.
+- `max_retries`
+    - The configured maximum number of tool-call iterations.
+
 ## Services
 HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:
 
