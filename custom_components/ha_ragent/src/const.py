@@ -5,9 +5,9 @@ import re
 #-----------------------------------------------
 DOMAIN = "ha_ragent"
 RAGENT_LLM_API_ID = "ha_ragent_api"
-RAGENT_LLM_API_NAME = "HA RAGent"
+RAGENT_LLM_API_NAME = "HA-RAGent"
 RAGENT_SEMANTIC_SEARCH_TOOL_NAME = "HassSemanticSearch"
-INTEGRATION_VERSION = "0.3.0"
+RAGENT_PLANNED_ACTION_TOOL_NAME = "HassPlannedAction"
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
 
