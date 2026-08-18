@@ -116,6 +116,7 @@ class RAGentSemanticSearchTool(llm.Tool):
                                 "name": device.name,
                                 "area": device.area_name,
                                 "domain": device.domain,
+                                "device_class": device.domain,
                                 "aliases": device.aliases or [],
                                 "state": state.state if state else None,
                             }

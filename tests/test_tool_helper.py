@@ -1,0 +1,128 @@
+from unittest.mock import Mock
+
+import pytest
+
+from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
+
+
+def test_parse_tool_call_preserves_friendly_name() -> None:
+    """A friendly-name target must survive nested argument parsing."""
+    hass = Mock()
+    helper = ToolHelper(hass)
+    response = """```homeassistant
+{"tool": "HassTurnOn", "arguments": "{\\"name\\":\\"Light Strip\\",\\"area\\":\\"Bedroom Jonas\\"}"}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert len(calls) == 1
+    assert calls[0].tool_name == "HassTurnOn"
+    assert calls[0].tool_args == {
+        "name": "Light Strip",
+        "area": "Bedroom Jonas",
+    }
+    hass.states.get.assert_not_called()
+
+
+def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
+    """A device class supplies the domain when the model omitted it."""
+    hass = Mock()
+    helper = ToolHelper(hass)
+    response = """```homeassistant
+{"tool": "HassTurnOn", "arguments": {"name": "Kitchen Window", "device_class": ["window"]}}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert len(calls) == 1
+    assert calls[0].tool_args == {
+        "name": "Kitchen Window",
+        "domain": ["window"],
+    }
+
+
+def test_parse_tool_call_prefers_explicit_domain() -> None:
+    """An explicit domain takes precedence over the device class fallback."""
+    hass = Mock()
+    helper = ToolHelper(hass)
+    response = """```homeassistant
+{"tool": "HassTurnOn", "arguments": {"area": "Living Room", "domain": ["light"], "device_class": ["switch"]}}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert len(calls) == 1
+    assert calls[0].tool_args == {
+        "area": "Living Room",
+        "domain": ["light"],
+    }
+
+
+def test_tool_call_signature_ignores_argument_order() -> None:
+    """Equivalent calls have the same signature regardless of key order."""
+    helper = ToolHelper(Mock())
+    first = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"domain": ["light"], "area": "Bedroom 1"},
+    )
+    second = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"area": "Bedroom 1", "domain": ["light"]},
+    )
+
+    assert helper.tool_call_signature(first) == helper.tool_call_signature(second)
+
+
+def test_tool_call_signature_distinguishes_targets() -> None:
+    """Calls to different targets remain independently executable."""
+    helper = ToolHelper(Mock())
+    bedroom_one = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"domain": ["light"], "area": "Bedroom 1"},
+    )
+    bedroom_two = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"domain": ["light"], "area": "Bedroom 2"},
+    )
+
+    assert helper.tool_call_signature(bedroom_one) != helper.tool_call_signature(
+        bedroom_two
+    )
+
+
+def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
+    """Domain-aware tools cannot target every entity in an area implicitly."""
+    call = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"area": "Bedroom 1"},
+    )
+
+    with pytest.raises(ValueError, match="requires a name, domain, or device_class"):
+        ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
+
+
+@pytest.mark.parametrize(
+    "tool_args",
+    [
+        {"name": "Bedroom 1 Ceiling Light"},
+        {"area": "Bedroom 1", "domain": ["light"]},
+    ],
+)
+def test_validate_tool_call_target_accepts_scoped_device_call(
+    tool_args: dict,
+) -> None:
+    """A name or domain provides the required device scope."""
+    call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
+
+    ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
+
+
+def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
+    """Tools without device-domain targeting may validly use an area alone."""
+    call = Mock(
+        tool_name="HassBroadcast",
+        tool_args={"area": "Bedroom 1"},
+    )
+
+    ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=False)
+

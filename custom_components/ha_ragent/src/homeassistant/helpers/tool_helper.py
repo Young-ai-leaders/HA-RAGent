@@ -2,14 +2,21 @@ import logging
 import json
 from typing import Any, Dict, List
 
-from homeassistant.core import HomeAssistant, JsonObjectType
-from homeassistant.helpers.llm import ToolInput
+try:
+    from homeassistant.core import HomeAssistant, JsonObjectType
+    from homeassistant.helpers.llm import ToolInput
+except ImportError:
+    from custom_components.ha_ragent.src.backends.mock import (
+        MockHomeAssistant as HomeAssistant,
+        MockToolInput as ToolInput,
+    )
+    JsonObjectType = dict[str, Any]
 
 from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
 
 _logger = logging.getLogger(__name__)
 
-class ToolParser:
+class ToolHelper:
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
 
@@ -68,8 +75,8 @@ class ToolParser:
                 continue
 
             if "name" in parameters:
-                name = parameters.pop("name")
-                if "." in name:
+                name = parameters["name"]
+                if isinstance(name, str) and "." in name:
                     state = self._hass.states.get(name)
                     parameters["name"] = state.attributes.get("friendly_name") if state else name
 
@@ -88,6 +95,27 @@ class ToolParser:
             parsed_calls.append(parsed_call)
 
         return parsed_calls
+
+    def tool_call_signature(self, tool_call: ToolInput) -> str:
+        """Return a stable signature for a tool name and its arguments."""
+        return json.dumps(
+            {
+                "tool": tool_call.tool_name,
+                "arguments": tool_call.tool_args,
+            },
+            sort_keys=True
+        )
+
+    def validate_tool_call_target(self, tool_call: ToolInput, is_domain_aware: bool) -> None:
+        """Reject broad device calls without a name, domain, or device class."""
+        if not is_domain_aware:
+            return
+
+        arguments = tool_call.tool_args
+        if arguments.get("name") or arguments.get("domain"):
+            return
+
+        raise ValueError(f"Device tool {tool_call.tool_name} requires a name, domain, or device_class")
 
     def parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""

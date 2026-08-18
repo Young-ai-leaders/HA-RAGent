@@ -21,7 +21,7 @@ from voluptuous_openapi import convert
 
 from custom_components.ha_ragent.src.homeassistant.helpers.history_manager import HistoryManager
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
-from custom_components.ha_ragent.src.homeassistant.helpers.tool_parser import ToolParser
+from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
@@ -240,10 +240,16 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         history_manager: HistoryManager,
     ) -> ConversationResult:
         """Process a prompt through the RAGent."""
-        tool_parser = ToolParser(self.hass)
+        tool_helper = ToolHelper(self.hass)
         max_tool_call_iterations = self.runtime_options.get(CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS)
 
         tool_calls_overall: List[Tuple[llm.ToolInput, Any]] = []
+        executed_tool_calls: set[str] = set()
+        domain_aware_tools = {
+            tool.name
+            for tool in tool_list
+            if tool.metadata and tool.metadata.get("is_domain_aware")
+        }
         formatted_messages: list[ChatMessage] = []
         formatted_index = 0
 
@@ -265,7 +271,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 _logger.debug("LLM response: %s", assistant_content)
                 
-                tool_calls_in_iteration = tool_parser.parse_tool_calls(assistant_content)
+                tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content)
                 message_content = MessageHelper.clean_assistant_content(assistant_content, bool(tool_calls_in_iteration))
 
                 message = conversation.AssistantContent(
@@ -281,17 +287,23 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     for tool_call in tool_calls_in_iteration:
                         tool_name = tool_call.tool_name
                         tool_args = tool_call.tool_args
-                        _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
-                        
+
                         try:
                             if llm_api:
+                                tool_helper.validate_tool_call_target(tool_call, is_domain_aware=tool_name in domain_aware_tools)
+                                tool_call_signature = tool_helper.tool_call_signature(tool_call)
+                                if tool_call_signature in executed_tool_calls:
+                                    raise RuntimeError(f"Repeated tool call blocked: {tool_name} with arguments {tool_args}")
+
+                                executed_tool_calls.add(tool_call_signature)
+                                _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
                                 tool_result = await llm_api.async_call_tool(tool_call)
                                 tool_calls_overall.append((tool_call, tool_result))                                
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
                                     tool_call_id=tool_call.id,
                                     tool_name=tool_name,
-                                    tool_result=tool_parser.parse_tool_results(tool_result)
+                                    tool_result=tool_helper.parse_tool_results(tool_result)
                                 )
                                 history_manager.append_message(tool_result_msg)
                             else:
@@ -305,13 +317,18 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 history_manager.append_message(tool_result_msg)
 
                         except Exception as tool_err:
-                            tool_result_msg = conversation.ToolResultContent(
+                            tool_result_msg = MessageHelper.create_tool_failure_message(
                                 agent_id=user_input.agent_id,
                                 tool_call_id=tool_call.id,
                                 tool_name=tool_name,
-                                tool_result={"failed": f"{tool_name}: {str(tool_err)}"}
+                                error=tool_err,
                             )
                             history_manager.append_message(tool_result_msg)
+                            history_manager.persist_chat_history(chat_log)
+
+                            intent_response = intent.IntentResponse(language=user_input.language)
+                            intent_response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, f"{tool_name}: {tool_err}")
+                            return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
                     
             except Exception as err:
                 _logger.error(f"There was a problem talking to the backend: {err}")

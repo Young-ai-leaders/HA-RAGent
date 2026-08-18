@@ -1,6 +1,14 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from typing import Any, Callable
 from unittest.mock import Mock
 import aiohttp
+
+@dataclass
+class MockToolInput:
+    tool_name: str
+    tool_args: dict[str, Any]
 
 class MockHomeAssistant:
     def __init__(self) -> None:
