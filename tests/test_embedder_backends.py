@@ -126,11 +126,8 @@ async def _async_test_get_available_models_success(backend: ABaseEmbedder) -> No
 
 async def _async_test_get_available_models_failure(backend: ABaseEmbedder) -> None:
     """Test that the backend can handle available models retrieval failures with a mocked Home Assistant."""
-    try:
+    with pytest.raises(Exception):
         await backend.async_get_available_models()
-        assert False, "Expected an exception for unavailable models"
-    except Exception as e:
-        assert isinstance(e, Exception), f"Expected an exception, got {type(e)}"
 
 async def _async_test_get_available_models(backend_valid: ABaseEmbedder, backend_invalid: ABaseEmbedder) -> None:
     """Test that the backend can retrieve available models with a mocked Home Assistant."""
@@ -148,11 +145,8 @@ async def _async_test_get_model_info_success(backend: ABaseEmbedder, embedding_c
 
 async def _async_test_get_model_info_failure(backend: ABaseEmbedder, embedding_config_invalid: dict[str, Any]) -> None:
     """Test that the backend can handle model info retrieval failures with a mocked Home Assistant."""
-    try:
+    with pytest.raises(Exception):
         await backend.async_get_model_info(embedding_config_invalid[CONF_EMBEDDING_MODEL])
-        assert False, "Expected an exception for non-existent model"
-    except Exception as e:
-        assert isinstance(e, Exception), f"Expected an exception, got {type(e)}"
 
 async def _async_test_get_model_info(
         backend_valid: ABaseEmbedder, 
@@ -186,11 +180,8 @@ async def _async_test_embed_tools_overflow(backend: ABaseEmbedder, embedding_con
 
 async def _async_test_embed_tools_connection_failure(backend: ABaseEmbedder, embedding_config_invalid: dict[str, Any]) -> None:
     """Test that the backend can handle embedding tools failures with a mocked Home Assistant."""
-    try:
+    with pytest.raises(Exception):
         await backend.async_embed_object(embedding_config_invalid, MOCK_LLM_TOOLS)
-        assert False, "Expected an exception for invalid embedding config"
-    except Exception as e:
-        assert isinstance(e, Exception), f"Expected an exception, got {type(e)}"
 
 async def _async_test_embed_tool_scenarios(
         backend_valid: ABaseEmbedder, 

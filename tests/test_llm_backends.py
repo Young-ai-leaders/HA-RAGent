@@ -128,11 +128,8 @@ async def _async_test_get_available_models_success(backend: ALlmBaseBackend) -> 
 
 async def _async_test_get_available_models_failure(backend: ALlmBaseBackend) -> None:
     """Test that the backend can handle available models retrieval failures with a mocked Home Assistant."""
-    try:
+    with pytest.raises(Exception):
         await backend.async_get_available_models()
-        assert False, "Expected an exception for unavailable models"
-    except Exception as e:
-        assert isinstance(e, Exception), f"Expected an exception, got {type(e)}"
 
 async def _async_test_get_available_models(backend_valid: ALlmBaseBackend, backend_invalid: ALlmBaseBackend) -> None:
     """Test that the backend can retrieve available models with a mocked Home Assistant."""
@@ -150,11 +147,8 @@ async def _async_test_get_model_info_success(backend: ALlmBaseBackend, chat_conf
 
 async def _async_test_get_model_info_failure(backend: ALlmBaseBackend, chat_config_invalid: dict[str, Any]) -> None:
     """Test that the backend can handle model info retrieval failures with a mocked Home Assistant."""
-    try:
+    with pytest.raises(Exception):
         await backend.async_get_model_info(chat_config_invalid[CONF_LLM_MODEL])
-        assert False, "Expected an exception for non-existent model"
-    except Exception as e:
-        assert isinstance(e, Exception), f"Expected an exception, got {type(e)}"
 
 async def _async_test_get_model_info(
         backend_valid: ALlmBaseBackend, 
@@ -200,17 +194,13 @@ async def _async_test_send_chat_request_overflow_failure(backend: ALlmBaseBacken
 
 async def _async_test_send_chat_request_connection_failure(backend: ALlmBaseBackend, chat_config_invalid: dict[str, Any]) -> None:
     """Test handling chat request failures caused by empty messages."""
-    try:
+    with pytest.raises(Exception):
         async for _ in backend.async_send_chat_request(
             chat_config_invalid,
             MOCK_MESSAGES,
             MOCK_LLM_TOOLS,
         ):
             pass
-
-        assert False, "Expected an exception for empty messages"
-    except Exception as e:
-        assert isinstance(e, Exception), f"Expected an exception, got {type(e)}"
 
 async def _async_test_send_chat_request(
         backend_valid: ALlmBaseBackend, 

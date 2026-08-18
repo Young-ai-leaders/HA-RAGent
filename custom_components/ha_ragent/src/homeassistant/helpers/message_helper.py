@@ -14,10 +14,27 @@ from custom_components.ha_ragent.src.models.chat_message import (
     ChatFunction,
     ChatMessage,
     ChatToolCall,
+    ChatToolFailure,
 )
 
 
 class MessageHelper:
+    @staticmethod
+    def create_tool_failure_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, error: Exception) -> conversation.ToolResultContent:
+        """Create a tool-result message for a failed tool call."""
+        failure = ChatToolFailure(
+            success=False,
+            tool=tool_name,
+            error=str(error),
+        )
+        
+        return conversation.ToolResultContent(
+            agent_id=agent_id,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            tool_result=failure,
+        )
+
     @staticmethod
     def compact_tool_result(tool_message: conversation.ToolResultContent) -> conversation.ToolResultContent:
         """Compact semantic-search results stored in prompt history."""

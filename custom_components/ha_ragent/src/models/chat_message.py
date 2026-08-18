@@ -9,6 +9,13 @@ class ChatToolCall(TypedDict):
     type: NotRequired[Literal["function"]]
     function: ChatFunction
 
+
+class ChatToolFailure(TypedDict):
+    success: Literal[False]
+    tool: str
+    error: str
+
+
 class ChatMessage(TypedDict):
     role: Literal["system", "user", "assistant", "tool"]
     content: str
