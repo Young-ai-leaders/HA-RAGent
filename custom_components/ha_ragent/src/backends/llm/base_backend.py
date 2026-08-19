@@ -11,7 +11,8 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_API_KEY,
     CONF_LLM_HOST,
     CONF_LLM_PORT,
-    CONF_LLM_SSL
+    CONF_LLM_SSL,
+    RAGENT_REQUIRED_TOOL_NAMES,
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -50,6 +51,21 @@ class ALlmBaseBackend(ABC):
     @staticmethod
     def convert_tools_to_model_format(tools: List[LlmTool]) -> List[Dict[str, Any]]:
         return [tool.to_tool_dict() for tool in tools]
+
+    @staticmethod
+    def split_tool_names(tools: List[LlmTool]) -> tuple[list[str], list[str]]:
+        """Separate selected and always-required tool names for logging."""
+        required_names = set(RAGENT_REQUIRED_TOOL_NAMES)
+        tools_names: list[str] = []
+        required_tools_names: list[str] = []
+        for tool in tools:
+            target = (
+                required_tools_names
+                if tool.name in required_names
+                else tools_names
+            )
+            target.append(tool.name)
+        return tools_names, required_tools_names
 
     @abstractmethod
     def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:

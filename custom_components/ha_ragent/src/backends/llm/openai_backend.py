@@ -190,7 +190,8 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                     ),
                 },
             }
-            _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request")
+            tool_names, required_tool_names = self.split_tool_names(tools)
+            _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request: tools={tool_names}, required_tools={required_tool_names}")
 
         try:
             client = await self._async_get_client()

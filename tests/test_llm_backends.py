@@ -20,8 +20,10 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_MODEL,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant
@@ -234,6 +236,29 @@ def test_url_format(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     )
     expected_url = f"{'https' if connection_input[CONF_LLM_SSL] else 'http'}://{connection_input[CONF_LLM_HOST]}{':' + str(connection_input[CONF_LLM_PORT]) if connection_input[CONF_LLM_PORT] else ''}/v1"
     assert url == expected_url
+
+
+def test_tool_names_are_split_for_request_logging() -> None:
+    """Required tools are listed separately from RAG-selected tools."""
+    tools = [
+        LlmTool(
+            name="HassTurnOn",
+            description="Turn on",
+            parameters={},
+            metadata={},
+        ),
+        LlmTool(
+            name=RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+            description="Search",
+            parameters={},
+            metadata={},
+        ),
+    ]
+
+    tool_names, required_tool_names = ALlmBaseBackend.split_tool_names(tools)
+
+    assert tool_names == ["HassTurnOn"]
+    assert required_tool_names == [RAGENT_SEMANTIC_SEARCH_TOOL_NAME]
 
 def test_validate_connection(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test connection validation for every backend."""

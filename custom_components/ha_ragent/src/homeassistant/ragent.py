@@ -29,7 +29,10 @@ from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 
 from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
-from custom_components.ha_ragent.src.homeassistant.search_tool_api import augment_api_with_search_tool
+from custom_components.ha_ragent.src.homeassistant.ragent_api import (
+    RAGentAugmentedAPIInstance,
+    resolve_llm_api_id,
+)
 from custom_components.ha_ragent.src.models.device import Device
 
 from custom_components.ha_ragent.src.const import (
@@ -49,8 +52,10 @@ from custom_components.ha_ragent.src.const import (
     AREAS_PROMPT,
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
-    RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
 )
+from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGENT_SCHEDULED_REQUEST_PREFIX
 
 from custom_components.ha_ragent.src.utils import (
     get_placeholder_translation,
@@ -194,26 +199,34 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             metadata={},
         )
 
-    def _ensure_runtime_search_tools_exposed(self, tool_list: List[LlmTool], llm_api: llm.APIInstance | None) -> List[LlmTool]:
-        """Always expose runtime search tools to the model without embedding them."""
+    def _ensure_required_tools_exposed(self, tool_list: List[LlmTool], llm_api: llm.APIInstance | None) -> List[LlmTool]:
+        """Always expose required tools without bypassing RAG for other tools."""
         if not llm_api or not hasattr(llm_api, "tools"):
             return tool_list
 
         seen_tool_names = {tool.name for tool in tool_list}
-        required_tool_names = {RAGENT_SEMANTIC_SEARCH_TOOL_NAME}
 
-        runtime_search_tools: list[LlmTool] = []
+        required_tools: list[LlmTool] = []
         for api_tool in llm_api.tools:
             tool_name = getattr(api_tool, "name", None)
-            if tool_name not in required_tool_names or tool_name in seen_tool_names:
+            if tool_name not in RAGENT_REQUIRED_TOOL_NAMES or tool_name in seen_tool_names:
                 continue
 
             converted_tool = self._convert_api_tool(api_tool, llm_api)
             if converted_tool:
-                runtime_search_tools.append(converted_tool)
+                required_tools.append(converted_tool)
                 seen_tool_names.add(tool_name)
 
-        return [*tool_list, *runtime_search_tools]
+        return [*tool_list, *required_tools]
+
+    @staticmethod
+    def _exclude_prohibited_scheduled_request_tools(tool_list: List[LlmTool], user_text: str) -> List[LlmTool]:
+        """Exclude tools that are prohibited for scheduled requests."""
+        if not user_text.startswith(RAGENT_SCHEDULED_REQUEST_PREFIX):
+            return tool_list
+
+        prohibited = set(RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
+        return [tool for tool in tool_list if tool.name not in prohibited]
     
     def _get_current_device_location(self, llm_context: LLMContext) -> ar.AreaEntry | None:
         area: ar.AreaEntry | None = None
@@ -248,7 +261,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         domain_aware_tools = {
             tool.name
             for tool in tool_list
-            if tool.metadata and tool.metadata.get("is_domain_aware")
+            if tool.metadata and tool.metadata.get("is_target_aware")
         }
         formatted_messages: list[ChatMessage] = []
         formatted_index = 0
@@ -269,7 +282,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     content_chunks.append(chunk)
                 assistant_content = "".join(content_chunks)
 
-                _logger.debug("LLM response: %s", assistant_content)
+                _logger.debug(f"LLM response: {assistant_content}")
                 
                 tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content)
                 message_content = MessageHelper.clean_assistant_content(assistant_content, bool(tool_calls_in_iteration))
@@ -293,7 +306,14 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 tool_helper.validate_tool_call_target(tool_call, is_domain_aware=tool_name in domain_aware_tools)
                                 tool_call_signature = tool_helper.tool_call_signature(tool_call)
                                 if tool_call_signature in executed_tool_calls:
-                                    raise RuntimeError(f"Repeated tool call blocked: {tool_name} with arguments {tool_args}")
+                                    _logger.debug(f"Returning already-executed result for repeated tool call: {tool_name} with arguments {tool_args}")
+                                    tool_result_msg = MessageHelper.create_repeated_tool_result_message(
+                                        agent_id=user_input.agent_id,
+                                        tool_call_id=tool_call.id,
+                                        tool_name=tool_name,
+                                    )
+                                    history_manager.append_message(tool_result_msg)
+                                    continue
 
                                 executed_tool_calls.add(tool_call_signature)
                                 _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
@@ -386,14 +406,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     try:
                         llm_api = await llm.async_get_api(
                             self.hass,
-                            self.runtime_options[CONF_LLM_HASS_API],
-                            llm_context=user_input.as_llm_context(DOMAIN)
+                            resolve_llm_api_id(self.runtime_options[CONF_LLM_HASS_API]),
+                            llm_context=user_input.as_llm_context(DOMAIN),
                         )
-                        llm_api = augment_api_with_search_tool(
-                            self.hass, llm_api, self.entry_id, self.subentry_id
-                        )
+                        if isinstance(llm_api, RAGentAugmentedAPIInstance):
+                            llm_api.set_conversation_agent_id(user_input.agent_id)
+                            llm_api.set_search_scope(self.entry_id,self.subentry_id)
+
                     except HomeAssistantError as err:
-                        _logger.error("Error getting LLM API: %s", err)
+                        _logger.error(f"Error getting LLM API: {err}")
                         intent_response = intent.IntentResponse(language=user_input.language)
                         intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Error preparing LLM API.")
                         return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
@@ -427,7 +448,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant devices.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                retrieved_tools = self._ensure_runtime_search_tools_exposed(retrieved_tools, llm_api)
+                retrieved_tools = self._ensure_required_tools_exposed(retrieved_tools, llm_api)
+                retrieved_tools = self._exclude_prohibited_scheduled_request_tools(retrieved_tools, user_input.text)
 
                 if not retrieved_tools and llm_api:
                     intent_response = intent.IntentResponse(language=user_input.language)
@@ -470,7 +492,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     history_manager,
                 )
         except Exception as err:
-            _logger.error("Unexpected error in async_process: %s", err)
+            _logger.error(f"Unexpected error in async_process: {err}")
             intent_response = intent.IntentResponse(language=user_input.language)
             intent_response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, f"Sorry, an unexpected error occurred.")
             return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)

@@ -117,6 +117,18 @@ The **System Prompt** is rendered as a Home Assistant Jinja template for every r
 - `max_retries`
     - The configured maximum number of tool-call iterations.
 
+## Custom Tools
+
+When **Assist** is selected, HA-RAGent resolves it to its custom LLM API. The configured model must support tool calling. `HassSemanticSearch` is always available, while `HassPlannedAction` is exposed only when normal RAG tool retrieval selects it for the current request.
+
+### `HassSemanticSearch`
+
+Searches for devices and Home Assistant tools without changing device state.
+
+### `HassPlannedAction`
+
+Schedules a one-time Home Assistant action for execution after a specified delay.
+
 ## Services
 HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:
 

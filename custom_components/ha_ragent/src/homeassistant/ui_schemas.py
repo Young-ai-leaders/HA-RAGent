@@ -282,6 +282,8 @@ def ui_schema_config_options(
     subentry_type: str,
 ) -> dict:
     default_prompt = RAGent.build_base_prompt_template(language, DEFAULT_PROMPT)
+    default_llm_api = getattr(llm, "LLM_API_ASSIST", "assist")
+    selected_llm_api = options.get(CONF_LLM_HASS_API, default_llm_api)
 
     llm_api_options = [SelectOptionDict(value="none", label="No Control")]
     try:
@@ -296,8 +298,8 @@ def ui_schema_config_options(
     result: dict = {
         vol.Optional(
             CONF_LLM_HASS_API,
-            description={"suggested_value": options.get(CONF_LLM_HASS_API, "none")},
-            default=options.get(CONF_LLM_HASS_API, "none"),
+            description={"suggested_value": selected_llm_api},
+            default=selected_llm_api,
         ): SelectSelector(SelectSelectorConfig(
             options=llm_api_options,
             custom_value=False,
