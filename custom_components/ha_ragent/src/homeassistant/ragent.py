@@ -317,6 +317,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 history_manager.append_message(tool_result_msg)
 
                         except Exception as tool_err:
+                            _logger.debug(f"Tool {tool_name} failed; passing the failure back to the model: {tool_err}")
                             tool_result_msg = MessageHelper.create_tool_failure_message(
                                 agent_id=user_input.agent_id,
                                 tool_call_id=tool_call.id,
@@ -324,11 +325,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 error=tool_err,
                             )
                             history_manager.append_message(tool_result_msg)
-                            history_manager.persist_chat_history(chat_log)
-
-                            intent_response = intent.IntentResponse(language=user_input.language)
-                            intent_response.async_set_error(intent.IntentResponseErrorCode.FAILED_TO_HANDLE, f"{tool_name}: {tool_err}")
-                            return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
                     
             except Exception as err:
                 _logger.error(f"There was a problem talking to the backend: {err}")
