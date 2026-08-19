@@ -119,13 +119,13 @@ The **System Prompt** is rendered as a Home Assistant Jinja template for every r
 
 ## Custom Tools
 
-When **Assist** is selected, HA-RAGent resolves it to its custom LLM API. The configured model must support tool calling. `HassSemanticSearch` is always available, while `HassPlannedAction` is exposed only when normal RAG tool retrieval selects it for the current request.
+When **Assist** is selected, HA-RAGent resolves it to its custom LLM API. The configured model must support tool calling. `HassSemanticSearch` is always available and does not contribute to the max tool count, while `HassPlannedAction` is exposed only when normal RAG tool retrieval selects it for the current request.
 
-### `HassSemanticSearch`
+**HassSemanticSearch**
 
 Searches for devices and Home Assistant tools without changing device state.
 
-### `HassPlannedAction`
+**HassPlannedAction**
 
 Schedules a one-time Home Assistant action for execution after a specified delay.
 
