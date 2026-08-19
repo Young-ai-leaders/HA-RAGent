@@ -10,16 +10,22 @@ from voluptuous_openapi import convert
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
 from homeassistant.components.intent import async_register_timer_handler
-from homeassistant.components.intent.timers import TIMER_DATA, TimerEventType, TimerInfo
+from homeassistant.components.intent.timers import TimerEventType, TimerInfo
 from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import llm
 from homeassistant.helpers.llm import LLMContext
 
-from custom_components.ha_ragent.src.const import DOMAIN, RAGENT_TIMER_DEVICE_ID
+from custom_components.ha_ragent.src.const import (
+    DOMAIN,
+    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_TIMER_DEVICE_ID,
+)
 from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.homeassistant.ragent_api import resolve_llm_api_id
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
+from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
 
 _logger = logging.getLogger(__name__)
 
@@ -81,6 +87,7 @@ class ToolExtractor:
             "device_classes": {},
             "is_domain_universal": False,
             "is_domain_aware": False,
+            "is_target_aware": False,
         }
 
         parameters = getattr(tool, "parameters", None)
@@ -91,10 +98,12 @@ class ToolExtractor:
 
         domains, domain_universal, has_domain = self._extract_field_constraints(schema_dict, "domain")
         device_classes, device_class_universal, has_device_class = self._extract_field_constraints(schema_dict, "device_class")
+        _, _, has_area = self._extract_field_constraints(schema_dict, "area")
 
         metadata["domains"] = list(domains)
         metadata["is_domain_universal"] = domain_universal
         metadata["is_domain_aware"] = has_domain or has_device_class
+        metadata["is_target_aware"] = has_area or has_domain or has_device_class
         metadata["device_classes"] = list(device_classes)
         metadata["is_device_class_universal"] = device_class_universal
         metadata["is_device_class_aware"] = has_device_class
@@ -109,7 +118,7 @@ class ToolExtractor:
             self._fake_timer_remove = async_register_timer_handler(self._hass, RAGENT_TIMER_DEVICE_ID, handle_timer_event)
             _logger.debug("Registered timer support for HA-RAGent")
         except Exception as err:
-            _logger.warning("Failed to register timer device: %s", err)
+            _logger.warning(f"Failed to register timer device: {err}")
     
     def _remove_fake_timer_device(self) -> None:
         if not self._fake_timer_remove:
@@ -119,7 +128,7 @@ class ToolExtractor:
             self._fake_timer_remove()
             _logger.debug("Unregistered timer support for HA-RAGent")
         except Exception as err:
-            _logger.warning("Failed to unregister timer device: %s", err)
+            _logger.warning(f"Failed to unregister timer device: {err}")
 
     async def _async_get_embeddable_tools(self, subentry: ConfigSubentry) -> List[LlmTool]:
         tool_list: list[LlmTool] = []
@@ -141,7 +150,7 @@ class ToolExtractor:
 
             llm_api = await llm.async_get_api(
                 self._hass,
-                selected_api,
+                resolve_llm_api_id(selected_api),
                 llm_context=llm_context,
             )
 
@@ -157,7 +166,11 @@ class ToolExtractor:
 
             for tool in llm_api.tools:
                 tool_name = getattr(tool, "name", "unknown")
-                if tool_name == "GetLiveContext" or tool_name in seen_tool_names:
+                if (
+                    tool_name == "GetLiveContext"
+                    or tool_name in RAGENT_REQUIRED_TOOL_NAMES
+                    or tool_name in seen_tool_names
+                ):
                     continue
 
                 if hasattr(tool, "parameters") and tool.parameters:
@@ -167,11 +180,7 @@ class ToolExtractor:
                             custom_serializer=llm_api.custom_serializer,
                         )
                     except Exception as param_err:
-                        _logger.warning(
-                            "Could not convert parameters for tool %s: %s",
-                            tool_name,
-                            param_err,
-                        )
+                        _logger.warning(f"Could not convert parameters for tool {tool_name}: {param_err}")
                         parameters = {}
                 else:
                     parameters = {}
@@ -231,6 +240,6 @@ class ToolExtractor:
             _logger.error(f"Error in tool embedding job: {err}", exc_info=True)
         finally:
             if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug("Tool embedding function finished with %s embedded tools.", total_embedded_tools)
+                _logger.debug(f"Tool embedding function finished with {total_embedded_tools} embedded tools.")
             else:
-                _logger.info("Finished embedding %s tools.", total_embedded_tools)
+                _logger.info(f"Finished embedding {total_embedded_tools} tools.")

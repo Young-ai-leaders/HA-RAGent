@@ -29,5 +29,5 @@
 1. In order to allow for proper test execution download the following models:
 ```sh
 ollama pull all-minilm:33m
-ollama pull qwen3.5:0.8b 
+ollama pull qwen3:1.7b
 ```

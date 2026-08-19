@@ -15,7 +15,7 @@ from custom_components.ha_ragent.src.homeassistant.actions.embed_subentry_action
 from custom_components.ha_ragent.src.homeassistant.actions.preload_action import register_preload_models_action
 from custom_components.ha_ragent.src.homeassistant.actions.unload_action import register_unload_models_action
 from custom_components.ha_ragent.src.homeassistant.extractors.device_extractor import DeviceExtractor
-from custom_components.ha_ragent.src.homeassistant.search_tool_api import RAGentLLMAPI
+from custom_components.ha_ragent.src.homeassistant.ragent_api import RAGentLLMAPI
 from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor import ToolExtractor
 
 from custom_components.ha_ragent.src.const import (

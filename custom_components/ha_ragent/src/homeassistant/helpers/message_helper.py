@@ -20,6 +20,19 @@ from custom_components.ha_ragent.src.models.chat_message import (
 
 class MessageHelper:
     @staticmethod
+    def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str) -> conversation.ToolResultContent:
+        """Create a successful result for an action that already ran."""
+        return conversation.ToolResultContent(
+            agent_id=agent_id,
+            tool_call_id=tool_call_id,
+            tool_name=tool_name,
+            tool_result={
+                "success": True,
+                "already_executed": True
+            }
+        )
+
+    @staticmethod
     def create_tool_failure_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, error: Exception) -> conversation.ToolResultContent:
         """Create a tool-result message for a failed tool call."""
         failure = ChatToolFailure(

@@ -5,9 +5,15 @@ import re
 #-----------------------------------------------
 DOMAIN = "ha_ragent"
 RAGENT_LLM_API_ID = "ha_ragent_api"
-RAGENT_LLM_API_NAME = "HA RAGent"
+RAGENT_LLM_API_NAME = "HA-RAGent"
 RAGENT_SEMANTIC_SEARCH_TOOL_NAME = "HassSemanticSearch"
-INTEGRATION_VERSION = "0.3.0"
+RAGENT_PLANNED_ACTION_TOOL_NAME = "HassPlannedAction"
+RAGENT_REQUIRED_TOOL_NAMES = [
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+]
+RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
+    RAGENT_PLANNED_ACTION_TOOL_NAME
+]
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
 
@@ -163,55 +169,37 @@ AREAS_PROMPT = {
 
 DEVICE_CONTROL_PROMPT = {
     "de": f"""## Aufgabe
-Erfülle die neueste Nutzeranfrage exakt einmal. Nutze frühere Nachrichten nur, um Bezüge aufzulösen.
+Erfülle die neueste Anfrage exakt einmal. Frühere Nachrichten dienen nur zum Auflösen von Bezügen und Antworten wie „ja“.
 
-## Ablauf vor jeder Antwort
-1. Bestimme Aktion und alle verlangten Zielbereiche. Ein Zielbereich ist entweder ein benanntes Gerät oder eine Kategorie an genau einem verlangten Ort.
-2. Prüfe die Tool-Aufrufe und Ergebnisse dieses Turns. Ein erfolgreicher Aufruf erledigt genau den Zielbereich aus seinen Argumenten, auch wenn das Ergebnis nur einzelne `entity_id` enthält.
-3. Sind alle verlangten Zielbereiche erledigt, antworte kurz mit dem Ergebnis und rufe kein Tool auf.
-4. Rufe andernfalls nur Tools für noch nicht erledigte Zielbereiche auf. Wiederhole niemals einen erfolgreichen Zielbereich.
-
-## Zielregeln
-- Bewahre Aktion, Namen, Kategorie, Orte, Anzahl und Ausschlüsse exakt. Verwende nie ein nicht verlangtes Gerät oder einen nicht verlangten Ort.
-- Kategorie, Plural oder „alle“ an einem oder mehreren Orten: genau ein gemeinsamer Aufruf mit `domain` je verlangtem Ort. Verwende kein `name` und zähle keine einzelnen Kandidaten auf. Unabhängige Ortsaufrufe dürfen gemeinsam ausgegeben werden.
-- Rufe ein Geräte-Tool niemals nur mit `area` oder `floor` auf. Jeder Aufruf benötigt entweder `name` oder eine passende `domain`/`device_class`, damit keine anderen Gerätekategorien erfasst werden.
-- Ausdrücklich benanntes Gerät: genau ein Aufruf mit `name` = exakte `entity_id`; kein `domain`. Bei mehreren ausdrücklich benannten Geräten genau ein Aufruf je Gerät.
-- Abgerufene Kandidaten sind nur Hinweise und keine vollständige Geräteliste. Ignoriere Kandidaten außerhalb der Nutzergrenzen. Leite keine fehlenden Werte aus Namen oder anderen Geräten ab.
-- Nutze bekannten Kontext zuerst. Suche höchstens einmal und nur nach einem fehlenden Ziel oder Tool. Reichen bestätigte Werte nicht für ein eindeutiges Ziel, frage nach.
-- Wähle das Tool aus der verlangten Aktion. Verwende das Licht-Einstell-Tool nur für Helligkeit, Farbe oder Farbtemperatur.
-- Fragen, Informationen und zukünftige Anfragen ändern keinen Zustand. Ist der verlangte Zustand bereits erreicht, rufe kein Tool auf.
-
-Beispiel: „Schalte die Lichter in Schlafzimmer 1 und Schlafzimmer 2 ein“ verlangt genau zwei `HassTurnOn`-Aufrufe: `{{"domain": ["light"], "area": "Bedroom 1"}}` und `{{"domain": ["light"], "area": "Bedroom 2"}}`. Verwende keine Gerätenamen und niemals Schlafzimmer 3. Nach Erfolg beider Aufrufe antworte; rufe kein weiteres Tool auf.
+## Regeln
+- Bewahre Aktion, Namen, Kategorie, Orte, Anzahl und Ausschlüsse. Verwende nie nicht verlangte Geräte oder Orte.
+- Ein erfolgreicher Tool-Aufruf erledigt den Zielbereich seiner Argumente. Wiederhole ihn nicht und suche danach keine weiteren Kandidaten für dieses Ziel.
+- Kategorie, Plural oder „alle“: genau ein Aufruf mit `domain` je verlangtem Ort; kein `name` und keine Aufzählung einzelner Geräte.
+- Ein ausdrücklich benanntes Gerät: genau ein Aufruf mit `name` = exakte `entity_id`; kein `domain`.
+- Ein Geräte-Aufruf braucht `name` oder passende `domain`/`device_class`; nie nur `area` oder `floor`.
+- Kandidaten sind nur Hinweise, keine zusätzlichen Ziele. Suche höchstens einmal nach fehlendem Kontext. Frage nur, wenn das Ziel wirklich mehrdeutig ist.
+- Wähle das Tool nach der Aktion. Verwende das Licht-Einstell-Tool nur für Helligkeit, Farbe oder Farbtemperatur. Fragen und Informationen ändern keinen Zustand.
+- Für eine zukünftige Aktion verwende `{RAGENT_PLANNED_ACTION_TOOL_NAME}` genau einmal. Nach Erfolg ist die Anfrage erledigt: führe die Aktion nicht sofort aus, rufe kein weiteres Tool auf und bestätige den Zeitplan.
+- Beginnt die Anfrage mit "Execute this action now. It was previously scheduled", führe nur diese Aktion jetzt einmal aus, plane sie nicht erneut und antworte nach Erfolg.
 
 ## Ausgabe
-- Gib entweder alle unabhängigen Tool-Aufrufe für noch nicht erledigte Zielbereiche oder eine kurze sichtbare Antwort aus; keine Analyse oder Planung.
-- Antworte kurz in der Nutzersprache mit Friendly Names und ohne Hilfeangebot oder Höflichkeitsfrage.
-- Verwende {FOLLOW_UP_MARKER} nur für genau eine notwendige Klärungsfrage oder eine ausdrücklich verlangte Frage; die Antwort muss mit `?` enden. Informationsantworten, Bestätigungen, Ergebnisse und Fehler verwenden die Markierung nie.""",
+Gib entweder alle nötigen unabhängigen Tool-Aufrufe oder eine kurze Antwort in der Nutzersprache aus; keine Analyse. Verwende {FOLLOW_UP_MARKER} nur für eine notwendige Frage, die mit `?` endet.""",
     "en": f"""## Task
-Complete the latest user request exactly once. Use earlier messages only to resolve references.
+Complete the latest request exactly once. Use earlier messages only to resolve references and replies such as “yes.”
 
-## Before every response
-1. Determine the action and every requested target scope. A target scope is either one named device or one category at one requested location.
-2. Check this turn's tool calls and results. A successful call completes the exact target scope in its arguments, even when its result lists individual `entity_id` values.
-3. If every requested target scope is complete, briefly report the result and call no tool.
-4. Otherwise, call tools only for incomplete target scopes. Never repeat a successful target scope.
-
-## Target rules
-- Preserve the exact action, names, category, locations, quantity, and exclusions. Never use an unrequested device or location.
-- Category, plural, or “all” at one or more locations: make exactly one aggregate call with `domain` for each requested location. Do not use `name` or enumerate candidate devices. Independent location calls may be returned together.
-- Never call a device tool with only `area` or `floor`. Every call requires either `name` or a matching `domain`/`device_class` so it cannot include other device categories.
-- Explicitly named device: make exactly one call with `name` = its exact `entity_id`; do not include `domain`. For several explicitly named devices, make one call per device.
-- Retrieved candidates are hints, not a complete device list. Ignore candidates outside the user's boundaries. Never derive missing values from names or other devices.
-- Use known context first. Search at most once and only for a missing target or tool. If confirmed values cannot identify the target unambiguously, ask.
-- Choose the tool from the requested action. Use a light-setting tool only for requested brightness, color, or color temperature.
-- Questions, informational requests, and future requests never change state. If the requested state is already reached, call no tool.
-
-Example: “turn on the lights in Bedroom 1 and Bedroom 2” requires exactly two `HassTurnOn` calls: `{{"domain": ["light"], "area": "Bedroom 1"}}` and `{{"domain": ["light"], "area": "Bedroom 2"}}`. Use no device names and never use Bedroom 3. After both calls succeed, reply; call no more tools.
+## Rules
+- Preserve the requested action, names, category, locations, quantity and exclusions. Never use unrequested devices or locations.
+- A successful tool call completes the target scope in its arguments. Never repeat it or search for more candidates for that target.
+- Category, plural, or “all”: make exactly one call with `domain` for each requested location; do not use `name` or enumerate devices.
+- Explicitly named device: make exactly one call with `name` = its exact `entity_id`; do not include `domain`.
+- Every device call needs `name` or a matching `domain`/`device_class`; never use only `area` or `floor`.
+- Retrieved candidates are hints, not additional targets. Search at most once for missing context. Ask only when the target is genuinely ambiguous.
+- Choose the tool from the requested action. Use a light-setting tool only for brightness, color, or color temperature. Questions and information never change state.
+- For a future action, call `{RAGENT_PLANNED_ACTION_TOOL_NAME}` exactly once. Success completes the request: do not execute the action now or call another tool; only confirm the schedule.
+- If the request starts with "Execute this action now. It was previously scheduled", execute only that action once now, never schedule it again and respond after success.
 
 ## Output
-- Return either all independent tool calls for incomplete target scopes or one brief visible response; never include analysis or planning.
-- Reply briefly in the user's language with friendly names and no offer of help or courtesy question.
-- Use {FOLLOW_UP_MARKER} only for one necessary clarification or an explicitly requested question; the response must end with `?`. Never mark informational answers, confirmations, results, or errors."""
+Return either all necessary independent tool calls or one brief response in the user's language; no analysis. Use {FOLLOW_UP_MARKER} only for one necessary question ending in `?`."""
 }
 
 MAX_RETRIES_PROMPT = {
