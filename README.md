@@ -46,25 +46,25 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 
 **Setup Connections:**
 
-`Vector Database Options`
-- **Database Username** optional database username, currently relevant for MongoDB
-- **Database Password** optional database password, currently relevant for MongoDB
-- **Vector DB Hostname** hostname or IP of the vector database server, used for MongoDB and ChromaDB
-- **Vector DB Port** port of the vector database server, used for MongoDB and ChromaDB
-- **Use HTTPS** enables SSL/TLS for the vector database connection when supported by the selected backend
-- **Database Name** can be left as is or changed (Must be unique for each instance when multiple instances of HA-RAGent are configured. The default name is already unique.)
+- `Vector Database Options`
+    - **Database Username** optional database username, currently relevant for MongoDB
+    - **Database Password** optional database password, currently relevant for MongoDB
+    - **Vector DB Hostname** hostname or IP of the vector database server, used for MongoDB and ChromaDB
+    - **Vector DB Port** port of the vector database server, used for MongoDB and ChromaDB
+    - **Use HTTPS** enables SSL/TLS for the vector database connection when supported by the selected backend
+    - **Database Name** can be left as is or changed (Must be unique for each instance when multiple instances of HA-RAGent are configured. The default name is already unique.)
 
-`Embedding Backend Options`
-- **Embedding Hostname** hostname or IP of the embedding API server
-- **Embedding Port** port of the embedding API server
-- **Use HTTPS** enables SSL/TLS for the embedding API connection
-- **Embedding API Key** optional bearer token for OpenAI-compatible embedding APIs
+- `Embedding Backend Options`
+    - **Embedding Hostname** hostname or IP of the embedding API server
+    - **Embedding Port** port of the embedding API server
+    - **Use HTTPS** enables SSL/TLS for the embedding API connection
+    - **Embedding API Key** optional bearer token for OpenAI-compatible embedding APIs
 
-`LLM Backend Options`
-- **LLM Hostname** hostname or IP of the LLM API server
-- **LLM Port** port of the LLM API server
-- **Use HTTPS** enables SSL/TLS for the LLM API connection
-- **LLM API Key** optional bearer token for OpenAI-compatible LLM APIs
+- `LLM Backend Options`
+    - **LLM Hostname** hostname or IP of the LLM API server
+    - **LLM Port** port of the LLM API server
+    - **Use HTTPS** enables SSL/TLS for the LLM API connection
+    - **LLM API Key** optional bearer token for OpenAI-compatible LLM APIs
 
 ### Add AI RAGent Entry:
 **Pick one of the configured services**
@@ -122,12 +122,10 @@ The **System Prompt** is rendered as a Home Assistant Jinja template for every r
 When **Assist** is selected, HA-RAGent resolves it to its custom LLM API. The configured model must support tool calling. `HassSemanticSearch` is always available and does not contribute to the max tool count, while `HassPlannedAction` is exposed only when normal RAG tool retrieval selects it for the current request.
 
 **HassSemanticSearch**
-
-Searches for devices and Home Assistant tools without changing device state.
+- Searches for devices and Home Assistant tools without changing device state.
 
 **HassPlannedAction**
-
-Schedules a one-time Home Assistant action for execution after a specified delay.
+- Schedules a one-time Home Assistant action for execution after a specified delay.
 
 ## Services
 HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:
