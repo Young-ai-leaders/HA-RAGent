@@ -86,10 +86,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
     async def _async_embed_query(self, user_input: ConversationInput, history_texts: list[str]) -> list[float] | None:
         """Embed the current query plus older messages with recency decay."""
-        embedding_text = user_input.text.removeprefix(RAGENT_SCHEDULED_REQUEST_PREFIX)
-        _logger.debug(f"RAG Step 1: Embedding user input with history-aware decay: {embedding_text}")
+        _logger.debug(f"RAG Step 1: Embedding user input with history-aware decay: {user_input.text}")
 
-        texts_to_embed = [*history_texts, embedding_text]
+        texts_to_embed = [*history_texts, user_input.text]
         embedding_config = dict(self.subentry.data)
 
         try:
