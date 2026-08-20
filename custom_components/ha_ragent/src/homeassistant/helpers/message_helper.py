@@ -20,16 +20,16 @@ from custom_components.ha_ragent.src.models.chat_message import (
 
 class MessageHelper:
     @staticmethod
-    def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str) -> conversation.ToolResultContent:
-        """Create a successful result for an action that already ran."""
+    def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, previous_result: object) -> conversation.ToolResultContent:
+        """Return the original result for a repeated tool call."""
+        result = dict(previous_result)
+        result["already_executed"] = True
+
         return conversation.ToolResultContent(
             agent_id=agent_id,
             tool_call_id=tool_call_id,
             tool_name=tool_name,
-            tool_result={
-                "success": True,
-                "already_executed": True
-            }
+            tool_result=result
         )
 
     @staticmethod

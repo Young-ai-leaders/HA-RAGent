@@ -260,6 +260,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         tool_calls_overall: List[Tuple[llm.ToolInput, Any]] = []
         executed_tool_calls: set[str] = set()
+        tool_call_results: dict[str, Any] = {}
         domain_aware_tools = {
             tool.name
             for tool in tool_list
@@ -313,6 +314,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                         agent_id=user_input.agent_id,
                                         tool_call_id=tool_call.id,
                                         tool_name=tool_name,
+                                        previous_result=tool_call_results[tool_call_signature],
                                     )
                                     history_manager.append_message(tool_result_msg)
                                     continue
@@ -320,6 +322,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 executed_tool_calls.add(tool_call_signature)
                                 _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
                                 tool_result = await llm_api.async_call_tool(tool_call)
+                                tool_call_results[tool_call_signature] = tool_result
                                 tool_calls_overall.append((tool_call, tool_result))                                
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
