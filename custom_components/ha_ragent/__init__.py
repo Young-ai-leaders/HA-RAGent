@@ -11,9 +11,9 @@ from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RA
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
-from custom_components.ha_ragent.src.homeassistant.actions.embed_subentry_action import register_embed_subentry_action
-from custom_components.ha_ragent.src.homeassistant.actions.preload_action import register_preload_models_action
-from custom_components.ha_ragent.src.homeassistant.actions.unload_action import register_unload_models_action
+from custom_components.ha_ragent.src.homeassistant.services.embed_subentry_service import register_embed_subentry_service
+from custom_components.ha_ragent.src.homeassistant.services.preload_service import register_preload_models_service
+from custom_components.ha_ragent.src.homeassistant.services.unload_service import register_unload_models_service
 from custom_components.ha_ragent.src.homeassistant.extractors.device_extractor import DeviceExtractor
 from custom_components.ha_ragent.src.homeassistant.ragent_api import RAGentLLMAPI
 from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor import ToolExtractor
@@ -120,13 +120,13 @@ async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) 
 
 async def _register_services(hass: HomeAssistant):
     if not hass.services.has_service(DOMAIN, "embed_subentry"):
-        register_embed_subentry_action(hass)
+        register_embed_subentry_service(hass)
 
     if not hass.services.has_service(DOMAIN, "preload_models"):
-        register_preload_models_action(hass)
+        register_preload_models_service(hass)
 
     if not hass.services.has_service(DOMAIN, "unload_models"):
-        register_unload_models_action(hass)
+        register_unload_models_service(hass)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
