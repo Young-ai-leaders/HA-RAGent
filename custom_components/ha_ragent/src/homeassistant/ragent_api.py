@@ -11,6 +11,7 @@ from custom_components.ha_ragent.src.const import (
 )
 
 from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
+from custom_components.ha_ragent.src.homeassistant.tools.clear_planned_actions import RAGentClearPlannedActionsTool
 from custom_components.ha_ragent.src.homeassistant.tools.search_tools import RAGentSemanticSearchTool
 
 
@@ -39,11 +40,13 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         scoped_search_tool = RAGentSemanticSearchTool(hass, entry_id, subentry_id)
         planned_action_tool = RAGentPlannedActionTool(
             hass,
+            subentry_id=subentry_id,
             agent_id=agent_id,
             context=llm_context.context,
             language=llm_context.language,
             device_id=llm_context.device_id
         )
+        clear_planned_actions_tool = RAGentClearPlannedActionsTool(hass, subentry_id)
         self.tools = []
         for tool in wrapped_tools:
             tool_name = getattr(tool, "name", None)
@@ -51,6 +54,8 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 self.tools.append(scoped_search_tool)
             elif tool_name == RAGentPlannedActionTool.name:
                 self.tools.append(planned_action_tool)
+            elif tool_name == RAGentClearPlannedActionsTool.name:
+                self.tools.append(clear_planned_actions_tool)
             else:
                 self.tools.append(tool)
         if not any(getattr(tool, "name", None) == RAGentSemanticSearchTool.name for tool in wrapped_tools):
@@ -60,6 +65,11 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             for tool in wrapped_tools
         ):
             self.tools.append(planned_action_tool)
+        if not any(
+            getattr(tool, "name", None) == RAGentClearPlannedActionsTool.name
+            for tool in wrapped_tools
+        ):
+            self.tools.append(clear_planned_actions_tool)
 
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to the wrapped API instance."""
@@ -82,7 +92,8 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         """Intercept calls to RAGent tools and delegate to the appropriate tool instance."""
         if tool_input.tool_name in {
             RAGentSemanticSearchTool.name,
-            RAGentPlannedActionTool.name
+            RAGentPlannedActionTool.name,
+            RAGentClearPlannedActionsTool.name,
         }:
             for tool in self.tools:
                 if tool.name == tool_input.tool_name:

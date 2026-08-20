@@ -8,11 +8,17 @@ RAGENT_LLM_API_ID = "ha_ragent_api"
 RAGENT_LLM_API_NAME = "HA-RAGent"
 RAGENT_SEMANTIC_SEARCH_TOOL_NAME = "HassSemanticSearch"
 RAGENT_PLANNED_ACTION_TOOL_NAME = "HassPlannedAction"
+RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME = "HassClearPlannedActions"
+RAGENT_SCHEDULED_ACTION_CANCELLERS = "scheduled_action_cancellers"
+RAGENT_SCHEDULED_REQUEST_PREFIX = "[scheduled-action] "
+
 RAGENT_REQUIRED_TOOL_NAMES = [
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 ]
+
 RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
-    RAGENT_PLANNED_ACTION_TOOL_NAME
+    RAGENT_PLANNED_ACTION_TOOL_NAME,
+    RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME
 ]
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
@@ -175,7 +181,7 @@ Erfülle die neueste Anfrage exakt einmal. Frühere Nachrichten dienen nur zum A
 - Bewahre Aktion, Namen, Kategorie, Orte, Anzahl und Ausschlüsse. Verwende nie nicht verlangte Geräte oder Orte.
 - Ein erfolgreicher Tool-Aufruf erledigt den Zielbereich seiner Argumente. Wiederhole ihn nicht und suche danach keine weiteren Kandidaten für dieses Ziel.
 - Kategorie, Plural oder „alle“: genau ein Aufruf mit `domain` je verlangtem Ort; kein `name` und keine Aufzählung einzelner Geräte.
-- Ein ausdrücklich benanntes Gerät: genau ein Aufruf mit `name` = exakte `entity_id`; kein `domain`.
+- Ein ausdrücklich benanntes Gerät: genau ein Aufruf mit `name` = exakte, vollständige `entity_id` einschließlich Domain (zum Beispiel `light.bedroom_1_ceiling_light`); entferne niemals den Domain-Präfix und verkürze niemals die Entity-ID; kein `domain`.
 - Ein Geräte-Aufruf braucht `name` oder passende `domain`/`device_class`; nie nur `area` oder `floor`.
 - Kandidaten sind nur Hinweise, keine zusätzlichen Ziele. Suche höchstens einmal nach fehlendem Kontext. Frage nur, wenn das Ziel wirklich mehrdeutig ist.
 - Wähle das Tool nach der Aktion. Verwende das Licht-Einstell-Tool nur für Helligkeit, Farbe oder Farbtemperatur. Fragen und Informationen ändern keinen Zustand.
@@ -191,7 +197,7 @@ Complete the latest request exactly once. Use earlier messages only to resolve r
 - Preserve the requested action, names, category, locations, quantity and exclusions. Never use unrequested devices or locations.
 - A successful tool call completes the target scope in its arguments. Never repeat it or search for more candidates for that target.
 - Category, plural, or “all”: make exactly one call with `domain` for each requested location; do not use `name` or enumerate devices.
-- Explicitly named device: make exactly one call with `name` = its exact `entity_id`; do not include `domain`.
+- Explicitly named device: make exactly one call with `name` = its exact, complete `entity_id` including the domain (for example, `light.bedroom_1_ceiling_light`); never remove the domain prefix or shorten the entity ID; do not include `domain`.
 - Every device call needs `name` or a matching `domain`/`device_class`; never use only `area` or `floor`.
 - Retrieved candidates are hints, not additional targets. Search at most once for missing context. Ask only when the target is genuinely ambiguous.
 - Choose the tool from the requested action. Use a light-setting tool only for brightness, color, or color temperature. Questions and information never change state.
