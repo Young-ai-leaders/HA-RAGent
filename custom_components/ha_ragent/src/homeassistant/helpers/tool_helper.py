@@ -6,7 +6,7 @@ try:
     from homeassistant.core import HomeAssistant, JsonObjectType
     from homeassistant.helpers.llm import ToolInput
 except ImportError:
-    from custom_components.ha_ragent.src.backends.mock import (
+    from custom_components.ha_ragent.src.mock import (
         MockHomeAssistant as HomeAssistant,
         MockToolInput as ToolInput,
     )

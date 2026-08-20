@@ -7,7 +7,7 @@ from typing import Any, AsyncGenerator, Dict, List
 try:
     from homeassistant.core import HomeAssistant
 except ImportError:
-    from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant as HomeAssistant
+    from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.const import (

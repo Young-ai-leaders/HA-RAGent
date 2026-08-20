@@ -7,7 +7,7 @@ try:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.aiohttp_client import async_get_clientsession
 except ImportError:
-    from custom_components.ha_ragent.src.backends.mock import (
+    from custom_components.ha_ragent.src.mock import (
         MockHomeAssistant as HomeAssistant,
         async_get_clientsession,
     )

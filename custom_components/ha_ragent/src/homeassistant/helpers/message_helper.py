@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
-
-from homeassistant.components import conversation
+try:
+    from homeassistant.components import conversation
+except ImportError:
+    from custom_components.ha_ragent.src.mock import conversation
 
 from custom_components.ha_ragent.src.const import (
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
@@ -22,8 +24,13 @@ class MessageHelper:
     @staticmethod
     def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, previous_result: object) -> conversation.ToolResultContent:
         """Return the original result for a repeated tool call."""
-        result = dict(previous_result)
-        result["already_executed"] = True
+        result = {
+            "success": previous_result.get("success") is True,
+            "already_executed": True,
+        }
+        for error_key in ("error", "errors"):
+            if result["success"] is False and error_key in previous_result:
+                result[error_key] = previous_result[error_key]
 
         return conversation.ToolResultContent(
             agent_id=agent_id,
