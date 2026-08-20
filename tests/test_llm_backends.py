@@ -26,7 +26,7 @@ from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
-from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant
+from custom_components.ha_ragent.src.mock import MockHomeAssistant
 
 
 from tests.mocks import (

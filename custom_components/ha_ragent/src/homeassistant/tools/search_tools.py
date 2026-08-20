@@ -153,5 +153,5 @@ class RAGentSemanticSearchTool(llm.Tool):
             "scope": scope,
             "devices": devices[:device_limit] if search_devices else [],
             "tools": tools[:tool_limit] if search_tools else [],
-            "errors": errors,
+            "error": errors,
         }

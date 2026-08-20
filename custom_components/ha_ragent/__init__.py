@@ -31,7 +31,8 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_ALLOW_AUTO_EMBEDDING,
     DEFAULT_LLM_BACKEND_TYPE,    
     RAGENT_LLM_API_ID,
-    STARTUP_EMBEDDING_RUNNING_FLAG
+    STARTUP_EMBEDDING_RUNNING_FLAG,
+    RAGENT_SCHEDULED_ACTION_CANCELLERS,
 )
 
 from custom_components.ha_ragent.src.utils import vector_db_to_class, embedding_backend_to_class, llm_backend_to_class
@@ -66,6 +67,20 @@ async def _async_cleanup_subentry_collections(entry: RAGentConfigEntry, subentry
     for collection_name in collection_names:
         _logger.debug("Cleaning up collection %s for deleted subentry %s", collection_name, subentry_id)
         await entry.vector_db_backend.async_cleanup_collection(subentry_data, collection_name)
+
+
+def _cancel_scheduled_actions(hass: HomeAssistant, subentry_ids: Any) -> None:
+    """Cancel and remove pending scheduled actions for subentries."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    for subentry_id in subentry_ids:
+        subentry_data = domain_data.get(subentry_id)
+        if not subentry_data:
+            continue
+        cancellers = subentry_data.pop(RAGENT_SCHEDULED_ACTION_CANCELLERS, set())
+        for cancel in cancellers:
+            cancel()
+        if not subentry_data:
+            domain_data.pop(subentry_id, None)
 
 async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) -> None:
     subentry_ids_by_entry = hass.data[DOMAIN].setdefault("subentry_ids", {})
@@ -168,7 +183,10 @@ async def _async_run_startup_embeddings(hass: HomeAssistant, entry: RAGentConfig
 async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     """Set up HA Ragent from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+
     _ensure_llm_api_registered(hass)
+    _cancel_scheduled_actions(hass, entry.subentries)
+
     hass.data[DOMAIN][entry.entry_id] = entry
     hass.data[DOMAIN].setdefault("subentry_ids", {})[entry.entry_id] = set(entry.subentries)
     hass.data[DOMAIN].setdefault("subentry_data", {})[entry.entry_id] = {
@@ -189,10 +207,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     if hass.is_running:
         hass.async_create_task(_async_run_startup_embeddings(hass, entry))
     else:
-        hass.bus.async_listen_once(
-            EVENT_HOMEASSISTANT_STARTED,
-            lambda _event: hass.add_job(_async_run_startup_embeddings(hass, entry))
-        )
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, lambda _event: hass.add_job(_async_run_startup_embeddings(hass, entry)))
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await _register_services(hass)

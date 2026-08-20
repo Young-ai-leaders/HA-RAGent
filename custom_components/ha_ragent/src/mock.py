@@ -1,14 +1,50 @@
+"""Minimal Home Assistant substitutes used when Home Assistant is unavailable."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable
 from unittest.mock import Mock
+from types import SimpleNamespace
+
 import aiohttp
+
 
 @dataclass
 class MockToolInput:
     tool_name: str
     tool_args: dict[str, Any]
+
+
+class MockContent:
+    def __init__(self, **kwargs: Any) -> None:
+        self.__dict__.update(kwargs)
+
+
+class MockSystemContent(MockContent):
+    pass
+
+
+class MockUserContent(MockContent):
+    pass
+
+
+class MockAssistantContent(MockContent):
+    pass
+
+
+class MockToolResultContent(MockContent):
+    pass
+
+
+conversation = SimpleNamespace(
+    Content=MockContent,
+    SystemContent=MockSystemContent,
+    UserContent=MockUserContent,
+    AssistantContent=MockAssistantContent,
+    ToolResultContent=MockToolResultContent,
+)
+
 
 class MockHomeAssistant:
     def __init__(self) -> None:
@@ -24,6 +60,7 @@ class MockHomeAssistant:
         if self._client_session is not None:
             await self._client_session.close()
             self._client_session = None
+
 
 def async_get_clientsession(hass: MockHomeAssistant) -> aiohttp.ClientSession:
     """Get the client session for the Home Assistant test substitute."""

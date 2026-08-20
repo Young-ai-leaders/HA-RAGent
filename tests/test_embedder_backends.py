@@ -23,7 +23,7 @@ from custom_components.ha_ragent.src.const import (
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
-from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant
+from custom_components.ha_ragent.src.mock import MockHomeAssistant
 
 
 from tests.mocks import (

@@ -8,7 +8,7 @@ from openai import AsyncOpenAI, InternalServerError
 try:
     from homeassistant.core import HomeAssistant
 except ImportError:
-    from custom_components.ha_ragent.src.backends.mock import MockHomeAssistant as HomeAssistant
+    from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
 from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_API_KEY,

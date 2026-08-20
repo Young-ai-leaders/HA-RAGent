@@ -53,9 +53,9 @@ from custom_components.ha_ragent.src.const import (
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
     RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_SCHEDULED_REQUEST_PREFIX,
     RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
 )
-from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGENT_SCHEDULED_REQUEST_PREFIX
 
 from custom_components.ha_ragent.src.utils import (
     get_placeholder_translation,
@@ -220,14 +220,14 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         return [*tool_list, *required_tools]
 
     @staticmethod
-    def _exclude_prohibited_scheduled_request_tools(tool_list: List[LlmTool], user_text: str) -> List[LlmTool]:
-        """Exclude tools that are prohibited for scheduled requests."""
-        if not user_text.startswith(RAGENT_SCHEDULED_REQUEST_PREFIX):
+    def _exclude_prohibited_scheduled_request_tools(tool_list: List[LlmTool], scheduled_request: bool) -> List[LlmTool]:
+        """Exclude scheduling-management tools from due scheduled actions."""
+        if not scheduled_request:
             return tool_list
-
+        
         prohibited = set(RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
         return [tool for tool in tool_list if tool.name not in prohibited]
-    
+
     def _get_current_device_location(self, llm_context: LLMContext) -> ar.AreaEntry | None:
         area: ar.AreaEntry | None = None
         floor: fr.FloorEntry | None = None
@@ -251,6 +251,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         tool_list: List[LlmTool],
         chat_log: conversation.ChatLog,
         history_manager: HistoryManager,
+        scheduled_request: bool = False,
     ) -> ConversationResult:
         """Process a prompt through the RAGent."""
         tool_helper = ToolHelper(self.hass)
@@ -258,6 +259,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         tool_calls_overall: List[Tuple[llm.ToolInput, Any]] = []
         executed_tool_calls: set[str] = set()
+        tool_call_results: dict[str, Any] = {}
         domain_aware_tools = {
             tool.name
             for tool in tool_list
@@ -311,6 +313,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                         agent_id=user_input.agent_id,
                                         tool_call_id=tool_call.id,
                                         tool_name=tool_name,
+                                        previous_result=tool_call_results[tool_call_signature],
                                     )
                                     history_manager.append_message(tool_result_msg)
                                     continue
@@ -318,6 +321,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 executed_tool_calls.add(tool_call_signature)
                                 _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
                                 tool_result = await llm_api.async_call_tool(tool_call)
+                                tool_call_results[tool_call_signature] = tool_result
                                 tool_calls_overall.append((tool_call, tool_result))                                
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
@@ -395,6 +399,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
         """Process the user request"""
+        scheduled_request = user_input.text.startswith(RAGENT_SCHEDULED_REQUEST_PREFIX)
+        if scheduled_request:
+            user_input.text = user_input.text.removeprefix(RAGENT_SCHEDULED_REQUEST_PREFIX)
         try:
             with (
                 chat_session.async_get_chat_session(self.hass, user_input.conversation_id) as session,
@@ -449,7 +456,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
                 retrieved_tools = self._ensure_required_tools_exposed(retrieved_tools, llm_api)
-                retrieved_tools = self._exclude_prohibited_scheduled_request_tools(retrieved_tools, user_input.text)
+                retrieved_tools = self._exclude_prohibited_scheduled_request_tools(retrieved_tools, scheduled_request)
 
                 if not retrieved_tools and llm_api:
                     intent_response = intent.IntentResponse(language=user_input.language)
@@ -490,6 +497,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     retrieved_tools,
                     chat_log,
                     history_manager,
+                    scheduled_request
                 )
         except Exception as err:
             _logger.error(f"Unexpected error in async_process: {err}")

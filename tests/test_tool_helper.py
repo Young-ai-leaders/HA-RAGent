@@ -4,7 +4,6 @@ import pytest
 
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
 
-
 def test_parse_tool_call_preserves_friendly_name() -> None:
     """A friendly-name target must survive nested argument parsing."""
     hass = Mock()
@@ -23,7 +22,6 @@ def test_parse_tool_call_preserves_friendly_name() -> None:
     }
     hass.states.get.assert_not_called()
 
-
 def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     """A device class supplies the domain when the model omitted it."""
     hass = Mock()
@@ -39,7 +37,6 @@ def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
         "name": "Kitchen Window",
         "domain": ["window"],
     }
-
 
 def test_parse_tool_call_prefers_explicit_domain() -> None:
     """An explicit domain takes precedence over the device class fallback."""
@@ -57,7 +54,6 @@ def test_parse_tool_call_prefers_explicit_domain() -> None:
         "domain": ["light"],
     }
 
-
 def test_tool_call_signature_ignores_argument_order() -> None:
     """Equivalent calls have the same signature regardless of key order."""
     helper = ToolHelper(Mock())
@@ -71,7 +67,6 @@ def test_tool_call_signature_ignores_argument_order() -> None:
     )
 
     assert helper.tool_call_signature(first) == helper.tool_call_signature(second)
-
 
 def test_tool_call_signature_distinguishes_targets() -> None:
     """Calls to different targets remain independently executable."""
@@ -89,7 +84,6 @@ def test_tool_call_signature_distinguishes_targets() -> None:
         bedroom_two
     )
 
-
 def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
     """Domain-aware tools cannot target every entity in an area implicitly."""
     call = Mock(
@@ -99,7 +93,6 @@ def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
 
     with pytest.raises(ValueError, match="requires a name, domain, or device_class"):
         ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
-
 
 @pytest.mark.parametrize(
     "tool_args",
@@ -116,7 +109,6 @@ def test_validate_tool_call_target_accepts_scoped_device_call(
 
     ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
 
-
 def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
     """Tools without device-domain targeting may validly use an area alone."""
     call = Mock(
@@ -125,4 +117,3 @@ def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
     )
 
     ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=False)
-

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 import logging
+from collections.abc import Callable
 
 import voluptuous as vol
 
@@ -12,16 +13,13 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
 
 from custom_components.ha_ragent.src.const import (
+    DOMAIN,
     RAGENT_PLANNED_ACTION_TOOL_NAME,
+    RAGENT_SCHEDULED_ACTION_CANCELLERS,
+    RAGENT_SCHEDULED_REQUEST_PREFIX,
 )
 
 _logger = logging.getLogger(__name__)
-
-RAGENT_SCHEDULED_REQUEST_PREFIX = (
-    "Execute this action now. It was previously scheduled, so do not schedule "
-    "it again: "
-)
-
 
 class RAGentPlannedActionTool(llm.Tool):
     name = RAGENT_PLANNED_ACTION_TOOL_NAME
@@ -39,8 +37,8 @@ class RAGentPlannedActionTool(llm.Tool):
         {
             vol.Required("description"): str,
             vol.Required("minutes"): vol.All(
-                vol.Coerce(float),
-                vol.Range(min=0.01, max=10080),
+                vol.Coerce(int),
+                vol.Range(min=1, max=1440),
             ),
         }
     )
@@ -49,12 +47,14 @@ class RAGentPlannedActionTool(llm.Tool):
         self,
         hass: HomeAssistant,
         *,
+        subentry_id: str,
         agent_id: str,
         context: Context,
         language: str | None,
         device_id: str | None,
     ) -> None:
         self.hass = hass
+        self.subentry_id = subentry_id
         self.agent_id = agent_id
         self.context = context
         self.language = language
@@ -62,11 +62,10 @@ class RAGentPlannedActionTool(llm.Tool):
 
     async def _async_execute(self, _now: datetime, description: str) -> None:
         """Send the due action back through the originating conversation agent."""
-        prompt = f"{RAGENT_SCHEDULED_REQUEST_PREFIX}{description}"
         try:
             result = await conversation.async_converse(
                 hass=self.hass,
-                text=prompt,
+                text=f"{RAGENT_SCHEDULED_REQUEST_PREFIX}{description}",
                 conversation_id=None,
                 context=self.context,
                 language=self.language,
@@ -77,8 +76,9 @@ class RAGentPlannedActionTool(llm.Tool):
                 _logger.error(f"Planned action failed for agent {self.agent_id}: {description}. Error: {result.response.error_code}")
             else:
                 _logger.info(f"Executed planned action for agent {self.agent_id}: {description}")
+
         except Exception:
-            _logger.exception(f"Failed to execute planned action for agent {self.agent_id}: {description}")
+            _logger.error(f"Failed to execute planned action for agent {self.agent_id}: {description}", exc_info=True)
 
     async def async_call(self, tool_input: llm.ToolInput, *args, **kwargs) -> dict[str, object]:
         """Schedule the requested action without blocking the conversation."""
@@ -87,7 +87,7 @@ class RAGentPlannedActionTool(llm.Tool):
             return {"error": "description must not be empty"}
 
         try:
-            minutes = float(tool_input.tool_args.get("minutes", 0))
+            minutes = int(tool_input.tool_args.get("minutes", 0))
         except (TypeError, ValueError):
             return {"error": "minutes must be a number"}
 
@@ -98,10 +98,18 @@ class RAGentPlannedActionTool(llm.Tool):
         local_execute_at = dt_util.as_local(execute_at)
         human_execute_at = local_execute_at.strftime("%A, %B %d, %Y at %H:%M %Z").replace(" 0", " ")
 
-        async def execute(now: datetime) -> None:
+        domain_data = self.hass.data.setdefault(DOMAIN, {})
+        subentry_data = domain_data.setdefault(self.subentry_id, {})
+        cancellers = subentry_data.setdefault(RAGENT_SCHEDULED_ACTION_CANCELLERS, set())
+        remove_canceller: Callable[[], None] | None = None
+
+        async def execute_and_remove(now: datetime) -> None:
+            if remove_canceller is not None:
+                cancellers.discard(remove_canceller)
             await self._async_execute(now, description)
 
-        async_call_later(self.hass, minutes * 60, execute)
+        remove_canceller = async_call_later(self.hass, minutes * 60, execute_and_remove)
+        cancellers.add(remove_canceller)
         return {
             "success": True,
             "description": description,

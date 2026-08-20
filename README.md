@@ -127,6 +127,9 @@ When **Assist** is selected, HA-RAGent resolves it to its custom LLM API. The co
 **HassPlannedAction**
 - Schedules a one-time Home Assistant action for execution after a specified delay.
 
+**HassClearPlannedActions**
+- Cancels all currently scheduled one-time Home Assistant actions.
+
 ## Services
 HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:
 
