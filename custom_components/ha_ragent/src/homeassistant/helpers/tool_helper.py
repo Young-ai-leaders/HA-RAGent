@@ -132,10 +132,16 @@ class ToolHelper:
             return
 
         arguments = tool_call.tool_args
-        if arguments.get("name") or arguments.get("domain"):
+        if not isinstance(arguments, dict):
+            raise ValueError(f"Device tool {tool_call.tool_name} received invalid arguments: {arguments!r}")
+
+        name = arguments.get("name")
+        domain = arguments.get("domain")
+        device_class = arguments.get("device_class")
+        if name or domain or device_class:
             return
 
-        raise ValueError(f"Device tool {tool_call.tool_name} requires a name, domain, or device_class")
+        raise ValueError(f"Device tool {tool_call.tool_name} requires a non-empty name, domain, or device_class; received arguments={arguments!r}")
 
     def parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""
