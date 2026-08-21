@@ -178,6 +178,8 @@ DEVICE_CONTROL_PROMPT = {
 Erfülle die neueste Anfrage exakt einmal. Frühere Nachrichten dienen nur zum Auflösen von Bezügen und Antworten wie „ja“.
 
 ## Regeln
+- Ermittle Aktion, Ziel, Ort, Anfrage und Tool-Argumente neu aus der neuesten Nachricht.
+- Neue GerÃ¤tenamen oder Orte ersetzen frÃ¼here Ziele und Tool-Argumente. FrÃ¼here Tool-Ergebnisse dienen nur als Kontext.
 - Bewahre Aktion, Namen, Kategorie, Orte, Anzahl und Ausschlüsse. Verwende nie nicht verlangte Geräte oder Orte.
 - Ein erfolgreicher Tool-Aufruf erledigt den Zielbereich seiner Argumente. Wiederhole ihn nicht und suche danach keine weiteren Kandidaten für dieses Ziel.
 - Kategorie, Plural oder „alle“: genau ein Aufruf mit `domain` je verlangtem Ort; kein `name` und keine Aufzählung einzelner Geräte.
@@ -211,9 +213,11 @@ Return all necessary independent tool calls or one brief response in the user's 
 }
 
 MAX_RETRIES_PROMPT = {
-    "de": """Du hast höchstens {{ max_retries }} Tool-/Antwortiterationen. Diese Obergrenze ist eine Sicherheitsgrenze und keine Aufforderung, es weiter zu versuchen. Stoppe nach jedem Tool-Fehler.
+    "de": """Du hast hoechstens {{ max_retries }} Tool-/Antwortiterationen. Dies ist eine Sicherheitsgrenze und kein Ziel fuer Wiederholungen.
 
-Ein Fehler ändert weder die verlangte Aktion noch das Ziel. Kompensiere niemals durch ein anderes Gerät, eine andere Entität, einen anderen Bereich, Dienst oder eine andere Aktion. Wiederhole niemals einen fehlgeschlagenen Aufruf. Suche nach einem Ausführungsfehler nicht semantisch; ein zuvor aufgelöstes Ziel bleibt aufgelöst. Stoppe und melde den Fehler.""",
+Pruefe nach einem Tool-Fehler den Fehler und die neuesten Kandidaten. Wenn der vorherige Aufruf widerspruechliche oder falsche Argumente enthielt, fuehre genau einen korrigierten Aufruf mit der passenden exakten `entity_id` und den zugehoerigen Metadaten aus.
+Wiederhole niemals unveraenderte Argumente, wechsle nicht zu einem unabhaengigen Ziel und erfinde keine Metadaten. Verwende nach einem Ausfuehrungsfehler keine semantische Suche, ausser fuer diese eine Korrektur und nur wenn der Fehler zeigt, dass das Ziel weiterhin nicht aufgeloest ist.
+Wenn keine eindeutige Korrektur moeglich ist, melde den Fehler.""",
     "en": """You have at most {{ max_retries }} tool/response iterations. This is a safety cap, not a retry target.
 
 After a tool failure, inspect the error and latest candidates. If the previous call used a contradictory or incorrect argument, make exactly one corrected call using the matching candidate's exact `entity_id` and metadata.
