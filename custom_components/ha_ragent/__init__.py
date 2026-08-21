@@ -92,6 +92,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) 
     removed_data = subentry_data_by_entry.get(entry.entry_id, {})
 
     if removed_subentry_ids:
+        _cancel_scheduled_actions(hass, removed_subentry_ids)
         for subentry_id in removed_subentry_ids:
             subentry_data = removed_data.get(subentry_id, {})
             await _async_cleanup_subentry_collections(entry, subentry_id, subentry_data)
