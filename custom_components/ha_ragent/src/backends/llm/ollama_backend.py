@@ -81,19 +81,16 @@ class OllamaLlmBackend(ALlmBaseBackend):
         )
     
     async def async_preload_model(self, config_subentry: dict) -> None:
-        async for _ in self.async_send_chat_request(config_subentry, [{"role": "system", "content": "Preloading model with a test embedding request."}], [], keep_alive=-1):
+        async for _ in self.async_send_chat_request(config_subentry, [], [], keep_alive=-1):
             pass
     
     async def async_unload_model(self, config_subentry: dict) -> None:
-        async for _ in self.async_send_chat_request(config_subentry, [{"role": "system", "content": "Unloading model with a test embedding request."}], [], keep_alive=0):
+        async for _ in self.async_send_chat_request(config_subentry, [], [], keep_alive=0):
             pass
     
     async def async_get_available_models(self) -> List[str]:
         session = async_get_clientsession(self._hass)
-        async with session.get(
-            self._tags_url,
-            timeout=ALlmBaseBackend._default_timeout
-        ) as response:
+        async with session.get(self._tags_url, timeout=ALlmBaseBackend._default_timeout) as response:
             response.raise_for_status()
             models_result = await response.json()
 
@@ -140,7 +137,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
 
         payload = {
             "model": config_subentry[CONF_LLM_MODEL],
-            "stream": True,
+            "stream": "keep_alive" not in kwargs,
             "think": config_subentry[CONF_ENABLE_MODEL_THINKING],
             "options": {
                 "temperature": config_subentry[CONF_TEMPERATURE],
@@ -214,5 +211,10 @@ class OllamaLlmBackend(ALlmBaseBackend):
                 return
 
             max_chars //= 2
-            current_messages = self.truncate_messages(messages, max_chars)
+            trimmed_messages = self.truncate_messages(messages, max_chars)
+            if trimmed_messages == current_messages:
+                _logger.debug("Ollama response was empty, but the prompt is already short enough to avoid truncation.")
+                return
+
+            current_messages = trimmed_messages
             _logger.warning(f"Ollama returned an empty response. Retrying with messages limited to {max_chars} characters.")
