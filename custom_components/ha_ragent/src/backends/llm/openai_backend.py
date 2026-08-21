@@ -53,34 +53,6 @@ class OpenAiLlmBackend(ALlmBaseBackend):
     def _is_context_length_error(error: Exception) -> bool:
         return isinstance(error, BadRequestError) and error.status_code == 400 and error.type == "exceed_context_size_error"
 
-    @staticmethod
-    def _truncate_messages(messages: List[ChatMessage], max_chars: int = 12000) -> List[ChatMessage]:
-        """Truncate oldest complete turns while keeping system messages first."""
-        system_messages = [message for message in messages if message.get("role") == "system"]
-        other_messages = [message for message in messages if message.get("role") != "system"]
-        result = [dict(message) for message in system_messages]
-        remaining = max_chars - sum(len(json.dumps(message, default=str)) for message in result)
-
-        turns: List[List[ChatMessage]] = []
-        for message in other_messages:
-            if message.get("role") == "user":
-                turns.append([message])
-            elif turns:
-                turns[-1].append(message)
-
-        selected_turns: List[List[ChatMessage]] = []
-        for turn in reversed(turns):
-            turn_size = sum(len(json.dumps(message, default=str)) for message in turn)
-            if turn_size > remaining:
-                break
-            selected_turns.insert(0, [dict(message) for message in turn])
-            remaining -= turn_size
-
-        for turn in selected_turns:
-            result.extend(turn)
-
-        return result
-
     def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:
         """Convert canonical history messages to OpenAI Chat Completions format."""
         prepared: List[ChatMessage] = []
@@ -103,6 +75,8 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                 ]
             if item.get("role") == "tool":
                 item.pop("tool_name", None)
+                if not isinstance(item.get("content"), str):
+                    item["content"] = json.dumps(item.get("content"), ensure_ascii=False, default=str)
             prepared.append(item)
         return prepared
 
@@ -200,7 +174,7 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                 request["messages"] = (
                     prepared_messages
                     if attempt == 0
-                    else self._truncate_messages(prepared_messages, max_chars)
+                    else self.truncate_messages(prepared_messages, max_chars)
                 )
                 pending_tool_calls: Dict[int, Dict[str, str]] = {}
                 try:

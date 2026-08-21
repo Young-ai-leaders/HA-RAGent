@@ -50,6 +50,32 @@ class ToolHelper:
                 
         return tool_json
 
+    def _parse_domain(self, parameters: dict[str, Any]) -> Any:
+        domain = parameters.get("domain")
+
+        if "device_class" in parameters:
+            device_class = parameters.pop("device_class")
+            if not domain:
+                domain = device_class
+
+        return domain
+
+    def _parse_name(self, parameters: dict[str, Any], domain: str | None) -> str | None:
+        name = None
+        
+        if "name" in parameters:
+            name = parameters["name"]
+        elif "entity_id" in parameters:
+            name = parameters.pop("entity_id")
+
+        if isinstance(name, str) and ("." in name or domain):
+            temp_name = name if "." in name else f"{domain}.{name}"
+            state = self._hass.states.get(temp_name)
+            if state:
+                name = state.attributes.get("friendly_name", name)
+
+        return name
+
     def parse_tool_calls(self, llm_response: str) -> List[ToolInput]:
         """Parse tool calls from LLM response."""
         parsed_calls = []
@@ -74,21 +100,10 @@ class ToolHelper:
                 _logger.debug(f"Empty tool arguments: {tool_json.get('arguments')}")
                 continue
 
-            if "name" in parameters:
-                name = parameters["name"]
-                if isinstance(name, str) and "." in name:
-                    state = self._hass.states.get(name)
-                    parameters["name"] = state.attributes.get("friendly_name") if state else name
-
-            if "entity_id" in parameters:
-                entity_id = parameters.pop("entity_id")
-                state = self._hass.states.get(entity_id)
-                parameters["name"] = state.attributes.get("friendly_name") if state else entity_id
-
-            if "device_class" in parameters:
-                device_class = parameters.pop("device_class")
-                if "domain" not in parameters:
-                    parameters["domain"] = device_class
+            domain = self._parse_domain(parameters)
+            parameters["domain"] = domain
+            first_domain = domain[0] if isinstance(domain, (list, tuple)) and domain else None
+            parameters["name"] = self._parse_name(parameters, first_domain)
 
             parsed_call = ToolInput(tool_name=tool_name, tool_args=parameters)
             _logger.debug(f"Parsed tool call: name={parsed_call.tool_name}, arguments={parsed_call.tool_args}")
