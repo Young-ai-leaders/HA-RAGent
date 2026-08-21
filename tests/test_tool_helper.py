@@ -18,7 +18,6 @@ def test_parse_tool_call_preserves_friendly_name() -> None:
     assert calls[0].tool_name == "HassTurnOn"
     assert calls[0].tool_args == {
         "name": "Light Strip",
-        "domain": None,
         "area": "Bedroom Jonas",
     }
     hass.states.get.assert_not_called()
@@ -54,7 +53,6 @@ def test_parse_tool_call_prefers_explicit_domain() -> None:
     assert calls[0].tool_args == {
         "area": "Living Room",
         "domain": ["light"],
-        "name": None,
     }
 
 def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None:
@@ -72,7 +70,6 @@ def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None
 
     assert calls[0].tool_args == {
         "name": "Bedroom Ceiling Light",
-        "domain": None,
     }
     hass.states.get.assert_called_once_with("light.bedroom_ceiling")
 
@@ -129,7 +126,7 @@ def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
         tool_args={"area": "Bedroom 1"},
     )
 
-    with pytest.raises(ValueError, match="requires a name, domain, or device_class"):
+    with pytest.raises(ValueError, match="requires a non-empty name, domain, or device_class"):
         ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
 
 @pytest.mark.parametrize(
