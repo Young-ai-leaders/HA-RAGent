@@ -26,6 +26,7 @@ from custom_components.ha_ragent.src.const import (
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.models.chat_message import ChatMessage
+from custom_components.ha_ragent.src.const import RAGENT_CHAT_TRUNCATE_MAX_CHARS, RAGENT_CHAT_TRUNCATE_RETRIES
 
 _logger = logging.getLogger(__name__)
 
@@ -125,12 +126,17 @@ class OllamaLlmBackend(ALlmBaseBackend):
                 ]
             if item.get("role") == "tool":
                 item.pop("tool_call_id", None)
+                if not isinstance(item.get("content"), str):
+                    item["content"] = json.dumps(item.get("content"), ensure_ascii=False, default=str)
             prepared.append(item)
         return prepared
     
-    async def async_send_chat_request(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
-        """Send a chat request to Ollama and stream responses."""
+    async def _async_send_chat_request_once(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+        """Send one Ollama request while preserving streaming output."""
         session = async_get_clientsession(self._hass)
+        emitted = kwargs.pop("_emitted", None)
+        if emitted is None:
+            emitted = {"value": False}
 
         payload = {
             "model": config_subentry[CONF_LLM_MODEL],
@@ -166,11 +172,13 @@ class OllamaLlmBackend(ALlmBaseBackend):
                         if "message" in data and "content" in data["message"]:
                             content = data["message"]["content"]
                             if content:
+                                emitted["value"] = True
                                 yield content
                         
                         if "message" in data and "tool_calls" in data["message"]:
                             tool_calls = data["message"]["tool_calls"]
                             if tool_calls:
+                                emitted["value"] = True
                                 _logger.debug(f"LLM tool calls received from Ollama: {tool_calls}")
                                 for tc in tool_calls:
                                     if "function" in tc:
@@ -187,3 +195,24 @@ class OllamaLlmBackend(ALlmBaseBackend):
         except Exception as err:
             _logger.error("Error calling Ollama API: %s", err, exc_info=True)
             raise
+        return
+
+    async def async_send_chat_request(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
+        """Send a chat request to Ollama and retry with truncation when empty."""
+        current_messages = messages
+        max_chars = RAGENT_CHAT_TRUNCATE_MAX_CHARS
+
+        for attempt in range(RAGENT_CHAT_TRUNCATE_RETRIES + 1):
+            emitted = {"value": False}
+            async for chunk in self._async_send_chat_request_once(config_subentry, current_messages, tools, _emitted=emitted, **kwargs):
+                yield chunk
+
+            if emitted["value"] or not messages:
+                return
+
+            if attempt == RAGENT_CHAT_TRUNCATE_RETRIES:
+                return
+
+            max_chars //= 2
+            current_messages = self.truncate_messages(messages, max_chars)
+            _logger.warning(f"Ollama returned an empty response. Retrying with messages limited to {max_chars} characters.")

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+import json
 import aiohttp
 from typing import Any, Dict, List, AsyncGenerator
 
@@ -66,6 +67,30 @@ class ALlmBaseBackend(ABC):
             )
             target.append(tool.name)
         return tools_names, required_tools_names
+
+    @staticmethod
+    def truncate_messages(messages: List[ChatMessage], max_chars: int) -> List[ChatMessage]:
+        """Keep system messages and the newest complete turns within the limit."""
+        system = [message for message in messages if message.get("role") == "system"]
+        other = [message for message in messages if message.get("role") != "system"]
+        result = [dict(message) for message in system]
+        remaining = max_chars - sum(len(json.dumps(message, default=str)) for message in result)
+        turns: List[List[ChatMessage]] = []
+        for message in other:
+            if message.get("role") == "user":
+                turns.append([message])
+            elif turns:
+                turns[-1].append(message)
+        selected: List[List[ChatMessage]] = []
+        for turn in reversed(turns):
+            size = sum(len(json.dumps(message, default=str)) for message in turn)
+            if size > remaining:
+                break
+            selected.insert(0, [dict(message) for message in turn])
+            remaining -= size
+        for turn in selected:
+            result.extend(turn)
+        return result
 
     @abstractmethod
     def format_messages_for_backend(self, messages: List[ChatMessage]) -> List[ChatMessage]:

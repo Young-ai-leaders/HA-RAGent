@@ -10,7 +10,7 @@ from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RA
 
 _logger = logging.getLogger(__name__)
 
-async def _handle_preload_models(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_unload_models(hass: HomeAssistant, call: ServiceCall) -> None:
     entity_reg = entity_registry.async_get(hass)
     target_selector = target.TargetSelection(call.data)
     referenced = target.async_extract_referenced_entity_ids(hass, target_selector)
@@ -28,15 +28,15 @@ async def _handle_preload_models(hass: HomeAssistant, call: ServiceCall) -> None
         if not sub:
             continue
 
-        _logger.debug("Preloading model for: %s", sub.title)
-        await parent.embedder_backend.async_preload_model(dict(sub.data))
-        await parent.llm_backend.async_preload_model(dict(sub.data))
+        _logger.debug("Unloading model for: %s", sub.title)
+        await parent.embedder_backend.async_unload_model(dict(sub.data))
+        await parent.llm_backend.async_unload_model(dict(sub.data))
 
 
-def register_preload_models_action(hass: HomeAssistant) -> None:
+def register_unload_models_service(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN,
-        "preload_models",
-        partial(_handle_preload_models, hass),
+        "unload_models",
+        partial(_handle_unload_models, hass),
         schema=vol.Schema({}).extend(config_validation.TARGET_SERVICE_FIELDS),
     )

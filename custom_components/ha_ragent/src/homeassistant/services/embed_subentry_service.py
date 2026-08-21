@@ -47,7 +47,7 @@ async def _handle_embed_subentry(hass: HomeAssistant, call: ServiceCall) -> None
             device_extractor.async_embed_exposed_devices(entry.config_subentry_id),
         )
 
-def register_embed_subentry_action(hass: HomeAssistant) -> None:
+def register_embed_subentry_service(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN,
         "embed_subentry",

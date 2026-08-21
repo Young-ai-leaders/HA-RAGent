@@ -18,6 +18,7 @@ def test_parse_tool_call_preserves_friendly_name() -> None:
     assert calls[0].tool_name == "HassTurnOn"
     assert calls[0].tool_args == {
         "name": "Light Strip",
+        "domain": None,
         "area": "Bedroom Jonas",
     }
     hass.states.get.assert_not_called()
@@ -25,6 +26,7 @@ def test_parse_tool_call_preserves_friendly_name() -> None:
 def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     """A device class supplies the domain when the model omitted it."""
     hass = Mock()
+    hass.states.get.return_value = None
     helper = ToolHelper(hass)
     response = """```homeassistant
 {"tool": "HassTurnOn", "arguments": {"name": "Kitchen Window", "device_class": ["window"]}}
@@ -52,7 +54,43 @@ def test_parse_tool_call_prefers_explicit_domain() -> None:
     assert calls[0].tool_args == {
         "area": "Living Room",
         "domain": ["light"],
+        "name": None,
     }
+
+def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None:
+    """An entity-id target is normalized to its configured friendly name."""
+    hass = Mock()
+    hass.states.get.return_value = Mock(
+        attributes={"friendly_name": "Bedroom Ceiling Light"}
+    )
+    helper = ToolHelper(hass)
+    response = """```homeassistant
+{"tool": "HassTurnOn", "arguments": {"entity_id": "light.bedroom_ceiling"}}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert calls[0].tool_args == {
+        "name": "Bedroom Ceiling Light",
+        "domain": None,
+    }
+    hass.states.get.assert_called_once_with("light.bedroom_ceiling")
+
+def test_parse_tool_call_resolves_name_with_list_domain() -> None:
+    """A list-valued domain is normalized before entity lookup."""
+    hass = Mock()
+    hass.states.get.return_value = Mock(
+        attributes={"friendly_name": "Bedroom 2 Ceiling Light"}
+    )
+    helper = ToolHelper(hass)
+    response = """```homeassistant
+{"tool": "HassTurnOn", "arguments": {"name": "bedroom_2_ceiling_light", "domain": ["light"]}}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert calls[0].tool_args["name"] == "Bedroom 2 Ceiling Light"
+    hass.states.get.assert_called_once_with("light.bedroom_2_ceiling_light")
 
 def test_tool_call_signature_ignores_argument_order() -> None:
     """Equivalent calls have the same signature regardless of key order."""

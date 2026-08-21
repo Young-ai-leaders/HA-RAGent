@@ -324,7 +324,7 @@ def test_openai_truncation_keeps_complete_turns() -> None:
         len(json.dumps(message, default=str))
         for message in (messages[0], messages[-1])
     )
-    truncated = OpenAiLlmBackend._truncate_messages(messages, max_chars)
+    truncated = ALlmBaseBackend.truncate_messages(messages, max_chars)
 
     assert [message["role"] for message in truncated] == ["system", "user"]
     assert truncated[-1]["content"] == "What is its state now?"

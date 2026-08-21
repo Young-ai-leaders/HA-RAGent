@@ -42,10 +42,11 @@ class MessageHelper:
     @staticmethod
     def create_tool_failure_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, error: Exception) -> conversation.ToolResultContent:
         """Create a tool-result message for a failed tool call."""
+        error_value = error.args[0] if isinstance(error, KeyError) and error.args else str(error)
         failure = ChatToolFailure(
             success=False,
             tool=tool_name,
-            error=str(error),
+            error=error_value,
         )
         
         return conversation.ToolResultContent(
@@ -117,8 +118,8 @@ class MessageHelper:
             elif isinstance(message, conversation.ToolResultContent):
                 tool_message = ChatMessage(
                     role="tool",
-                    content=json.dumps(message.tool_result, default=str),
-                    tool_name=message.tool_name,
+                    content=message.tool_result,
+                    tool_name=message.tool_name
                 )
                 if message.tool_call_id:
                     tool_message["tool_call_id"] = message.tool_call_id
