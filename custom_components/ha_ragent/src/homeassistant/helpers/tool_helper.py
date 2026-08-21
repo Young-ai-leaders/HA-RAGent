@@ -101,9 +101,14 @@ class ToolHelper:
                 continue
 
             domain = self._parse_domain(parameters)
-            parameters["domain"] = domain
             first_domain = domain[0] if isinstance(domain, (list, tuple)) and domain else None
-            parameters["name"] = self._parse_name(parameters, first_domain)
+            name = self._parse_name(parameters, first_domain)
+
+            if domain:
+                parameters["domain"] = domain
+
+            if name:
+                parameters["name"] = name
 
             parsed_call = ToolInput(tool_name=tool_name, tool_args=parameters)
             _logger.debug(f"Parsed tool call: name={parsed_call.tool_name}, arguments={parsed_call.tool_args}")
