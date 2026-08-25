@@ -36,6 +36,7 @@ def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     assert len(calls) == 1
     assert calls[0].tool_args == {
         "name": "Kitchen Window",
+        "device_class": ["window"],
         "domain": ["window"],
     }
 
@@ -53,6 +54,7 @@ def test_parse_tool_call_prefers_explicit_domain() -> None:
     assert calls[0].tool_args == {
         "area": "Living Room",
         "domain": ["light"],
+        "device_class": ["switch"],
     }
 
 def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None:

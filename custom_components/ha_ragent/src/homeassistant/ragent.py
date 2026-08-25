@@ -260,11 +260,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         tool_calls_overall: List[Tuple[llm.ToolInput, Any]] = []
         executed_tool_calls: set[str] = set()
         tool_call_results: dict[str, Any] = {}
-        domain_aware_tools = {
-            tool.name
-            for tool in tool_list
-            if tool.metadata and tool.metadata.get("is_target_aware")
-        }
+        tool_metadata_dict: dict[str, dict[str, Any]] = {tool.name: tool.metadata for tool in tool_list if tool.metadata}
         formatted_messages: list[ChatMessage] = []
         formatted_index = 0
 
@@ -305,7 +301,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                         try:
                             if llm_api:
-                                tool_helper.validate_tool_call_target(tool_call, is_domain_aware=tool_name in domain_aware_tools)
+                                tool_helper.block_broad_tool_calls(tool_call, tool_metadata_dict.get(tool_name))
                                 tool_call_signature = tool_helper.tool_call_signature(tool_call)
                                 if tool_call_signature in executed_tool_calls:
                                     _logger.debug(f"Returning already-executed result for repeated tool call: {tool_name} with arguments {tool_args}")

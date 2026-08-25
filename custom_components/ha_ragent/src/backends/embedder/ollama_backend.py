@@ -130,7 +130,7 @@ class OllamaEmbedder(ABaseEmbedder):
         object_type = DeviceEmbedding if issubclass(objects[0].__class__, Device) else LlmToolEmbedding
         for i in range(0, len(objects), RAGENT_EMBEDDING_BATCH_SIZE):
             chunk = objects[i:i + RAGENT_EMBEDDING_BATCH_SIZE]
-            texts = [str(d) for d in chunk]
+            texts = [obj.to_embedding_text() for obj in chunk]
             vectors = await self._async_embed_batch(config_subentry, texts)
             for obj, vec in zip(chunk, vectors):
                 device_embeddings.append(object_type(obj, vector_embedding=vec))

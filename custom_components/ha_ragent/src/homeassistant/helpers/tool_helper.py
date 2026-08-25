@@ -15,6 +15,7 @@ except ImportError:
     JsonObjectType = dict[str, Any]
 
 from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
+from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 
 _logger = logging.getLogger(__name__)
 
@@ -132,22 +133,23 @@ class ToolHelper:
             sort_keys=True
         )
 
-    def validate_tool_call_target(self, tool_call: ToolInput, is_domain_aware: bool) -> None:
-        """Reject broad device calls without a name, domain, or device class."""
-        if not is_domain_aware:
+    def block_broad_tool_calls(self, tool_call: ToolInput, metadata: ToolMetadata) -> None:
+        """Reject broad calls using the tool's target metadata."""
+        if not metadata or not metadata.is_domain_aware:
             return
 
         arguments = tool_call.tool_args
         if not isinstance(arguments, dict):
-            raise ValueError(f"Device tool {tool_call.tool_name} received invalid arguments: {arguments!r}")
+            _logger.warning(f"Tool arguments are not a dictionary: {arguments!r}")
+            return
 
         name = arguments.get("name")
         domain = arguments.get("domain")
-        device_class = arguments.get("device_class")
-        if name or domain or device_class:
+        area = arguments.get("floor") or arguments.get("area")
+        if name and area or domain and area:
             return
 
-        raise ValueError(f"Device tool {tool_call.tool_name} requires a non-empty name, domain, or device_class; received arguments={arguments!r}")
+        raise ValueError(f"Device tool {tool_call.tool_name} requires a combination of name and area or domain and areaa; received arguments={arguments!r}")
 
     def parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""
