@@ -47,10 +47,10 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - **MongoDB** stores embeddings in an external MongoDB instance
     - **ChromaDB** stores embeddings in an external ChromaDB server
 - `Embedding backend`
-    - **Ollama** requires an external Ollama instance and an installed embedding model ([find embedding models](https://ollama.com/search?c=embedding))
+    - **Ollama** requires an external Ollama instance and an installed embedding model [[find embedding models]](https://ollama.com/search?c=embedding)
     - **OpenAI Compatible** works with APIs that expose an OpenAI-style embeddings endpoint
 - `LLM backend`
-    - **Ollama** requires an external Ollama instance and an installed chat model with tool support ([find tool-capable models](https://ollama.com/search?c=tools))
+    - **Ollama** requires an external Ollama instance and an installed chat model with tool support [[find tool-capable models]](https://ollama.com/search?c=tools)
     - **OpenAI Compatible** works with APIs that expose an OpenAI-style chat completions endpoint
 - `Language`
     - **English** used in order to setup the default prompt
@@ -152,11 +152,11 @@ HA-RAGent registers the following Home Assistant services for each conversation 
     - Unloads the embedding model and LLM for the selected AI RAGent subentry to free resources.
 
 ## New Features, Help and Contribution
-**Have an idea what is missing** <br>
-Feel free to drop an issue ([open issue](https://github.com/youngaileaderslinz/HA-RAGent/issues)) or implement it yourself and create a pull request
+**Have an idea what is missing?** <br>
+Drop an issue [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues) or implement it yourself and create a pull request.
 
 **Found a bug?** <br>
-Open an issue and I’ll take a look. ([open issue](https://github.com/youngaileaderslinz/HA-RAGent/issues))
+Open an issue and I’ll take a look. [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues)
 
 **How to start development?** <br>
-Example of how to setup the development environment ([see more](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/dev/DEV_SETUP.md))
+Example of how to setup the development environment [[see more]](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/dev/DEV_SETUP.md)

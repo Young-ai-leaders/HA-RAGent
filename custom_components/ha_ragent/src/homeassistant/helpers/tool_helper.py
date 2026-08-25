@@ -5,11 +5,13 @@ from typing import Any, Dict, List
 try:
     from homeassistant.core import HomeAssistant, JsonObjectType
     from homeassistant.helpers.llm import ToolInput
+    from homeassistant.helpers import entity_registry
 except ImportError:
     from custom_components.ha_ragent.src.mock import (
         MockHomeAssistant as HomeAssistant,
         MockToolInput as ToolInput,
     )
+    entity_registry = None
     JsonObjectType = dict[str, Any]
 
 from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
@@ -70,9 +72,13 @@ class ToolHelper:
 
         if isinstance(name, str) and ("." in name or domain):
             temp_name = name if "." in name else f"{domain}.{name}"
-            state = self._hass.states.get(temp_name)
-            if state:
-                name = state.attributes.get("friendly_name", name)
+            entity_reg = entity_registry.async_get(self._hass) if entity_registry else None
+            entity_entry = entity_reg.async_get(temp_name) if entity_reg else None
+
+            if entity_entry:
+                aliases = entity_registry.async_get_entity_aliases(self._hass, entity_entry)
+                if aliases:
+                    name = aliases[0]
 
         return name
 
