@@ -73,13 +73,20 @@ class ToolHelper:
 
         if isinstance(name, str) and ("." in name or domain):
             temp_name = name if "." in name else f"{domain}.{name}"
+
+            state = self._hass.states.get(temp_name)
+            if state:
+                name = state.attributes.get("friendly_name", name)
+
             entity_reg = entity_registry.async_get(self._hass) if entity_registry else None
             entity_entry = entity_reg.async_get(temp_name) if entity_reg else None
 
+            aliases = []
             if entity_entry:
                 aliases = entity_registry.async_get_entity_aliases(self._hass, entity_entry)
-                if aliases:
-                    name = aliases[0]
+
+            if aliases:
+                name = aliases[0]
 
         return name
 
