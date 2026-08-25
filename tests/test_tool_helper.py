@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
+from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 
 def test_parse_tool_call_preserves_friendly_name() -> None:
     """A friendly-name target must survive nested argument parsing."""
@@ -126,13 +127,13 @@ def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
         tool_args={"area": "Bedroom 1"},
     )
 
-    with pytest.raises(ValueError, match="requires a non-empty name, domain, or device_class"):
-        ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
+    with pytest.raises(ValueError, match="requires a combination"):
+        ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
 
 @pytest.mark.parametrize(
     "tool_args",
     [
-        {"name": "Bedroom 1 Ceiling Light"},
+        {"name": "Bedroom 1 Ceiling Light", "area": "Bedroom 1"},
         {"area": "Bedroom 1", "domain": ["light"]},
     ],
 )
@@ -142,7 +143,7 @@ def test_validate_tool_call_target_accepts_scoped_device_call(
     """A name or domain provides the required device scope."""
     call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
 
-    ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=True)
+    ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
 
 def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
     """Tools without device-domain targeting may validly use an area alone."""
@@ -151,4 +152,4 @@ def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
         tool_args={"area": "Bedroom 1"},
     )
 
-    ToolHelper(Mock()).validate_tool_call_target(call, is_domain_aware=False)
+    ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=False))

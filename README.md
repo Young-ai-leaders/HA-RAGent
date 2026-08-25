@@ -1,4 +1,16 @@
-<img src="https://raw.github.com/youngaileaderslinz/HA-RAGent/main/custom_components/ha_ragent/brand/logo.png" alt="HA-RAGent logo" title="HA-RAGent" align="right" height="80" />
+<!-- markdownlint-disable first-line-heading -->
+<!-- markdownlint-disable no-inline-html -->
+
+<img src="https://raw.githubusercontent.com/youngaileaderslinz/HA-RAGent/main/custom_components/ha_ragent/brand/logo.png"
+     alt="HA-RAGent logo"
+     height="140px"
+     align="right"
+     style="float: right; margin: 10px 0 20px 20px;" />
+
+[![GitHub Release](https://img.shields.io/github/release/youngaileaderslinz/HA-RAGent.svg?style=flat-square)](https://github.com/youngaileaderslinz/HA-RAGent/releases)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/youngaileaderslinz/HA-RAGent/validation.yaml?branch=main&style=flat-square)](https://github.com/youngaileaderslinz/HA-RAGent/actions/workflows/validation.yaml)
+[![License](https://img.shields.io/github/license/youngaileaderslinz/HA-RAGent.svg?style=flat-square)](LICENSE)
+[![HACS](https://img.shields.io/badge/HACS-default-orange.svg?style=flat-square)](https://hacs.xyz)
 
 # HA-RAGent (Home Assistant Retrieval‑Augmented‑Generation Agent)
 HA‑RAGent is a custom component that wraps an LLM and a vector database to let you talk to your smart home. Instead of hard‑coding every possible command, the agent embeds your question, looks up the most relevant devices, and then either replies in natural language or emits “tool calls” that turn into real service calls inside Home Assistant.
@@ -35,10 +47,10 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - **MongoDB** stores embeddings in an external MongoDB instance
     - **ChromaDB** stores embeddings in an external ChromaDB server
 - `Embedding backend`
-    - **Ollama** requires an external Ollama instance and an installed embedding model ([find embedding models](https://ollama.com/search?c=embedding))
+    - **Ollama** requires an external Ollama instance and an installed embedding model [[find embedding models]](https://ollama.com/search?c=embedding)
     - **OpenAI Compatible** works with APIs that expose an OpenAI-style embeddings endpoint
 - `LLM backend`
-    - **Ollama** requires an external Ollama instance and an installed chat model with tool support ([find tool-capable models](https://ollama.com/search?c=tools))
+    - **Ollama** requires an external Ollama instance and an installed chat model with tool support [[find tool-capable models]](https://ollama.com/search?c=tools)
     - **OpenAI Compatible** works with APIs that expose an OpenAI-style chat completions endpoint
 - `Language`
     - **English** used in order to setup the default prompt
@@ -118,8 +130,7 @@ The **System Prompt** is rendered as a Home Assistant Jinja template for every r
     - The configured maximum number of tool-call iterations.
 
 ## Custom Tools
-
-When **Assist** is selected, HA-RAGent resolves it to its custom LLM API. The configured model must support tool calling. `HassSemanticSearch` is always available and does not contribute to the max tool count, while `HassPlannedAction` is exposed only when normal RAG tool retrieval selects it for the current request.
+When **Assist** is selected, HA-RAGent resolves it to its custom LLM API, which provides the following additional tools:
 
 **HassSemanticSearch**
 - Searches for devices and Home Assistant tools without changing device state.
@@ -140,14 +151,12 @@ HA-RAGent registers the following Home Assistant services for each conversation 
 - `ha_ragent.unload_models` (only works with Ollama as of now)
     - Unloads the embedding model and LLM for the selected AI RAGent subentry to free resources.
 
-All three services target the HA-RAGent conversation entity, so you can run them from Developer Tools by selecting the specific assistant instance you want to manage.
+## New Features, Help and Contribution
+**Have an idea what is missing?** <br>
+Drop an issue [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues) or implement it yourself and create a pull request.
 
-## Help and Contribution
 **Found a bug?** <br>
-Open an issue and I’ll take a look. ([open issue](https://github.com/youngaileaderslinz/HA-RAGent/issues))
+Open an issue and I’ll take a look. [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues)
 
-**Want to add a feature or otherwise improve the code?** <br>
-Send a pull request (or drop a quick issue first so we can chat about it).
-
-**How to start?** <br>
-Setup development environment ([see more](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/dev/DEV_SETUP.md))
+**How to start development?** <br>
+Example of how to setup the development environment [[see more]](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/dev/DEV_SETUP.md)

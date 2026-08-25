@@ -2,6 +2,7 @@ import json
 from typing import Any, List, Dict
 
 from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 
 class LlmToolEmbedding:
     def __init__(self, tool: LlmTool, vector_embedding: List[float]) -> None:
@@ -13,7 +14,7 @@ class LlmToolEmbedding:
                 "name": self.tool.name,
                 "description": self.tool.description,
                 "parameters": json.dumps(self.tool.parameters),
-                "metadata": json.dumps(self.tool.metadata),
+                "metadata": self.tool.metadata.to_json(),
                 "vector_embedding": self.vector_embedding
             }
     
@@ -23,5 +24,5 @@ class LlmToolEmbedding:
             name=doc.get("name"),
             description=doc.get("description"),
             parameters=json.loads(doc.get("parameters")) if doc.get("parameters") else None,
-            metadata=json.loads(doc.get("metadata")) if doc.get("metadata") else None
+            metadata=ToolMetadata.from_json(doc.get("metadata")) if doc.get("metadata") else None
         )

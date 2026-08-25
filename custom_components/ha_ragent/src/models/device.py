@@ -21,6 +21,16 @@ class Device:
     def __str__(self):
         return self.to_json()
 
+    def to_embedding_text(self):
+        return json.dumps({
+            "name": self.name,
+            "domain": self.domain,
+            "area_name": self.area_name,
+            "floor_name": self.floor_name,
+            "device_labels": self.device_labels,
+            "aliases": self.aliases
+        })
+
     def to_json(self):
         return json.dumps({
             "device_id": self.id,

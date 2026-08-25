@@ -4,6 +4,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any, List, Tuple
 
+from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 import voluptuous as vol
 from voluptuous_openapi import convert
 
@@ -81,32 +82,17 @@ class ToolExtractor:
 
         return list(values), universal, has_field
 
-    def _extract_tool_metadata(self, tool: Any) -> dict[str, Any]:
-        metadata: dict[str, Any] = {
-            "domains": {},
-            "device_classes": {},
-            "is_domain_universal": False,
-            "is_domain_aware": False,
-            "is_target_aware": False,
-        }
+    def _extract_tool_metadata(self, parameters: dict[str, Any]) -> ToolMetadata:
+        metadata = ToolMetadata()
 
-        parameters = getattr(tool, "parameters", None)
-        schema_dict = getattr(parameters, "schema", None) if parameters else None
-
-        if not isinstance(schema_dict, dict):
+        properties = parameters.get("properties") if parameters else None
+        if not properties or not isinstance(properties, dict):
             return metadata
 
-        domains, domain_universal, has_domain = self._extract_field_constraints(schema_dict, "domain")
-        device_classes, device_class_universal, has_device_class = self._extract_field_constraints(schema_dict, "device_class")
-        _, _, has_area = self._extract_field_constraints(schema_dict, "area")
+        metadata.is_domain_aware = "domain" in properties
+        metadata.is_area_aware = "area" in properties or "floor" in properties
+        metadata.is_device_class_aware = "device_class" in properties
 
-        metadata["domains"] = list(domains)
-        metadata["is_domain_universal"] = domain_universal
-        metadata["is_domain_aware"] = has_domain or has_device_class
-        metadata["is_target_aware"] = has_area or has_domain or has_device_class
-        metadata["device_classes"] = list(device_classes)
-        metadata["is_device_class_universal"] = device_class_universal
-        metadata["is_device_class_aware"] = has_device_class
         return metadata
 
     def _register_fake_timer_device(self) -> None:
@@ -175,10 +161,7 @@ class ToolExtractor:
 
                 if hasattr(tool, "parameters") and tool.parameters:
                     try:
-                        parameters = convert(
-                            tool.parameters,
-                            custom_serializer=llm_api.custom_serializer,
-                        )
+                        parameters = convert(tool.parameters, custom_serializer=llm_api.custom_serializer)
                     except Exception as param_err:
                         _logger.warning(f"Could not convert parameters for tool {tool_name}: {param_err}")
                         parameters = {}
@@ -190,7 +173,7 @@ class ToolExtractor:
                         name=tool_name,
                         description=getattr(tool, "description", ""),
                         parameters=parameters,
-                        metadata=self._extract_tool_metadata(tool),
+                        metadata=self._extract_tool_metadata(parameters),
                     )
                 )
                 seen_tool_names.add(tool_name)
