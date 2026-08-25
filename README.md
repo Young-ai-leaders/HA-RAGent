@@ -3,7 +3,7 @@
 
 <img src="https://raw.githubusercontent.com/youngaileaderslinz/HA-RAGent/main/custom_components/ha_ragent/brand/logo.png"
      alt="HA-RAGent logo"
-     height="160px"
+     height="140px"
      align="right"
      style="float: right; margin: 10px 0 20px 20px;" />
 
