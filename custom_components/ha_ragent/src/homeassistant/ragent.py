@@ -282,7 +282,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 _logger.debug(f"LLM response: {assistant_content}")
                 
-                tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content)
+                tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content, tool_metadata_dict)
                 message_content = MessageHelper.clean_assistant_content(assistant_content, bool(tool_calls_in_iteration))
 
                 message = conversation.AssistantContent(

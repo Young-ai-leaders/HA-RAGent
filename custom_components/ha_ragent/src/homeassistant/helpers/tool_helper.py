@@ -5,12 +5,13 @@ from typing import Any, Dict, List
 try:
     from homeassistant.core import HomeAssistant, JsonObjectType
     from homeassistant.helpers.llm import ToolInput
-    from homeassistant.helpers import entity_registry
+    from homeassistant.helpers import area_registry, device_registry, entity_registry, floor_registry
 except ImportError:
     from custom_components.ha_ragent.src.mock import (
         MockHomeAssistant as HomeAssistant,
         MockToolInput as ToolInput,
     )
+    area_registry = device_registry = floor_registry = None
     entity_registry = None
     JsonObjectType = dict[str, Any]
 
@@ -53,7 +54,8 @@ class ToolHelper:
                 
         return tool_json
 
-    def _parse_domain(self, parameters: dict[str, Any]) -> Any:
+    def _parse_domain(self, parameters: dict[str, Any]) -> None:
+        """Parse the domain from the parameters and set it in the parameters dictionary."""
         domain = parameters.get("domain")
 
         if "device_class" in parameters:
@@ -61,38 +63,100 @@ class ToolHelper:
             if not domain:
                 domain = device_class
 
-        return domain
+        if domain:
+            parameters["domain"] = domain
 
-    def _parse_name(self, parameters: dict[str, Any], domain: str | None) -> str | None:
+    def _parse_parameters(self, parameters: dict[str, Any], tool_metadata: ToolMetadata | None) -> None:
+        """Parse and normalize tool parameters."""
+        self._parse_domain(parameters)
+
         name = None
+        domain = parameters.get("domain")
+        has_domain = "domain" in parameters and tool_metadata and tool_metadata.is_domain_aware
+        has_area = "area" in parameters and tool_metadata and tool_metadata.is_area_aware
+        has_floor = "floor" in parameters and tool_metadata and tool_metadata.is_area_aware
         
         if "name" in parameters:
             name = parameters["name"]
         elif "entity_id" in parameters:
             name = parameters.pop("entity_id")
 
-        if isinstance(name, str) and ("." in name or domain):
-            temp_name = name if "." in name else f"{domain}.{name}"
+        if not isinstance(name, str) or ("." not in name and not domain):
+            return
 
-            state = self._hass.states.get(temp_name)
-            if state:
-                name = state.attributes.get("friendly_name", name)
+        if not has_domain and "." in name:
+            domain = name.split(".", 1)[0]
+            parameters["domain"] = domain
 
-            entity_reg = entity_registry.async_get(self._hass) if entity_registry else None
-            entity_entry = entity_reg.async_get(temp_name) if entity_reg else None
+        lookup_domain = domain[0] if isinstance(domain, list) and domain else domain
+        temp_name = name if "." in name else f"{lookup_domain}.{name}"
+        state = self._hass.states.get(temp_name)
+        if state:
+            name = state.attributes.get("friendly_name", name)
 
-            aliases = []
-            if entity_entry:
-                aliases = entity_registry.async_get_entity_aliases(self._hass, entity_entry)
+        entity_reg = entity_registry.async_get(self._hass) if entity_registry else None
+        entity_entry = entity_reg.async_get(temp_name) if entity_reg else None
 
-            if aliases:
-                name = aliases[0]
+        aliases = []
+        if entity_entry:
+            aliases = entity_registry.async_get_entity_aliases(self._hass, entity_entry)
 
-        return name
+        if aliases:
+            name = aliases[0]
 
-    def parse_tool_calls(self, llm_response: str) -> List[ToolInput]:
+        if name:
+            parameters["name"] = name
+
+        area_id = entity_entry.area_id if entity_entry else None
+        if not area_id and entity_entry and entity_entry.device_id and device_registry:
+            device = device_registry.async_get(self._hass).async_get_device(entity_entry.device_id)
+            area_id = device.area_id if device else None
+        if not area_id or not area_registry:
+            return
+
+        area = area_registry.async_get(self._hass).async_get_area(area_id)
+        if not area:
+            return
+
+        if has_area:
+            parameters.setdefault("area", area.name)
+
+        if has_floor and area.floor_id and floor_registry:
+            floor = floor_registry.async_get(self._hass).async_get_floor(area.floor_id)
+            if floor:
+                parameters.setdefault("floor", floor.name)
+
+    def _add_entity_location(self, parameters: dict[str, Any], entity_id: str) -> None:
+        """Add registry-derived area and floor only for explicit entity IDs."""
+        if not entity_registry or not isinstance(entity_id, str):
+            return
+
+        entity_reg = entity_registry.async_get(self._hass)
+        entity_entry = entity_reg.async_get(entity_id)
+        if not entity_entry:
+            return
+
+        area_id = entity_entry.area_id
+        if not area_id and entity_entry.device_id and device_registry:
+            device = device_registry.async_get(self._hass).async_get_device(entity_entry.device_id)
+            area_id = device.area_id if device else None
+        if not area_id or not area_registry:
+            return
+
+        area = area_registry.async_get(self._hass).async_get_area(area_id)
+        if not area:
+            return
+        parameters.setdefault("area", area.name)
+
+        if area.floor_id and floor_registry:
+            floor = floor_registry.async_get(self._hass).async_get_floor(area.floor_id)
+            if floor:
+                parameters.setdefault("floor", floor.name)
+
+    def parse_tool_calls(self, llm_response: str, tool_metadata_dic: Dict[str, ToolMetadata] | None = None) -> List[ToolInput]:
         """Parse tool calls from LLM response."""
         parsed_calls = []
+        tool_metadata_dic = tool_metadata_dic or {}
         
         for match in TOOL_REGEX_PATTERN.finditer(llm_response):
             tool_json = self._tool_string_to_dict(match.group(1))
@@ -114,16 +178,7 @@ class ToolHelper:
                 _logger.debug(f"Empty tool arguments: {tool_json.get('arguments')}")
                 continue
 
-            domain = self._parse_domain(parameters)
-            first_domain = domain[0] if isinstance(domain, (list, tuple)) and domain else None
-            name = self._parse_name(parameters, first_domain)
-
-            if domain:
-                parameters["domain"] = domain
-
-            if name:
-                parameters["name"] = name
-
+            self._parse_parameters(parameters, tool_metadata_dic.get(tool_name))
             parsed_call = ToolInput(tool_name=tool_name, tool_args=parameters)
             _logger.debug(f"Parsed tool call: name={parsed_call.tool_name}, arguments={parsed_call.tool_args}")
             parsed_calls.append(parsed_call)

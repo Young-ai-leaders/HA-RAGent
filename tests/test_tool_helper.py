@@ -71,8 +71,26 @@ def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None
 
     assert calls[0].tool_args == {
         "name": "Bedroom Ceiling Light",
+        "domain": "light",
     }
     hass.states.get.assert_called_once_with("light.bedroom_ceiling")
+
+def test_parse_tool_call_finds_domain_from_entity_id() -> None:
+    """A full entity ID supplies the missing domain."""
+    hass = Mock()
+    hass.states.get.return_value = None
+    helper = ToolHelper(hass)
+    response = """```homeassistant
+{"tool": "HassTurnOn", "arguments": {"entity_id": "switch.bedroom_fan"}}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert calls[0].tool_args == {
+        "name": "switch.bedroom_fan",
+        "domain": "switch",
+    }
+    hass.states.get.assert_called_once_with("switch.bedroom_fan")
 
 def test_parse_tool_call_resolves_name_with_list_domain() -> None:
     """A list-valued domain is normalized before entity lookup."""

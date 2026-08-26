@@ -153,10 +153,10 @@ HA-RAGent registers the following Home Assistant services for each conversation 
 
 ## New Features, Help and Contribution
 **Have an idea what is missing?** <br>
-Drop an issue [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues) or implement it yourself and create a pull request.
+Open issue [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues) or implement it yourself and create a pull request.
 
 **Found a bug?** <br>
-Open an issue and I’ll take a look. [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues)
+Open an issue [[open issue]](https://github.com/youngaileaderslinz/HA-RAGent/issues) and I’ll take a look or implement it yourself and create a pull request.
 
 **How to start development?** <br>
 Example of how to setup the development environment [[see more]](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/dev/DEV_SETUP.md)
