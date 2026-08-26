@@ -126,33 +126,6 @@ class ToolHelper:
             if floor:
                 parameters.setdefault("floor", floor.name)
 
-    def _add_entity_location(self, parameters: dict[str, Any], entity_id: str) -> None:
-        """Add registry-derived area and floor only for explicit entity IDs."""
-        if not entity_registry or not isinstance(entity_id, str):
-            return
-
-        entity_reg = entity_registry.async_get(self._hass)
-        entity_entry = entity_reg.async_get(entity_id)
-        if not entity_entry:
-            return
-
-        area_id = entity_entry.area_id
-        if not area_id and entity_entry.device_id and device_registry:
-            device = device_registry.async_get(self._hass).async_get_device(entity_entry.device_id)
-            area_id = device.area_id if device else None
-        if not area_id or not area_registry:
-            return
-
-        area = area_registry.async_get(self._hass).async_get_area(area_id)
-        if not area:
-            return
-        parameters.setdefault("area", area.name)
-
-        if area.floor_id and floor_registry:
-            floor = floor_registry.async_get(self._hass).async_get_floor(area.floor_id)
-            if floor:
-                parameters.setdefault("floor", floor.name)
-
     def parse_tool_calls(self, llm_response: str, tool_metadata_dic: Dict[str, ToolMetadata] | None = None) -> List[ToolInput]:
         """Parse tool calls from LLM response."""
         parsed_calls = []
@@ -208,10 +181,10 @@ class ToolHelper:
         name = arguments.get("name")
         domain = arguments.get("domain")
         area = arguments.get("floor") or arguments.get("area")
-        if name and area or domain and area:
+        if (name or domain) and area:
             return
 
-        raise ValueError(f"Device tool {tool_call.tool_name} requires a combination of name and area or domain and areaa; received arguments={arguments!r}")
+        raise ValueError(f"Device tool {tool_call.tool_name} requires a combination of name and area or domain and area; received arguments={arguments!r}")
 
     def parse_tool_results(self, tool_result: JsonObjectType) -> Dict[str, Any]:
         """Parse tool results from LLM response."""

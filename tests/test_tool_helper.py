@@ -151,8 +151,26 @@ def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
 @pytest.mark.parametrize(
     "tool_args",
     [
+        {"name": "Bedroom 1 Ceiling Light"},
+        {"domain": ["light"]},
+        {},
+    ],
+)
+def test_validate_tool_call_target_rejects_unscoped_device_call(
+    tool_args: dict,
+) -> None:
+    """Domain-aware tools require both a target and a location scope."""
+    call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
+
+    with pytest.raises(ValueError, match="requires a combination"):
+        ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
+
+@pytest.mark.parametrize(
+    "tool_args",
+    [
         {"name": "Bedroom 1 Ceiling Light", "area": "Bedroom 1"},
         {"area": "Bedroom 1", "domain": ["light"]},
+        {"name": "Bedroom 1 Ceiling Light", "floor": "Ground Floor"},
     ],
 )
 def test_validate_tool_call_target_accepts_scoped_device_call(

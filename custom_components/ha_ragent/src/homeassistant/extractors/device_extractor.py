@@ -83,7 +83,8 @@ class DeviceExtractor:
                 area_name=area_name,
                 device_labels=device_labels,
                 aliases=aliases,
-                services=services
+                services=services,
+                unit_of_measurement=state.attributes.get("unit_of_measurement"),
             ))
         
         return devices

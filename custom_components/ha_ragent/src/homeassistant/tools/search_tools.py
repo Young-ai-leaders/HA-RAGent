@@ -119,6 +119,11 @@ class RAGentSemanticSearchTool(llm.Tool):
                                 "device_class": device.domain,
                                 "aliases": device.aliases or [],
                                 "state": state.state if state else None,
+                                "unit_of_measurement": (
+                                    state.attributes.get("unit_of_measurement")
+                                    if state
+                                    else None
+                                ),
                             }
                         )
                         if len(devices) >= device_limit:

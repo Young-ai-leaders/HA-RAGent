@@ -247,7 +247,7 @@ DEFAULT_PROMPT = """<persona_prompt>
 
 <devices_prompt>
 {% for device in device_list %}
-- { "entity_id": {{ device.id | tojson }}, "friendly_name": {{ device.name | tojson }}, "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "device_class": {{ device.domain | tojson }}, "floor": {{ device.floor_name | tojson }}, "area": {{ device.area_name | tojson }}, "state": {{ device.state | tojson }} }
+- { "entity_id": {{ device.id | tojson }}, "friendly_name": {{ device.name | tojson }}, "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "device_class": {{ device.domain | tojson }}, "floor": {{ device.floor_name | tojson }}, "area": {{ device.area_name | tojson }}, "state": {{ device.state | tojson }}, "unit_of_measurement": {{ device.attributes.get('unit_of_measurement') | tojson if device.attributes else none }} }
 {% endfor %}"""
 
 DEFAULT_ENABLE_MODEL_THINKING = False
