@@ -37,7 +37,7 @@ def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     assert len(calls) == 1
     assert calls[0].tool_args == {
         "name": "Kitchen Window",
-        "domain": ["window"],
+        "device_class": ["window"],
     }
 
 def test_parse_tool_call_prefers_explicit_domain() -> None:
@@ -54,6 +54,7 @@ def test_parse_tool_call_prefers_explicit_domain() -> None:
     assert calls[0].tool_args == {
         "area": "Living Room",
         "domain": ["light"],
+        "device_class": ["switch"],
     }
 
 def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None:
@@ -70,8 +71,8 @@ def test_parse_tool_call_converts_entity_id_and_resolves_friendly_name() -> None
     calls = helper.parse_tool_calls(response)
 
     assert calls[0].tool_args == {
-        "name": "Bedroom Ceiling Light",
-        "domain": "light",
+        "friendly_name": "Bedroom Ceiling Light",
+        "original_name": "light.bedroom_ceiling",
     }
     hass.states.get.assert_called_once_with("light.bedroom_ceiling")
 
@@ -87,13 +88,13 @@ def test_parse_tool_call_finds_domain_from_entity_id() -> None:
     calls = helper.parse_tool_calls(response)
 
     assert calls[0].tool_args == {
-        "name": "switch.bedroom_fan",
-        "domain": "switch",
+        "friendly_name": "switch.bedroom_fan",
+        "original_name": "switch.bedroom_fan",
     }
     hass.states.get.assert_called_once_with("switch.bedroom_fan")
 
-def test_parse_tool_call_resolves_name_with_list_domain() -> None:
-    """A list-valued domain is normalized before entity lookup."""
+def test_parse_tool_call_preserves_name_without_domain_aware_metadata() -> None:
+    """A name is not resolved when domain-aware metadata is unavailable."""
     hass = Mock()
     hass.states.get.return_value = Mock(
         attributes={"friendly_name": "Bedroom 2 Ceiling Light"}
@@ -105,8 +106,9 @@ def test_parse_tool_call_resolves_name_with_list_domain() -> None:
 
     calls = helper.parse_tool_calls(response)
 
-    assert calls[0].tool_args["name"] == "Bedroom 2 Ceiling Light"
-    hass.states.get.assert_called_once_with("light.bedroom_2_ceiling_light")
+    assert calls[0].tool_args["name"] == "bedroom_2_ceiling_light"
+    assert "original_name" not in calls[0].tool_args
+    hass.states.get.assert_not_called()
 
 def test_tool_call_signature_ignores_argument_order() -> None:
     """Equivalent calls have the same signature regardless of key order."""
