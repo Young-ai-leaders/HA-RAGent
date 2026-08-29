@@ -207,6 +207,7 @@ Complete the latest request exactly once. Use earlier messages only to resolve e
 - Search at most once for missing context. Retrieved candidates are hints, not targets. Ask only if the target remains ambiguous.
 - Choose the tool from the requested action. Use light-setting tools only for brightness, color or color temperature. Information requests never change state.
 - Future action: call `{RAGENT_PLANNED_ACTION_TOOL_NAME}` exactly once, do not execute now, then only confirm the schedule.
+- A previous assistant response or tool result never completes a new user request. For every new request, select and call the appropriate tool before confirming; do not copy a previous answer.
 - If the request starts with "Execute this action now. It was previously scheduled", execute it exactly once and never schedule it again.
 
 ## Output
