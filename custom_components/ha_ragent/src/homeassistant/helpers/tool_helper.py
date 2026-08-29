@@ -113,21 +113,20 @@ class ToolHelper:
 
     def _parse_area_and_floor(self, entity_entry: EntityEntry | None, original_area: str | None, original_floor: str | None) -> Tuple[str | None, str | None]:
         """Parse area and floor from the parameters and set them in the parameters dictionary."""
+        area = None
+        floor = None
         area_id = entity_entry.area_id if entity_entry else None
+
         if not area_id and entity_entry and entity_entry.device_id and device_registry:
             device = device_registry.async_get(self._hass).async_get_device(entity_entry.device_id)
             area_id = device.area_id if device else None
-        if not area_id or not area_registry:
-            return (None, None)
 
-        area = area_registry.async_get(self._hass).async_get_area(area_id)
-        if not area:
-            return (None, None)
+        if area_id and area_registry:
+            area = area_registry.async_get(self._hass).async_get_area(area_id)
+            if area and area.floor_id and floor_registry:
+                floor = floor_registry.async_get(self._hass).async_get_floor(area.floor_id)
 
-        if area.floor_id and floor_registry:
-            floor = floor_registry.async_get(self._hass).async_get_floor(area.floor_id)
-
-        area_name = original_area if isinstance(original_area, str) and original_area else area.name if area.name else None
+        area_name = original_area if isinstance(original_area, str) and original_area else area.name if area and area.name else None
         floor_name = original_floor if isinstance(original_floor, str) and original_floor else floor.name if floor and floor.name else None
         return (area_name, floor_name)
 
@@ -214,6 +213,7 @@ class ToolHelper:
         name = arguments.get("name")
         domain = arguments.get("domain")
         area = arguments.get("floor") or arguments.get("area")
+        
         if (name or domain) and area:
             return
 
