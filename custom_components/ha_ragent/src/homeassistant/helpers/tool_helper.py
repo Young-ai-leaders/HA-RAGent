@@ -111,7 +111,7 @@ class ToolHelper:
 
         return friendly_name, entity_entry
 
-    def _parse_area_and_floor(self, entity_entry: EntityEntry | None, original_area: List[str] | None, original_floor: List[str] | None) -> Tuple[List[str] | None, List[str] | None]:
+    def _parse_area_and_floor(self, entity_entry: EntityEntry | None, original_area: str | None, original_floor: str | None) -> Tuple[str | None, str | None]:
         """Parse area and floor from the parameters and set them in the parameters dictionary."""
         area_id = entity_entry.area_id if entity_entry else None
         if not area_id and entity_entry and entity_entry.device_id and device_registry:
@@ -127,9 +127,9 @@ class ToolHelper:
         if area.floor_id and floor_registry:
             floor = floor_registry.async_get(self._hass).async_get_floor(area.floor_id)
 
-        area_list = original_area if original_area else [area.name] if area.name else None
-        floor_list = original_floor if original_floor else [floor.name] if floor and floor.name else None
-        return (area_list, floor_list)
+        area_name = original_area if isinstance(original_area, str) and original_area else area.name if area.name else None
+        floor_name = original_floor if isinstance(original_floor, str) and original_floor else floor.name if floor and floor.name else None
+        return (area_name, floor_name)
 
     def _parse_parameters(self, parameters: dict[str, Any], tool_metadata: ToolMetadata | None) -> None:
         """Parse and normalize tool parameters."""
