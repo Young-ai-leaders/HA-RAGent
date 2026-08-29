@@ -60,6 +60,15 @@ class RAGentPlannedActionTool(llm.Tool):
         self.context = context
         self.language = language
         self.device_id = device_id
+        if language == "de":
+            self.description = (
+                "Plane eine einmalige Home-Assistant-Aktion für später. Verwende dieses "
+                "Tool bei zukünftigen Verzögerungen wie in 2 Minuten, später oder um 20 Uhr, "
+                "auch wenn der Nutzer nicht ausdrücklich planen sagt. Nicht für Timer-Anfragen "
+                "verwenden. Die Aktion jetzt nicht ausführen; sie wird einmalig verzögert "
+                "ausgeführt. description darf nur die sofort ausführbare Aktion und das Ziel "
+                "enthalten."
+            )
 
     async def _async_execute(self, _now: datetime, description: str) -> None:
         """Send the due action back through the originating conversation agent."""

@@ -39,10 +39,18 @@ class RAGentSemanticSearchTool(llm.Tool):
         }
     )
 
-    def __init__(self, hass: HomeAssistant, entry_id: str, subentry_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, entry_id: str, subentry_id: str, language: str | None = None) -> None:
         self.hass = hass
         self.entry_id = entry_id
         self.subentry_id = subentry_id
+        if language == "de":
+            self.description = (
+                "Löse Home-Assistant-Ziele mit semantischer Suche auf. Verwende dieses Tool "
+                "bei ungenauen Namen, natürlichen Gerätebezeichnungen, Orten, Tippfehlern, "
+                "Kategorien oder wenn ein Gerät nicht gefunden wird. Nutze devices für "
+                "Geräte, tools für Funktionen oder both für beides. Rate nicht, wenn "
+                "die Suche das Ziel auflösen kann."
+            )
 
     @staticmethod
     def _get_effective_limits(entry: Any) -> tuple[int, int]:

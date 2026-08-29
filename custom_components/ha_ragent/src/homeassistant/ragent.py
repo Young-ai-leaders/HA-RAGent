@@ -44,7 +44,6 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
     DEFAULT_PROMPT,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-    FOLLOW_UP_MARKER,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
@@ -53,6 +52,7 @@ from custom_components.ha_ragent.src.const import (
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
     RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_ASK_QUESTION_TOOL_NAME,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
     RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
 )
@@ -372,13 +372,16 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_card(title="Changes", content=f"Ran the following tools:\n{tools_str}")
 
         has_speech = False
-        continue_conversation = False
+        continue_conversation = any(
+            tool_call.tool_name == RAGENT_ASK_QUESTION_TOOL_NAME
+            for tool_call, _result in tool_calls_overall
+        )
         for cur_msg in reversed(history_manager.message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
                 speech = cur_msg.content.strip()
-                has_follow_up_marker = FOLLOW_UP_MARKER in speech
+                has_follow_up_marker = False
                 if has_follow_up_marker:
-                    speech = speech.replace(f" {FOLLOW_UP_MARKER}", "").replace(FOLLOW_UP_MARKER, "").strip()
+                    speech = speech.strip()
                     if speech.endswith(("?", "？", "؟")):
                         continue_conversation = True
                         _logger.error("Detected valid follow-up marker in assistant response.")
