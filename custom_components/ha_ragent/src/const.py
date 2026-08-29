@@ -9,18 +9,16 @@ RAGENT_LLM_API_NAME = "HA-RAGent"
 RAGENT_SEMANTIC_SEARCH_TOOL_NAME = "HassSemanticSearch"
 RAGENT_PLANNED_ACTION_TOOL_NAME = "HassPlannedAction"
 RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME = "HassClearPlannedActions"
-RAGENT_ASK_QUESTION_TOOL_NAME = "HassAskQuestion"
 RAGENT_SCHEDULED_ACTION_CANCELLERS = "scheduled_action_cancellers"
 RAGENT_SCHEDULED_REQUEST_PREFIX = "[scheduled-action] "
 
 RAGENT_REQUIRED_TOOL_NAMES = [
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
-    RAGENT_ASK_QUESTION_TOOL_NAME,
 ]
 
 RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
     RAGENT_PLANNED_ACTION_TOOL_NAME,
-    RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME
+    RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME,
 ]
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
@@ -132,6 +130,7 @@ CONF_PROMPT = "rag_prompt"
 
 CONF_ENABLE_MODEL_THINKING = "rag_enable_model_thinking"
 CONF_ALLOW_AUTO_EMBEDDING = "rag_allow_auto_embedding"
+CONF_ALLOW_QUESTIONS = "rag_allow_questions"
 
 CONF_REMEMBER_CONVERSATION_TIME_MINUTES = "rag_remember_conversation_time_minutes"
 CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS = "rag_remember_conversation_num_interactions"
@@ -208,7 +207,7 @@ Complete the latest request exactly once. Use earlier messages only to resolve e
  - Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
  - If a requested device cannot be found, use `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` once with a description of the intended device before asking the user or giving up.
 - Search at most once for missing context. Retrieved candidates are hints, not targets. Ask only if the target remains ambiguous.
-- If clarification is required, call `HassAskQuestion` with one concise question instead of guessing or executing an uncertain action.
+- If clarification is required, ask one concise question directly instead of guessing or executing an uncertain action.
 - Choose the tool from the requested action. Use light-setting tools only for brightness, color or color temperature. Information requests never change state.
 - Future action: call `{RAGENT_PLANNED_ACTION_TOOL_NAME}` exactly once, do not execute now, then only confirm the schedule.
 - A previous assistant response or tool result never completes a new user request. For every new request, select and call the appropriate tool before confirming; do not copy a previous answer.
@@ -258,6 +257,7 @@ DEFAULT_PROMPT = """<persona_prompt>
 
 DEFAULT_ENABLE_MODEL_THINKING = False
 DEFAULT_ALLOW_AUTO_EMBEDDING = True
+DEFAULT_ALLOW_QUESTIONS = True
 DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES = 5
 DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS = 10
 DEFAULT_SELECTED_LANGUAGE = "en"
@@ -279,6 +279,7 @@ DEFAULT_OPTIONS = {
     CONF_P_TYPICAL: DEFAULT_P_TYPICAL,
     CONF_TEMPERATURE: DEFAULT_TEMPERATURE,
     CONF_ALLOW_AUTO_EMBEDDING: DEFAULT_ALLOW_AUTO_EMBEDDING,
+    CONF_ALLOW_QUESTIONS: DEFAULT_ALLOW_QUESTIONS,
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES: DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS: DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_CONTEXT_LENGTH: DEFAULT_CONTEXT_LENGTH,

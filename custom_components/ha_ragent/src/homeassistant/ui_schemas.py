@@ -47,6 +47,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_SELECTED_LANGUAGE,
     CONF_ENABLE_MODEL_THINKING,
     CONF_ALLOW_AUTO_EMBEDDING,
+    CONF_ALLOW_QUESTIONS,
     CONF_TEMPERATURE,
     CONF_K_TOP,
     CONF_P_MIN,
@@ -83,6 +84,7 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_P_TYPICAL,
     DEFAULT_ENABLE_MODEL_THINKING,
     DEFAULT_ALLOW_AUTO_EMBEDDING,
+    DEFAULT_ALLOW_QUESTIONS,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_BACKEND_TYPE,
     DEFAULT_VECTOR_DB_NAME,
@@ -317,6 +319,11 @@ def ui_schema_config_options(
             CONF_ALLOW_AUTO_EMBEDDING,
             description={"suggested_value": options.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING)},
             default=options.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING),
+        ): BooleanSelector(BooleanSelectorConfig()),
+        vol.Optional(
+            CONF_ALLOW_QUESTIONS,
+            description={"suggested_value": options.get(CONF_ALLOW_QUESTIONS, DEFAULT_ALLOW_QUESTIONS)},
+            default=options.get(CONF_ALLOW_QUESTIONS, DEFAULT_ALLOW_QUESTIONS),
         ): BooleanSelector(BooleanSelectorConfig()),
         vol.Optional(
             CONF_TEMPERATURE,

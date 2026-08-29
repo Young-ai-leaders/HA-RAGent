@@ -13,7 +13,6 @@ from custom_components.ha_ragent.src.const import (
 from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
 from custom_components.ha_ragent.src.homeassistant.tools.clear_planned_actions import RAGentClearPlannedActionsTool
 from custom_components.ha_ragent.src.homeassistant.tools.search_tools import RAGentSemanticSearchTool
-from custom_components.ha_ragent.src.homeassistant.tools.ask_question import RAGentAskQuestionTool
 
 
 def resolve_llm_api_id(api_id: str) -> str:
@@ -48,7 +47,6 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             device_id=llm_context.device_id
         )
         clear_planned_actions_tool = RAGentClearPlannedActionsTool(hass, subentry_id, llm_context.language)
-        ask_question_tool = RAGentAskQuestionTool(hass, llm_context.language)
         self.tools = []
         for tool in wrapped_tools:
             tool_name = getattr(tool, "name", None)
@@ -58,8 +56,6 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 self.tools.append(planned_action_tool)
             elif tool_name == RAGentClearPlannedActionsTool.name:
                 self.tools.append(clear_planned_actions_tool)
-            elif tool_name == RAGentAskQuestionTool.name:
-                self.tools.append(ask_question_tool)
             else:
                 self.tools.append(tool)
 
@@ -69,8 +65,6 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             self.tools.append(planned_action_tool)
         if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentClearPlannedActionsTool.name, wrapped_tools):
             self.tools.append(clear_planned_actions_tool)
-        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentAskQuestionTool.name, wrapped_tools):
-            self.tools.append(ask_question_tool)
 
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to the wrapped API instance."""
@@ -99,7 +93,6 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             RAGentSemanticSearchTool.name,
             RAGentPlannedActionTool.name,
             RAGentClearPlannedActionsTool.name,
-            RAGentAskQuestionTool.name,
         }:
             for tool in self.tools:
                 if tool.name == tool_input.tool_name:

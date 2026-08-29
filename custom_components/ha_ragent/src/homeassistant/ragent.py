@@ -51,8 +51,9 @@ from custom_components.ha_ragent.src.const import (
     AREAS_PROMPT,
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
+    CONF_ALLOW_QUESTIONS,
+    DEFAULT_ALLOW_QUESTIONS,
     RAGENT_REQUIRED_TOOL_NAMES,
-    RAGENT_ASK_QUESTION_TOOL_NAME,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
     RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
 )
@@ -372,21 +373,16 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             intent_response.async_set_card(title="Changes", content=f"Ran the following tools:\n{tools_str}")
 
         has_speech = False
-        continue_conversation = any(
-            tool_call.tool_name == RAGENT_ASK_QUESTION_TOOL_NAME
-            for tool_call, _result in tool_calls_overall
-        )
+        continue_conversation = False
         for cur_msg in reversed(history_manager.message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
                 speech = cur_msg.content.strip()
-                has_follow_up_marker = False
-                if has_follow_up_marker:
-                    speech = speech.strip()
-                    if speech.endswith(("?", "？", "؟")):
-                        continue_conversation = True
-                        _logger.error("Detected valid follow-up marker in assistant response.")
-                    else:
-                        _logger.error("Ignored follow-up marker because the assistant response does not end with a question.")
+
+                if (
+                    self.runtime_options.get(CONF_ALLOW_QUESTIONS, DEFAULT_ALLOW_QUESTIONS)
+                    and speech.endswith(("?", ";", "？"))
+                ):
+                    continue_conversation = True
 
                 intent_response.async_set_speech(speech)
                 has_speech = True
