@@ -178,6 +178,8 @@ DEVICE_CONTROL_PROMPT = {
 Erfülle die neueste Anfrage exakt einmal. Frühere Nachrichten dienen nur zum Auflösen von Bezügen und Antworten wie „ja“.
 
 ## Regeln
+- Wenn ein angefordertes Gerät nicht gefunden wird, verwende `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` einmal mit einer Beschreibung des gesuchten Geräts, bevor du nachfragst oder aufgibst.
+- Wenn eine Klärung erforderlich ist, stelle eine kurze Frage direkt, statt zu raten oder eine unsichere Aktion auszuführen.
 - Ermittle Aktion, Ziel, Ort, Anfrage und Tool-Argumente neu aus der neuesten Nachricht.
 - Neue Gerätenamen oder Orte ersetzen frühere Ziele und Tool-Argumente. Frühere Tool-Ergebnisse dienen nur als Kontext.
 - Bewahre Aktion, Namen, Kategorie, Orte, Anzahl und Ausschlüsse. Verwende nie nicht verlangte Geräte oder Orte.

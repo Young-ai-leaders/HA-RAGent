@@ -400,6 +400,7 @@ def ui_schema_config_options(
         CONF_LLM_HASS_API,
         CONF_PROMPT,
         CONF_ALLOW_AUTO_EMBEDDING,
+        CONF_ALLOW_QUESTIONS,
         CONF_ENABLE_MODEL_THINKING,
         CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_NUM_TOOLS_TO_EXTRACT,
