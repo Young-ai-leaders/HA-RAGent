@@ -27,7 +27,7 @@ class RAGentSemanticSearchTool(llm.Tool):
     description = (
         "Resolve Home Assistant targets with semantic search. "
         "Use when the request contains a fuzzy name, natural-language reference, area, typo, category, "
-        "or may match multiple devices. "
+        "or when a requested device cannot be found by name. "
         "Use `devices` for entities, `tools` for capabilities, or `both` when needed. "
         "Do not guess when search can resolve the target. "
         "Describe the intended target and action briefly."

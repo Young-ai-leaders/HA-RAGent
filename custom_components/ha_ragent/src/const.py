@@ -202,7 +202,8 @@ Complete the latest request exactly once. Use earlier messages only to resolve e
 - A successful tool call completes its target scope. Do not repeat it or search for more candidates.
 - Category, plural or “all”: make one call per requested location using `domain`; do not use `name` or enumerate devices.
 - Explicit device: make one call with `name` equal to its exact full `entity_id`.
-- Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
+ - Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
+ - If a requested device cannot be found, use `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` once with a description of the intended device before asking the user or giving up.
 - Search at most once for missing context. Retrieved candidates are hints, not targets. Ask only if the target remains ambiguous.
 - Choose the tool from the requested action. Use light-setting tools only for brightness, color or color temperature. Information requests never change state.
 - Future action: call `{RAGENT_PLANNED_ACTION_TOOL_NAME}` exactly once, do not execute now, then only confirm the schedule.
