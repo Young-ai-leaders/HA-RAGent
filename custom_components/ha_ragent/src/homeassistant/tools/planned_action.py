@@ -24,14 +24,13 @@ _logger = logging.getLogger(__name__)
 class RAGentPlannedActionTool(llm.Tool):
     name = RAGENT_PLANNED_ACTION_TOOL_NAME
     description = (
-        "Schedule an action once after a delay. Use this tool when the user says to "
-        "schedule an action or gives a future delay such as 'in 2 minutes'. Do not "
-        "execute the action now. description must be an immediate command containing "
-        "only the action and target. Never include scheduling or time wording such as "
-        "'schedule', 'scheduled', 'later', 'in 2 minutes', or 'at 8 PM' in description. "
-        "Example: for 'schedule the bathroom light in 2 minutes', use description "
-        "'turn on the bathroom light' and minutes 2. After success, call no other "
-        "action tool."
+        "Schedule, defer, delay or plan one Home Assistant action for later execution. "
+        "Use for future delays such as 'in 2 minutes'. DO NOT use for explicit timer "
+        "requests. DO NOT execute the action now. It runs once after the delay. "
+        "description must contain only the immediate action and target, without time "
+        "wording. Example: 'schedule the bathroom light in 2 minutes' becomes "
+        "description 'turn on the bathroom light' and minutes 2. After success, "
+        "call no other action tool."
     )
     parameters = vol.Schema(
         {
