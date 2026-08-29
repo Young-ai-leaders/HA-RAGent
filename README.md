@@ -9,7 +9,7 @@
 
 [![GitHub Release](https://img.shields.io/github/release/youngaileaderslinz/HA-RAGent.svg?style=flat-square)](https://github.com/youngaileaderslinz/HA-RAGent/releases)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/youngaileaderslinz/HA-RAGent/validation.yaml?branch=main&style=flat-square)](https://github.com/youngaileaderslinz/HA-RAGent/actions/workflows/validation.yaml)
-[![License](https://img.shields.io/github/license/youngaileaderslinz/HA-RAGent.svg?style=flat-square)](LICENSE.md)
+[![License](https://img.shields.io/github/license/youngaileaderslinz/HA-RAGent.svg?style=flat-square)](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/LICENSE)
 [![HACS](https://img.shields.io/badge/HACS-default-orange.svg?style=flat-square)](https://hacs.xyz)
 
 # HA-RAGent (Home Assistant Retrieval‑Augmented‑Generation Agent)
