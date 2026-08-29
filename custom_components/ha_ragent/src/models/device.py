@@ -12,11 +12,11 @@ class Device:
     device_labels: List[str] = None
     services: List[str] = None
     aliases: List[str] = None
+    unit_of_measurement: str = None
 
     # Loaded from current state not used for embedding
     state: str = None
     attributes: Dict[str, Any] = None
-
     
     def __str__(self):
         return self.to_json()
@@ -28,7 +28,8 @@ class Device:
             "area_name": self.area_name,
             "floor_name": self.floor_name,
             "device_labels": self.device_labels,
-            "aliases": self.aliases
+            "aliases": self.aliases,
+            "unit_of_measurement": self.unit_of_measurement
         })
 
     def to_json(self):

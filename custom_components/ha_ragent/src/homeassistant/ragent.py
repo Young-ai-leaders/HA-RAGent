@@ -44,7 +44,6 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
     DEFAULT_PROMPT,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
-    FOLLOW_UP_MARKER,
     DOMAIN,
     PERSONA_PROMPTS,
     CURRENT_DATE_PROMPT,
@@ -52,6 +51,8 @@ from custom_components.ha_ragent.src.const import (
     AREAS_PROMPT,
     MAX_RETRIES_PROMPT,
     DEVICE_CONTROL_PROMPT,
+    CONF_ALLOW_QUESTIONS,
+    DEFAULT_ALLOW_QUESTIONS,
     RAGENT_REQUIRED_TOOL_NAMES,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
     RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
@@ -282,13 +283,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 _logger.debug(f"LLM response: {assistant_content}")
                 
-                tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content)
+                tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content, tool_metadata_dict)
                 message_content = MessageHelper.clean_assistant_content(assistant_content, bool(tool_calls_in_iteration))
+
+                history_tool_calls = [tool_helper.to_history_tool_call(call) for call in tool_calls_in_iteration]
 
                 message = conversation.AssistantContent(
                     agent_id=user_input.agent_id,
                     content=message_content,
-                    tool_calls=tool_calls_in_iteration
+                    tool_calls=history_tool_calls
                 )
                 history_manager.append_message(message)
                 
@@ -316,7 +319,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                                 executed_tool_calls.add(tool_call_signature)
                                 _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
-                                tool_result = await llm_api.async_call_tool(tool_call)
+                                execution_call = tool_helper.to_home_assistant_tool_call(tool_call)
+                                tool_result = await llm_api.async_call_tool(execution_call)
                                 tool_call_results[tool_call_signature] = tool_result
                                 tool_calls_overall.append((tool_call, tool_result))                                
                                 tool_result_msg = conversation.ToolResultContent(
@@ -373,14 +377,12 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         for cur_msg in reversed(history_manager.message_history[1:]):
             if isinstance(cur_msg, conversation.AssistantContent) and cur_msg.content:
                 speech = cur_msg.content.strip()
-                has_follow_up_marker = FOLLOW_UP_MARKER in speech
-                if has_follow_up_marker:
-                    speech = speech.replace(f" {FOLLOW_UP_MARKER}", "").replace(FOLLOW_UP_MARKER, "").strip()
-                    if speech.endswith(("?", "？", "؟")):
-                        continue_conversation = True
-                        _logger.error("Detected valid follow-up marker in assistant response.")
-                    else:
-                        _logger.error("Ignored follow-up marker because the assistant response does not end with a question.")
+
+                if (
+                    self.runtime_options.get(CONF_ALLOW_QUESTIONS, DEFAULT_ALLOW_QUESTIONS)
+                    and speech.endswith(("?", ";", "？"))
+                ):
+                    continue_conversation = True
 
                 intent_response.async_set_speech(speech)
                 has_speech = True

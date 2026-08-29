@@ -20,9 +20,15 @@ class RAGentClearPlannedActionsTool(llm.Tool):
     )
     parameters = vol.Schema({})
 
-    def __init__(self, hass: HomeAssistant, subentry_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, subentry_id: str, language: str | None = None) -> None:
         self.hass = hass
         self.subentry_id = subentry_id
+        if language == "de":
+            self.description = (
+                "Brich alle derzeit geplanten einmaligen Home-Assistant-Aktionen ab. "
+                "Verwende dieses Tool, wenn der Nutzer alle geplanten Aktionen löschen "
+                "oder abbrechen möchte."
+            )
 
     async def async_call(self, _tool_input: llm.ToolInput, *args, **kwargs) -> dict[str, object]:
         domain_data = self.hass.data.setdefault(DOMAIN, {})

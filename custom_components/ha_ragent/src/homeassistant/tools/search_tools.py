@@ -27,7 +27,7 @@ class RAGentSemanticSearchTool(llm.Tool):
     description = (
         "Resolve Home Assistant targets with semantic search. "
         "Use when the request contains a fuzzy name, natural-language reference, area, typo, category, "
-        "or may match multiple devices. "
+        "or when a requested device cannot be found by name. "
         "Use `devices` for entities, `tools` for capabilities, or `both` when needed. "
         "Do not guess when search can resolve the target. "
         "Describe the intended target and action briefly."
@@ -39,10 +39,18 @@ class RAGentSemanticSearchTool(llm.Tool):
         }
     )
 
-    def __init__(self, hass: HomeAssistant, entry_id: str, subentry_id: str) -> None:
+    def __init__(self, hass: HomeAssistant, entry_id: str, subentry_id: str, language: str | None = None) -> None:
         self.hass = hass
         self.entry_id = entry_id
         self.subentry_id = subentry_id
+        if language == "de":
+            self.description = (
+                "Löse Home-Assistant-Ziele mit semantischer Suche auf. Verwende dieses Tool "
+                "bei ungenauen Namen, natürlichen Gerätebezeichnungen, Orten, Tippfehlern, "
+                "Kategorien oder wenn ein Gerät nicht gefunden wird. Nutze devices für "
+                "Geräte, tools für Funktionen oder both für beides. Rate nicht, wenn "
+                "die Suche das Ziel auflösen kann."
+            )
 
     @staticmethod
     def _get_effective_limits(entry: Any) -> tuple[int, int]:
@@ -119,6 +127,11 @@ class RAGentSemanticSearchTool(llm.Tool):
                                 "device_class": device.domain,
                                 "aliases": device.aliases or [],
                                 "state": state.state if state else None,
+                                "unit_of_measurement": (
+                                    state.attributes.get("unit_of_measurement")
+                                    if state
+                                    else None
+                                ),
                             }
                         )
                         if len(devices) >= device_limit:

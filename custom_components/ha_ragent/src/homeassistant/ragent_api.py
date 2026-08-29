@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, List
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
@@ -37,7 +37,7 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         self.custom_serializer = getattr(wrapped_api, "custom_serializer", None)
 
         wrapped_tools = list(getattr(wrapped_api, "tools", []) or [])
-        scoped_search_tool = RAGentSemanticSearchTool(hass, entry_id, subentry_id)
+        scoped_search_tool = RAGentSemanticSearchTool(hass, entry_id, subentry_id, llm_context.language)
         planned_action_tool = RAGentPlannedActionTool(
             hass,
             subentry_id=subentry_id,
@@ -46,7 +46,7 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             language=llm_context.language,
             device_id=llm_context.device_id
         )
-        clear_planned_actions_tool = RAGentClearPlannedActionsTool(hass, subentry_id)
+        clear_planned_actions_tool = RAGentClearPlannedActionsTool(hass, subentry_id, llm_context.language)
         self.tools = []
         for tool in wrapped_tools:
             tool_name = getattr(tool, "name", None)
@@ -58,22 +58,21 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 self.tools.append(clear_planned_actions_tool)
             else:
                 self.tools.append(tool)
-        if not any(getattr(tool, "name", None) == RAGentSemanticSearchTool.name for tool in wrapped_tools):
+
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentSemanticSearchTool.name, wrapped_tools):
             self.tools.append(scoped_search_tool)
-        if not any(
-            getattr(tool, "name", None) == RAGentPlannedActionTool.name
-            for tool in wrapped_tools
-        ):
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentPlannedActionTool.name, wrapped_tools):
             self.tools.append(planned_action_tool)
-        if not any(
-            getattr(tool, "name", None) == RAGentClearPlannedActionsTool.name
-            for tool in wrapped_tools
-        ):
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentClearPlannedActionsTool.name, wrapped_tools):
             self.tools.append(clear_planned_actions_tool)
 
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to the wrapped API instance."""
         return getattr(self._wrapped_api, name)
+
+    @staticmethod
+    def _check_if_tool_exists(tool_name: str, tool_list: List) -> bool:
+        return not any(getattr(tool, "name", None) == tool_name for tool in tool_list)
 
     def set_conversation_agent_id(self, agent_id: str) -> None:
         """Bind delayed actions to the conversation entity handling this turn."""

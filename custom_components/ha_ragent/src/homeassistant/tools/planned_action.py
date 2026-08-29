@@ -24,14 +24,15 @@ _logger = logging.getLogger(__name__)
 class RAGentPlannedActionTool(llm.Tool):
     name = RAGENT_PLANNED_ACTION_TOOL_NAME
     description = (
-        "Schedule an action once after a delay. Use this tool when the user says to "
-        "schedule an action or gives a future delay such as 'in 2 minutes'. Do not "
-        "execute the action now. description must be an immediate command containing "
-        "only the action and target. Never include scheduling or time wording such as "
-        "'schedule', 'scheduled', 'later', 'in 2 minutes', or 'at 8 PM' in description. "
-        "Example: for 'schedule the bathroom light in 2 minutes', use description "
-        "'turn on the bathroom light' and minutes 2. After success, call no other "
-        "action tool."
+        "Schedule one Home Assistant action for future execution. Use whenever the user "
+        "asks an action to happen later or after a delay, including phrases like 'in "
+        "2 minutes', 'in an hour', 'later', 'after dinner', or 'at 8 PM', even if they "
+        "do not say schedule or plan. DO NOT use for explicit timer requests. DO NOT "
+        "execute the action now. It runs once after the delay. "
+        "description must contain only the immediate action and target, without time "
+        "wording. Example: 'schedule the bathroom light in 2 minutes' becomes "
+        "description 'turn on the bathroom light' and minutes 2. After success, "
+        "call no other action tool."
     )
     parameters = vol.Schema(
         {
@@ -59,6 +60,15 @@ class RAGentPlannedActionTool(llm.Tool):
         self.context = context
         self.language = language
         self.device_id = device_id
+        if language == "de":
+            self.description = (
+                "Plane eine einmalige Home-Assistant-Aktion für später. Verwende dieses "
+                "Tool bei zukünftigen Verzögerungen wie in 2 Minuten, später oder um 20 Uhr, "
+                "auch wenn der Nutzer nicht ausdrücklich planen sagt. Nicht für Timer-Anfragen "
+                "verwenden. Die Aktion jetzt nicht ausführen; sie wird einmalig verzögert "
+                "ausgeführt. description darf nur die sofort ausführbare Aktion und das Ziel "
+                "enthalten."
+            )
 
     async def _async_execute(self, _now: datetime, description: str) -> None:
         """Send the due action back through the originating conversation agent."""

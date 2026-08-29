@@ -94,6 +94,7 @@
                         "llm_hass_api": "LLM Home Assistant API",
                         "rag_prompt": "System Prompt",
                         "rag_allow_auto_embedding": "Allow Auto Embedding",
+                        "rag_allow_questions": "Allow Follow-up Questions",
                         "rag_enable_model_thinking": "Enable Model Thinking",
                         "rag_temperature": "Temperature",
                         "rag_max_tokens": "Maximum Tokens",
@@ -108,6 +109,7 @@
                     "data_description": {
                         "rag_prompt": "The system prompt that defines the behavior and personality of the assistant",
                         "rag_allow_auto_embedding": "Automatically embed exposed devices and tools for this AI RAGent during startup and after configuration changes.",
+                        "rag_allow_questions": "Allow the assistant to ask clarification questions and continue the conversation.",
                         "rag_enable_model_thinking": "Disables thinking of the model in order to speed up response times.",
                         "rag_temperature": "Sampling temperature; higher = more random, lower = more deterministic",
                         "rag_max_tokens": "Maximum number of tokens the model may generate per response",

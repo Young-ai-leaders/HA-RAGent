@@ -94,6 +94,7 @@
                         "llm_hass_api": "LLM-Home-Assistant-API",
                         "rag_prompt": "System-Prompt",
                         "rag_allow_auto_embedding": "Automatisches Embedding erlauben",
+                        "rag_allow_questions": "Rückfragen erlauben",
                         "rag_enable_model_thinking": "Modelldenken aktivieren",
                         "rag_temperature": "Temperatur",
                         "rag_max_tokens": "Maximale Tokens",
@@ -107,6 +108,7 @@
                     "data_description": {
                         "rag_prompt": "Der System-Prompt, der das Verhalten und die Persönlichkeit des Assistenten definiert",
                         "rag_allow_auto_embedding": "Bindet exponierte Geräte und Tools für diesen KI-RAGent automatisch beim Start und nach Konfigurationsänderungen ein.",
+                        "rag_allow_questions": "Erlaubt dem Assistenten, Rückfragen zu stellen und das Gespräch fortzusetzen.",
                         "rag_enable_model_thinking": "Deaktiviert das Denken des Modells, um die Antwortzeiten zu verkürzen.",
                         "rag_temperature": "Sampling-Temperatur; höher = zufälliger, niedriger = deterministischer",
                         "rag_max_tokens": "Maximale Anzahl an Tokens, die das Modell pro Antwort erzeugen darf",
