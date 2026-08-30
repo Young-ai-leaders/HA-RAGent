@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 import math
 from typing import Any, List, Tuple
 
@@ -266,6 +267,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         formatted_index = 0
 
         for idx in range(max(1, max_tool_call_iterations)):
+            iteration_start = time.perf_counter()
             _logger.debug(f"Generating response for {user_input.text}, iteration {idx + 1}/{max_tool_call_iterations}.")
 
             formatted_messages.extend(MessageHelper.message_to_chat_messages(history_manager.message_history[formatted_index:]))
@@ -280,13 +282,20 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 async for chunk in self.entry.llm_backend.async_send_chat_request(dict(self.subentry.data), formatted_messages, tool_list):
                     content_chunks.append(chunk)
                 assistant_content = "".join(content_chunks)
+                _logger.debug(f"RAGent timing: LLM iteration {idx + 1}: {time.perf_counter() - iteration_start:.3f}s")
 
                 _logger.debug(f"LLM response: {assistant_content}")
                 
+                helper_start = time.perf_counter()
                 tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content, tool_metadata_dict)
+                _logger.debug(f"RAGent timing: parse_tool_calls: {time.perf_counter() - helper_start:.3f}s")
+                helper_start = time.perf_counter()
                 message_content = MessageHelper.clean_assistant_content(assistant_content, bool(tool_calls_in_iteration))
+                _logger.debug(f"RAGent timing: clean_assistant_content: {time.perf_counter() - helper_start:.3f}s")
 
+                helper_start = time.perf_counter()
                 history_tool_calls = [tool_helper.to_history_tool_call(call) for call in tool_calls_in_iteration]
+                _logger.debug(f"RAGent timing: to_history_tool_call: {time.perf_counter() - helper_start:.3f}s")
 
                 message = conversation.AssistantContent(
                     agent_id=user_input.agent_id,
@@ -304,8 +313,12 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                         try:
                             if llm_api:
+                                helper_start = time.perf_counter()
                                 tool_helper.block_broad_tool_calls(tool_call, tool_metadata_dict.get(tool_name))
+                                _logger.debug(f"RAGent timing: block_broad_tool_calls ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
+                                helper_start = time.perf_counter()
                                 tool_call_signature = tool_helper.tool_call_signature(tool_call)
+                                _logger.debug(f"RAGent timing: tool_call_signature ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
                                 if tool_call_signature in executed_tool_calls:
                                     _logger.debug(f"Returning already-executed result for repeated tool call: {tool_name} with arguments {tool_args}")
                                     tool_result_msg = MessageHelper.create_repeated_tool_result_message(
@@ -319,17 +332,23 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                                 executed_tool_calls.add(tool_call_signature)
                                 _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
+                                helper_start = time.perf_counter()
                                 execution_call = tool_helper.to_home_assistant_tool_call(tool_call)
+                                _logger.debug(f"RAGent timing: to_home_assistant_tool_call ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
                                 tool_result = await llm_api.async_call_tool(execution_call)
                                 tool_call_results[tool_call_signature] = tool_result
                                 tool_calls_overall.append((tool_call, tool_result))                                
+                                helper_start = time.perf_counter()
+                                parsed_tool_result = tool_helper.parse_tool_results(tool_result)
+                                _logger.debug(f"RAGent timing: parse_tool_results ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
                                     tool_call_id=tool_call.id,
                                     tool_name=tool_name,
-                                    tool_result=tool_helper.parse_tool_results(tool_result)
+                                    tool_result=parsed_tool_result
                                 )
                                 history_manager.append_message(tool_result_msg)
+                                _logger.debug(f"RAGent timing: tool {tool_name}: {time.perf_counter() - iteration_start:.3f}s")
                             else:
                                 _logger.warning(f"LLM API not available, skipping tool execution for tool: {tool_name}")
                                 tool_result_msg = conversation.ToolResultContent(
@@ -397,6 +416,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
     async def async_process(self, user_input: ConversationInput) -> ConversationResult:
         """Process the user request"""
+        timing_start = time.perf_counter()
+        timing_mark = timing_start
+
+        def log_timing(stage: str) -> None:
+            nonlocal timing_mark
+            now = time.perf_counter()
+            _logger.debug(f"RAGent timing: {stage}: {now - timing_mark:.3f}s (total {now - timing_start:.3f}s)")
+            timing_mark = now
+
         scheduled_request = user_input.text.startswith(RAGENT_SCHEDULED_REQUEST_PREFIX)
         if scheduled_request:
             user_input.text = user_input.text.removeprefix(RAGENT_SCHEDULED_REQUEST_PREFIX)
@@ -423,6 +451,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                         intent_response = intent.IntentResponse(language=user_input.language)
                         intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Error preparing LLM API.")
                         return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
+
+                    log_timing("LLM API setup")
                     
                 # ensure this chat log has the LLM API instance
                 chat_log.llm_api = llm_api
@@ -434,6 +464,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     user_input,
                     history_manager.retrieval_texts(chat_log),
                 )
+                log_timing("query embedding")
                 if not query_embedding:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
@@ -447,6 +478,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 else:
                     retrieved_devices = await retrieve_devices_task
                     retrieved_tools = []
+                log_timing("vector retrieval")
 
                 if not retrieved_devices:
                     intent_response = intent.IntentResponse(language=user_input.language)
@@ -478,6 +510,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     area,
                     floor,
                 )
+                log_timing("system prompt rendering")
                 if not system_prompt_content:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Template rendering failed.")
@@ -489,7 +522,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     system_prompt_content,
                 )
 
-                return await self._async_prompt_model(
+                result = await self._async_prompt_model(
                     llm_api,
                     user_input,
                     retrieved_tools,
@@ -497,6 +530,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     history_manager,
                     scheduled_request
                 )
+                log_timing("model and tool processing")
+                return result
         except Exception as err:
             _logger.error(f"Unexpected error in async_process: {err}")
             intent_response = intent.IntentResponse(language=user_input.language)
