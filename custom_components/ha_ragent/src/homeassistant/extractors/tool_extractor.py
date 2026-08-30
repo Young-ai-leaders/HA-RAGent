@@ -20,6 +20,7 @@ from homeassistant.helpers.llm import LLMContext
 
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
+    CONF_EXCLUDED_TOOLS,
     RAGENT_REQUIRED_TOOL_NAMES,
     RAGENT_TIMER_DEVICE_ID,
 )
@@ -120,6 +121,11 @@ class ToolExtractor:
         tool_list: list[LlmTool] = []
         seen_tool_names: set[str] = set()
         selected_api = subentry.data.get(CONF_LLM_HASS_API, "default")
+        excluded_tools = {
+            name
+            for name in subentry.data.get(CONF_EXCLUDED_TOOLS, [])
+            if isinstance(name, str) and name.strip()
+        }
 
         if selected_api == "none":
             return tool_list
@@ -141,20 +147,17 @@ class ToolExtractor:
             )
 
             if not llm_api or not hasattr(llm_api, "tools"):
-                _logger.debug(
-                    f"LLM API {selected_api} did not expose any tools attribute for subentry {subentry.title}",
-                )
+                _logger.debug(f"LLM API {selected_api} did not expose any tools attribute for subentry {subentry.title}")
                 return tool_list
 
-            _logger.debug(
-                f"LLM API {selected_api} exposed {len(llm_api.tools)} raw tools for subentry {subentry.title}",
-            )
+            _logger.debug(f"LLM API {selected_api} exposed {len(llm_api.tools)} raw tools for subentry {subentry.title}")
 
             for tool in llm_api.tools:
                 tool_name = getattr(tool, "name", "unknown")
                 if (
                     tool_name == "GetLiveContext"
                     or tool_name in RAGENT_REQUIRED_TOOL_NAMES
+                    or tool_name in excluded_tools
                     or tool_name in seen_tool_names
                 ):
                     continue
@@ -186,6 +189,10 @@ class ToolExtractor:
             self._remove_fake_timer_device()
 
         return tool_list
+
+    async def async_get_embeddable_tool_names(self, subentry: ConfigSubentry) -> list[str]:
+        """Return the tool names currently produced by the extractor."""
+        return [tool.name for tool in await self._async_get_embeddable_tools(subentry)]
 
     async def async_embed_exposed_tools(self, subentry_id: str) -> None:
         total_embedded_tools = 0

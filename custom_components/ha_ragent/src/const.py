@@ -121,6 +121,7 @@ DEFAULT_LLM_BACKEND_TYPE = BACKEND_LLM_TYPE_OLLAMA
 #----------------------------------------------
 CONF_NUM_DEVICES_TO_EXTRACT = "rag_num_devices_to_extract"
 CONF_NUM_TOOLS_TO_EXTRACT = "rag_num_tools_to_extract"
+CONF_EXCLUDED_TOOLS = "rag_excluded_tools"
 CONF_CONTEXT_LENGTH = "rag_context_length"
 
 CONF_MAX_TOKENS = "rag_max_tokens"

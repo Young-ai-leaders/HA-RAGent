@@ -102,6 +102,7 @@
                         "rag_max_tool_call_iterations": "Maximum Tool Call Iterations",
                         "rag_num_devices_to_extract": "Number of Devices",
                         "rag_num_tools_to_extract": "Number of Tools",
+                        "rag_excluded_tools": "Tools excluded from embedding",
                         "rag_remember_conversation_num_interactions": "Conversation Memory Interactions",
                         "rag_remember_conversation_time_minutes": "Conversation Memory Duration (minutes)"
                         
@@ -117,6 +118,7 @@
                         "rag_max_tool_call_iterations": "Limit on how many times the agent may call external tools per request",
                         "rag_num_devices_to_extract": "The number of relevant devices to extract and include in the model context per request",
                         "rag_num_tools_to_extract": "The number of relevant tools to extract and include in the model context per request",
+                        "rag_excluded_tools": "Tool names to exclude from embedding. Enter exact tool names (values are case-sensitive).",
                         "rag_remember_conversation_num_interactions": "How many past user interactions to keep in memory",
                         "rag_remember_conversation_time_minutes": "How long the assistant should remember the conversation in minutes"
                     }
