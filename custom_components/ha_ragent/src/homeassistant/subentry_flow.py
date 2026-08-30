@@ -2,6 +2,7 @@ import logging
 import os
 from typing import Any
 import voluptuous as vol
+from types import SimpleNamespace
 
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.config_entries import (
@@ -32,6 +33,7 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_ALLOW_AUTO_EMBEDDING,
     DEFAULT_OPTIONS,
     DEFAULT_PROMPT,
+    CONF_EXCLUDED_TOOLS,
 )
 
 from custom_components.ha_ragent.src.utils import (
@@ -44,6 +46,7 @@ from custom_components.ha_ragent.src.homeassistant.ui_schemas import (
 )
 
 from custom_components.ha_ragent.src.homeassistant.ragent import RAGent
+from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor import ToolExtractor
 
 _logger = logging.getLogger(__name__)
 
@@ -117,6 +120,13 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
             
             self.model_config = {**selected_default_options, **self.model_config}
 
+        excluded_tool_names = { name for name in self.model_config.get(CONF_EXCLUDED_TOOLS, []) if isinstance(name, str) }
+        try:
+            subentry = self._get_reconfigure_subentry() if not self._is_new else SimpleNamespace(data=self.model_config, title="new subentry")
+            excluded_tool_names.update(await ToolExtractor(self.hass, entry).async_get_embeddable_tool_names(subentry))
+        except Exception:
+            _logger.exception("Failed to load extracted tools for exclusion selector")
+
         schema = ui_schema_config_options(
                 self.hass,
                 entry.options.get(CONF_SELECTED_LANGUAGE, "en"),
@@ -125,6 +135,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
                 entry.data[CONF_EMBEDDING_BACKEND_TYPE],
                 entry.data[CONF_LLM_BACKEND_TYPE],
                 self._subentry_type,
+                list(excluded_tool_names),
             )
 
         if user_input:

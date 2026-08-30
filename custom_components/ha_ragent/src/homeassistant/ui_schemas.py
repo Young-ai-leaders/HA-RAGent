@@ -27,6 +27,7 @@ from custom_components.ha_ragent.src.const import (
     BACKEND_VECTOR_DB_TYPE_FAISS,
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
     CONF_NUM_TOOLS_TO_EXTRACT,
+    CONF_EXCLUDED_TOOLS,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_VECTOR_DB_USERNAME,
     CONF_VECTOR_DB_PASSWORD,
@@ -282,6 +283,7 @@ def ui_schema_config_options(
     embedding_backend_type: str,
     llm_backend_type: str, 
     subentry_type: str,
+    excluded_tool_options: list[str] | None = None,
 ) -> dict:
     default_prompt = RAGent.build_base_prompt_template(language, DEFAULT_PROMPT)
     default_llm_api = getattr(llm, "LLM_API_ASSIST", "assist")
@@ -390,6 +392,15 @@ def ui_schema_config_options(
             description={"suggested_value": options.get(CONF_NUM_TOOLS_TO_EXTRACT)},
             default=DEFAULT_NUM_TOOLS_TO_EXTRACT,
         ): int,
+        vol.Optional(
+            CONF_EXCLUDED_TOOLS,
+            default=options.get(CONF_EXCLUDED_TOOLS, []),
+        ): SelectSelector(SelectSelectorConfig(
+            options=[SelectOptionDict(value=name, label=name) for name in sorted(excluded_tool_options or [])],
+            custom_value=True,
+            multiple=True,
+            mode=SelectSelectorMode.DROPDOWN,
+        )),
     }
 
     if llm_backend_type == BACKEND_LLM_TYPE_OPENAI_COMPATIBLE:
@@ -404,6 +415,7 @@ def ui_schema_config_options(
         CONF_ENABLE_MODEL_THINKING,
         CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_NUM_TOOLS_TO_EXTRACT,
+        CONF_EXCLUDED_TOOLS,
         CONF_CONTEXT_LENGTH,
         CONF_MAX_TOKENS,
         # sampling parameters
