@@ -88,8 +88,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
     async def _async_embed_query(self, user_input: ConversationInput, history_texts: list[str]) -> list[float] | None:
         """Embed the current query plus older messages with recency decay."""
-        _logger.debug(f"RAG Step 1: Embedding user input with history-aware decay: {user_input.text}")
-
         texts_to_embed = [*history_texts, user_input.text]
         embedding_config = dict(self.subentry.data)
 
@@ -123,13 +121,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             return None
 
         query_embedding = [value / total_weight for value in weighted_embedding]
-        _logger.debug(f"History-aware query embedded successfully with {len(valid_embeddings)} messages, embedding shape: {len(query_embedding)}")
         return query_embedding
 
     async def _async_retrieve_devices(self, query_embedding: List[float], n_devices: int) -> List[Device]:
         """Retrieve relevant devices from vector database based on query embedding."""
         collection_name = f"devices_{self.subentry_id}"
-        _logger.debug(f"RAG Step 2: Querying collection for devices: {collection_name}, Query embedding dimension: {len(query_embedding)}")
         retrieved_devices = []
         try:
             retrieved_devices = await self.entry.vector_db_backend.async_retrieve_objects(
@@ -139,7 +135,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 query_embedding=query_embedding,
                 top_k=n_devices
             )
-            _logger.debug(f"Retrieved {len(retrieved_devices)} relevant devices from vector database (collection: {collection_name})")
         except Exception as e:
             _logger.error(f"Error retrieving devices from vector DB: {e}", exc_info=True)
         
@@ -148,7 +143,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
     async def _async_retrieve_tools(self, query_embedding: List[float], n_tools: int) -> List[LlmTool]:
         """Retrieve relevant tools from vector database based on query embedding."""
         collection_name = f"tools_{self.subentry_id}"
-        _logger.debug(f"RAG Step 2: Querying collection for tools: {collection_name}, Query embedding dimension: {len(query_embedding)}")
         retrieved_tools = []
         try:
             retrieved_tools = await self.entry.vector_db_backend.async_retrieve_objects(
@@ -158,7 +152,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 query_embedding=query_embedding,
                 top_k=n_tools
             )
-            _logger.debug(f"Retrieved {len(retrieved_tools)} relevant tools from vector database (collection: {collection_name})")
         except Exception as e:
             _logger.error(f"Error retrieving tools from vector DB: {e}", exc_info=True)
         
@@ -268,15 +261,14 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         for idx in range(max(1, max_tool_call_iterations)):
             iteration_start = time.perf_counter()
-            _logger.debug(f"Generating response for {user_input.text}, iteration {idx + 1}/{max_tool_call_iterations}.")
-
             formatted_messages.extend(MessageHelper.message_to_chat_messages(history_manager.message_history[formatted_index:]))
             formatted_index = len(history_manager.message_history)
 
             tool_calls_in_iteration = []
             try:
                 _logger.debug(f"Sending prompt to LLM (Iteration {idx + 1}/{max_tool_call_iterations}).")
-                _logger.debug(f"Full messages sent to the LLM:\n{json.dumps(formatted_messages, ensure_ascii=False, indent=2, default=str)}")
+                if _logger.isEnabledFor(logging.DEBUG):
+                    _logger.debug(f"Full messages sent to the LLM:\n{json.dumps(formatted_messages, ensure_ascii=False, indent=2, default=str)}")
                 
                 content_chunks = []
                 async for chunk in self.entry.llm_backend.async_send_chat_request(dict(self.subentry.data), formatted_messages, tool_list):
@@ -284,11 +276,12 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 assistant_content = "".join(content_chunks)
                 _logger.debug(f"RAGent timing: LLM iteration {idx + 1}: {time.perf_counter() - iteration_start:.3f}s")
 
-                _logger.debug(f"LLM response: {assistant_content}")
+                _logger.debug(f"RAW LLM response: {assistant_content}")
                 
                 helper_start = time.perf_counter()
                 tool_calls_in_iteration = tool_helper.parse_tool_calls(assistant_content, tool_metadata_dict)
                 _logger.debug(f"RAGent timing: parse_tool_calls: {time.perf_counter() - helper_start:.3f}s")
+
                 helper_start = time.perf_counter()
                 message_content = MessageHelper.clean_assistant_content(assistant_content, bool(tool_calls_in_iteration))
                 _logger.debug(f"RAGent timing: clean_assistant_content: {time.perf_counter() - helper_start:.3f}s")
@@ -304,9 +297,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 )
                 history_manager.append_message(message)
                 
-                if tool_calls_in_iteration and len(tool_calls_in_iteration) > 0:
-                    _logger.debug(f"Executing {len(tool_calls_in_iteration)} tool calls")
-                    
+                if tool_calls_in_iteration and len(tool_calls_in_iteration) > 0:                    
                     for tool_call in tool_calls_in_iteration:
                         tool_name = tool_call.tool_name
                         tool_args = tool_call.tool_args
@@ -316,9 +307,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 helper_start = time.perf_counter()
                                 tool_helper.block_broad_tool_calls(tool_call, tool_metadata_dict.get(tool_name))
                                 _logger.debug(f"RAGent timing: block_broad_tool_calls ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
+
                                 helper_start = time.perf_counter()
                                 tool_call_signature = tool_helper.tool_call_signature(tool_call)
                                 _logger.debug(f"RAGent timing: tool_call_signature ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
+
                                 if tool_call_signature in executed_tool_calls:
                                     _logger.debug(f"Returning already-executed result for repeated tool call: {tool_name} with arguments {tool_args}")
                                     tool_result_msg = MessageHelper.create_repeated_tool_result_message(
@@ -331,16 +324,12 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                     continue
 
                                 executed_tool_calls.add(tool_call_signature)
-                                _logger.debug(f"Executing tool: {tool_name} with args: {tool_args}.")
-                                helper_start = time.perf_counter()
+                                tool_start = time.perf_counter()
                                 execution_call = tool_helper.to_home_assistant_tool_call(tool_call)
-                                _logger.debug(f"RAGent timing: to_home_assistant_tool_call ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
                                 tool_result = await llm_api.async_call_tool(execution_call)
                                 tool_call_results[tool_call_signature] = tool_result
                                 tool_calls_overall.append((tool_call, tool_result))                                
-                                helper_start = time.perf_counter()
                                 parsed_tool_result = tool_helper.parse_tool_results(tool_result)
-                                _logger.debug(f"RAGent timing: parse_tool_results ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
                                     tool_call_id=tool_call.id,
@@ -348,7 +337,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                     tool_result=parsed_tool_result
                                 )
                                 history_manager.append_message(tool_result_msg)
-                                _logger.debug(f"RAGent timing: tool {tool_name}: {time.perf_counter() - iteration_start:.3f}s")
+                                _logger.debug(f"RAGent timing: tool {tool_name}: {time.perf_counter() - tool_start:.3f}s")
                             else:
                                 _logger.warning(f"LLM API not available, skipping tool execution for tool: {tool_name}")
                                 tool_result_msg = conversation.ToolResultContent(
@@ -368,7 +357,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 error=tool_err,
                             )
                             history_manager.append_message(tool_result_msg)
-                    
+
             except Exception as err:
                 _logger.error(f"There was a problem talking to the backend: {err}")
                 intent_response = intent.IntentResponse(language=user_input.language)
@@ -409,7 +398,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         if not has_speech:
             intent_response.async_set_speech("I don't have anything to say right now")
-            _logger.debug(history_manager.message_history)
 
         return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id, continue_conversation=continue_conversation)
         
@@ -419,10 +407,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         timing_start = time.perf_counter()
         timing_mark = timing_start
 
-        def log_timing(stage: str) -> None:
+        def log_timing(stage: str, details: str | None = None) -> None:
             nonlocal timing_mark
             now = time.perf_counter()
-            _logger.debug(f"RAGent timing: {stage}: {now - timing_mark:.3f}s (total {now - timing_start:.3f}s)")
+            detail_text = f"{details} in " if details else ""
+            _logger.debug(f"RAGent {stage}: {detail_text}{now - timing_mark:.3f}s (total {now - timing_start:.3f}s)")
             timing_mark = now
 
         scheduled_request = user_input.text.startswith(RAGENT_SCHEDULED_REQUEST_PREFIX)
@@ -452,7 +441,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                         intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Error preparing LLM API.")
                         return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                    log_timing("LLM API setup")
+                    log_timing("timing: LLM API setup")
                     
                 # ensure this chat log has the LLM API instance
                 chat_log.llm_api = llm_api
@@ -460,11 +449,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 history_manager = HistoryManager(
                     runtime_options=self.runtime_options,
                 )
+                retrieval_texts = history_manager.retrieval_texts(chat_log)
                 query_embedding = await self._async_embed_query(
                     user_input,
-                    history_manager.retrieval_texts(chat_log),
+                    retrieval_texts,
                 )
-                log_timing("query embedding")
+                embedding_dimension = len(query_embedding) if query_embedding else 0
+                log_timing(f"Step 1 embedded {len(retrieval_texts) + 1} messages, shape {embedding_dimension}")
                 if not query_embedding:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
@@ -478,7 +469,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 else:
                     retrieved_devices = await retrieve_devices_task
                     retrieved_tools = []
-                log_timing("vector retrieval")
+                log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices and {len(retrieved_tools)} tools")
 
                 if not retrieved_devices:
                     intent_response = intent.IntentResponse(language=user_input.language)
@@ -510,7 +501,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     area,
                     floor,
                 )
-                log_timing("system prompt rendering")
+                log_timing("timing: system prompt rendering")
                 if not system_prompt_content:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Template rendering failed.")

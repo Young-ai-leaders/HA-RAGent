@@ -144,7 +144,7 @@ class ToolHelper:
             return
 
         friendly_name, entity_entry = self._parse_friendly_name_and_entity_entry(original_name, domain)
-        area_names, floor_names = self._parse_area_and_floor(entity_entry, area, floor)
+        area_name, floor_name = self._parse_area_and_floor(entity_entry, area, floor)
 
         parameters["original_name"] = original_name
         parameters["friendly_name"] = friendly_name
@@ -153,8 +153,10 @@ class ToolHelper:
             parameters["domain"] = domain
 
         if is_area_aware:
-            parameters["area"] = area_names
-            parameters["floor"] = floor_names
+            if area_name:
+                parameters["area"] = area_name
+            if floor_name:
+                parameters["floor"] = floor_name
 
     def parse_tool_calls(self, llm_response: str, tool_metadata_dic: Dict[str, ToolMetadata] | None = None) -> List[ToolInput]:
         """Parse tool calls from LLM response."""
@@ -183,7 +185,6 @@ class ToolHelper:
 
             self._parse_parameters(parameters, tool_metadata_dic.get(tool_name))
             parsed_call = ToolInput(tool_name=tool_name, tool_args=parameters)
-            _logger.debug(f"Parsed tool call: name={parsed_call.tool_name}, arguments={parsed_call.tool_args}")
             parsed_calls.append(parsed_call)
 
         return parsed_calls
@@ -207,8 +208,7 @@ class ToolHelper:
 
         arguments = tool_call.tool_args
         if not isinstance(arguments, dict):
-            _logger.warning(f"Tool arguments are not a dictionary: {arguments!r}")
-            return
+            raise ValueError(f"Invalid tool arguments for {tool_call.tool_name} follow the expected tool signature.")
 
         name = arguments.get("name")
         domain = arguments.get("domain")

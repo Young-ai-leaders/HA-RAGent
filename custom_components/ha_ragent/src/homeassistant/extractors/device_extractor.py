@@ -129,7 +129,7 @@ class DeviceExtractor:
             _logger.error(f"Error in tool embedding job: {err}", exc_info=True)
         finally:
             if _logger.isEnabledFor(logging.DEBUG):
-                _logger.debug("Device embedding function finished with %s embedded devices.", total_embedded_devices)
+                _logger.debug(f"Device embedding function finished with {total_embedded_devices} embedded devices.")
             else:
-                _logger.info("Finished embedding %s devices.", total_embedded_devices)
+                _logger.info(f"Finished embedding {total_embedded_devices} devices.")
 

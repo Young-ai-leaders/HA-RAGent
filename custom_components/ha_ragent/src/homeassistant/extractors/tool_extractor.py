@@ -147,14 +147,10 @@ class ToolExtractor:
             )
 
             if not llm_api or not hasattr(llm_api, "tools"):
-                _logger.debug(
-                    f"LLM API {selected_api} did not expose any tools attribute for subentry {subentry.title}",
-                )
+                _logger.debug(f"LLM API {selected_api} did not expose any tools attribute for subentry {subentry.title}")
                 return tool_list
 
-            _logger.debug(
-                f"LLM API {selected_api} exposed {len(llm_api.tools)} raw tools for subentry {subentry.title}",
-            )
+            _logger.debug(f"LLM API {selected_api} exposed {len(llm_api.tools)} raw tools for subentry {subentry.title}")
 
             for tool in llm_api.tools:
                 tool_name = getattr(tool, "name", "unknown")
