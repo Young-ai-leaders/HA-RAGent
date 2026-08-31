@@ -12,10 +12,12 @@
 [![License](https://img.shields.io/github/license/youngaileaderslinz/HA-RAGent.svg?style=flat-square)](https://github.com/youngaileaderslinz/HA-RAGent/blob/main/LICENSE)
 [![HACS](https://img.shields.io/badge/HACS-default-orange.svg?style=flat-square)](https://hacs.xyz)
 
-# HA-RAGent (Home Assistant Retrieval‑Augmented‑Generation Agent)
-HA‑RAGent is a custom component that wraps an LLM and a vector database to let you talk to your smart home. Instead of hard‑coding every possible command, the agent embeds your question, looks up the most relevant devices, and then either replies in natural language or emits “tool calls” that turn into real service calls inside Home Assistant.
+# HA-RAGent (Home Assistant Retrieval-Augmented Generation Agent)
+HA-RAGent is a custom conversation agent that gives an LLM focused access to your Home Assistant setup. It creates embeddings for the entities exposed to Assist and for the tools provided by the selected Home Assistant LLM API, then stores them in a vector database. For each request, it uses the current message and recent conversation history to retrieve a configurable number of relevant entities and tools. The selected entities are enriched with their live states and attributes before this context is passed to the model.
 
-This is particularly useful on self‑hosted installs, where you deliberately keep the model’s prompt window small to keep responses snappy. As soon as you move past a dozen or so entities, a plain conversation agent has to dump the entire device list into every prompt. A large or growing device set quickly blows out the context window and drags performance. Additionally, smaller models struggle even more, getting confused by the noise and sometimes emitting seemingly random tool calls.
+When device control is enabled, the model can call the retrieved Home Assistant tools. HA-RAGent executes those calls through Home Assistant, returns the results to the model and allows it to continue until it can answer or reaches the configured iteration limit. It also provides semantic search for resolving fuzzy device references and tools for scheduling or clearing delayed actions.
+
+This approach is especially useful for self-hosted models with limited context windows. Instead of including every exposed entity and tool in every prompt, HA-RAGent sends only the most relevant subset. That keeps prompts smaller as your setup grows and reduces the irrelevant context that can slow down or confuse smaller models.
 
 ## Disclaimers
 ### Default System Prompt
@@ -53,8 +55,7 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - **Ollama** requires an external Ollama instance and an installed chat model with tool support [[find tool-capable models]](https://ollama.com/search?c=tools)
     - **OpenAI Compatible** works with APIs that expose an OpenAI-style chat completions endpoint
 - `Language`
-    - **English** used in order to setup the default prompt
-    - **German** used in order to setup the default prompt
+    - **English** or **German** determines the language of the default system prompt for new AI RAGent entries
 
 **Setup Connections:**
 
@@ -93,41 +94,43 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - **No Control** means the model is not allowed to control devices
     - **Assist** allows the model to control devices and exposes Home Assistant tools
 - `System Prompt`
-    - The prompt that is sent to the model.
+    - The Jinja template rendered and sent to the model as its system prompt
 - `Allow Auto Embedding`
-    - Automatically embeds exposed devices and tools for this AI RAGent during Home Assistant startup and on config entry reload.
+    - Automatically rebuilds embeddings for exposed entities and tools during startup and after configuration changes
+- `Allow Follow-up Questions`
+    - Lets the assistant ask a clarification question and keep the conversation open for the user's reply
 - `Enable Model Thinking`
     - Controls wheter model is allowed to think (when speed is of the essence keep the default)
 - `Number of Devices`
-    - Controls how many devices are retrieved and sent to the LLM
+    - Controls how many relevant entity candidates are retrieved and added to the prompt
 - `Number of Tools`
-    - Controls how many tools are retrieved and sent to the LLM
+    - Controls how many relevant tools are retrieved and offered to the model (required HA-RAGent tools do not count to this limit)
 - `Tools excluded from embedding`
-    - Shows all tools currently extracted from the selected Home Assistant LLM API. Selected tool names are excluded from embeddings. The names are matched exactly and are case-sensitive.
-- `Context Lenght`
-    - Controls the context lenght of the LLM
+    - Excludes selected tool names from the vector index. Names are matched exactly and are case-sensitive
+- `Context Length` (Ollama only)
+    - Sets Ollama's model context-window size
 - `Maximum Tokens`
-    - Controls the maximum number of tokens the LLM is allowed to generate
+    - Sets the maximum number of tokens the model may generate in one response
 - `Temperature`
-    - Controls how much the LLM halucinates.
+    - Controls sampling randomness; lower values are more deterministic
 - `Maximum Tool Call Iterations`
-    - Controls how often the LLM is allowed to perform tool calls per request (**Important note:** one response can call multiple tools the LLM can respond up to 8 times per default)
+    - Limits the number of model/tool rounds per request. A single round may contain multiple tool calls
 - `Conversation Memory Interactions`
-    - Controls how many past user interactions are kept in memory for context.
+    - Limits how many previous user interactions are retained for conversation context and retrieval
 - `Conversation Memory Duration`
-    - Controls how long the assistant will retain conversation history in minutes.
+    - Limits how long conversation history is retained, in minutes
 
 ### Available Prompt Variables
 The **System Prompt** is rendered as a Home Assistant Jinja template for every request. The following variables are passed to it:
 
 - `device_list`
-    - The retrieved device candidates whose entities currently exist in Home Assistant. Each device provides `id`, `name`, `area_name`, `floor_name`, `domain`, `device_labels`, `services`, `aliases`, `state` and `attributes`.
+    - The retrieved device candidates whose entities currently exist in Home Assistant. Each device provides `id`, `name`, `area_name`, `floor_name`, `domain`, `device_labels`, `services`, `aliases`, `state`, `attributes` and `unit_of_measurement`.
 - `area_list`
     - A list of the distinct, non-empty area names found in `device_list`. It contains only areas associated with the retrieved candidates, not every area in Home Assistant.
 - `area_name`
-    - The area of the device through which the conversation was started, or `None` when no area is available.
+    - The area of the device through which the conversation was started or `None` when no area is available.
 - `floor_name`
-    - The floor of the device through which the conversation was started, or `None` when no floor is available.
+    - The floor of the device through which the conversation was started or `None` when no floor is available.
 - `max_retries`
     - The configured maximum number of tool-call iterations.
 

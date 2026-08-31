@@ -16,9 +16,6 @@ from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
-    TextSelector,
-    TextSelectorConfig,
-    TextSelectorType,
     BooleanSelector,
     BooleanSelectorConfig,
 )
@@ -313,10 +310,7 @@ def ui_schema_config_options(
         vol.Optional(
             CONF_PROMPT,
             default=options.get(CONF_PROMPT, default_prompt),
-        ): TextSelector(TextSelectorConfig(
-            multiline=True,
-            type=TextSelectorType.TEXT,
-        )),
+        ): TemplateSelector(),
         vol.Optional(
             CONF_ALLOW_AUTO_EMBEDDING,
             description={"suggested_value": options.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING)},
