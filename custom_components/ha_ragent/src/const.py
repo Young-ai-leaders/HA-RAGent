@@ -22,6 +22,7 @@ RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
 ]
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
+HOME_ASSISTANT_SCRIPT_DOMAIN = "script"
 
 #-----------------------------------------------
 # Language constants
