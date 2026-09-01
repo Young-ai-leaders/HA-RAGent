@@ -23,6 +23,9 @@ This approach is especially useful for self-hosted models with limited context w
 ### Default System Prompt
 Changes to the default system prompt apply only to newly created RAGent entries. Existing entries retain the prompt saved in their configuration. To use the latest default prompt with an existing entry, copy it into the entry’s **System Prompt** field and save the configuration or recreate the entry.
 
+### Exposed Script Entities:
+Scripts will be passed as tools and are excluded from device embeddings. Only scripts that are exposed to conversation/assist will be visible.
+
 ### OpenAI-Compatible Backends
 OpenAI-compatible backends have currently been tested only with llamaccp. Compatibility with other providers is not guaranteed, so test the selected backend thoroughly before using it in production.
 

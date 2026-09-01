@@ -1,6 +1,7 @@
 import logging
 
 
+from homeassistant.const import SCRIPT_DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry, floor_registry, label_registry, llm
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
@@ -104,7 +105,8 @@ class DeviceExtractor:
 
             all_entities = list(self._hass.states.async_entity_ids())
             exposed_entities = [entity_id for entity_id in all_entities if async_should_expose(self._hass, "conversation", entity_id)]
-            _logger.debug(f"Device embedding starting: {len(all_entities)} total entities, {len(exposed_entities)} exposed to conversation.")
+            entities_to_embed = [entity_id for entity_id in exposed_entities if entity_id.partition(".")[0] != SCRIPT_DOMAIN]
+            _logger.debug(f"Device embedding starting: {len(all_entities)} total entities, "f"{len(exposed_entities)} exposed to conversation, "f"{len(entities_to_embed)} without script entities.")
 
             if not exposed_entities:
                 _logger.warning("No entities are exposed to Conversation. Skipping embedding and preserving existing vectors.")
@@ -114,7 +116,7 @@ class DeviceExtractor:
                 collection_name = f"devices_{subentry_id}"
                 embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
                 await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
-                device_list = await self._async_get_embeddable_devices(exposed_entities)
+                device_list = await self._async_get_embeddable_devices(entities_to_embed)
                 device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
 
                 if device_embeddings:
