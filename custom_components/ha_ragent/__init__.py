@@ -33,6 +33,7 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_LLM_API_ID,
     STARTUP_EMBEDDING_RUNNING_FLAG,
     RAGENT_SCHEDULED_ACTION_CANCELLERS,
+    RAGENT_MEMORY_LOCKS,
 )
 
 from custom_components.ha_ragent.src.utils import vector_db_to_class, embedding_backend_to_class, llm_backend_to_class
@@ -62,7 +63,7 @@ def _create_llm_client(hass: HomeAssistant, llm_backend_type: str, entry: RAGent
     return llm_backend_to_class(llm_backend_type)(hass, dict(entry.options))
 
 async def _async_cleanup_subentry_collections(entry: RAGentConfigEntry, subentry_id: str, subentry_data: dict[str, Any]) -> None:
-    collection_names = [f"devices_{subentry_id}", f"tools_{subentry_id}"]
+    collection_names = [f"devices_{subentry_id}", f"tools_{subentry_id}", f"memories_{subentry_id}"]
 
     for collection_name in collection_names:
         _logger.debug("Cleaning up collection %s for deleted subentry %s", collection_name, subentry_id)
@@ -93,7 +94,9 @@ async def _async_update_listener(hass: HomeAssistant, entry: RAGentConfigEntry) 
 
     if removed_subentry_ids:
         _cancel_scheduled_actions(hass, removed_subentry_ids)
+        memory_locks = hass.data[DOMAIN].get(RAGENT_MEMORY_LOCKS, {})
         for subentry_id in removed_subentry_ids:
+            memory_locks.pop(subentry_id, None)
             subentry_data = removed_data.get(subentry_id, {})
             await _async_cleanup_subentry_collections(entry, subentry_id, subentry_data)
 
