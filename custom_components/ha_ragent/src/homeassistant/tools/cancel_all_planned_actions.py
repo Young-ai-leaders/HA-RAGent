@@ -7,13 +7,14 @@ from homeassistant.helpers import llm
 
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
-    RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME,
+    RAGENT_CANCEL_ALL_PLANNED_ACTIONS_TOOL_NAME,
     RAGENT_SCHEDULED_ACTION_CANCELLERS,
+    RAGENT_SCHEDULED_ACTIONS,
 )
 
 
-class RAGentClearPlannedActionsTool(llm.Tool):
-    name = RAGENT_CLEAR_PLANNED_ACTIONS_TOOL_NAME
+class RAGentCancelAllPlannedActionsTool(llm.Tool):
+    name = RAGENT_CANCEL_ALL_PLANNED_ACTIONS_TOOL_NAME
     description = (
         "Cancel all currently scheduled one-time Home Assistant actions. "
         "Use this when the user asks to clear, cancel or delete all planned actions."
@@ -35,6 +36,7 @@ class RAGentClearPlannedActionsTool(llm.Tool):
         subentry_data = domain_data.setdefault(self.subentry_id, {})
         cancellers = subentry_data.get(RAGENT_SCHEDULED_ACTION_CANCELLERS, set())
         subentry_data[RAGENT_SCHEDULED_ACTION_CANCELLERS] = set()
+        subentry_data[RAGENT_SCHEDULED_ACTIONS] = {}
         for cancel in cancellers:
             cancel()
-        return {"success": True, "cleared": len(cancellers)}
+        return {"success": True, "cancelled": len(cancellers)}
