@@ -141,9 +141,11 @@ class RAGentSemanticSearchTool(llm.Tool):
 
     async def _validate_query(self, tool_input: llm.ToolInput) -> str | None:
         model_query = str(tool_input.tool_args.get("query", "")).strip()
-        query = self._contextual_query or self._build_search_query(
-            model_query=model_query
-        )
+        if model_query and self._contextual_query:
+            query = f"Search query: {model_query}\n{self._contextual_query}"
+            query = query[:MAX_SEARCH_QUERY_CHARS].strip()
+        else:
+            query = model_query or self._contextual_query
         return query or None
 
     def _iter_searchable_entries(self):

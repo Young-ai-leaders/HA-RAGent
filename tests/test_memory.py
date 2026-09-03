@@ -65,7 +65,7 @@ def test_memory_model_round_trip() -> None:
 
     assert MemoryEmbedding.parse_object(embedding.to_dict()) == memory
     assert "reading lamp" in memory.to_embedding_text()
-    assert memory.to_prompt_dict()["id"] == memory.id
+    assert memory.to_dict()["id"] == memory.id
 
 
 def test_memory_manager_remember_recall_replace_and_forget() -> None:
