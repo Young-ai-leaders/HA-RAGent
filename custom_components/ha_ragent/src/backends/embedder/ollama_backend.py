@@ -3,6 +3,8 @@ import logging
 from typing import Any, Dict, List
 
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
+from custom_components.ha_ragent.src.models.embedding_record import EmbeddingRecord
 
 try:
     from homeassistant.core import HomeAssistant
@@ -18,13 +20,10 @@ from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_PORT,
     CONF_EMBEDDING_SSL,
     CONF_EMBEDDING_MODEL,
-    RAGENT_EMBEDDING_BATCH_SIZE
+    RAGENT_EMBEDDING_BATCH_SIZE,
+    RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS,
 )
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
     
@@ -109,7 +108,7 @@ class OllamaEmbedder(ABaseEmbedder):
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
         else:
-            payload["input"] = inputs
+            payload["input"] = [text[:RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS] for text in inputs]
 
         session = async_get_clientsession(self._hass)
         async with session.post(self._embed_url, json=payload, timeout=ABaseEmbedder._default_timeout) as response:
@@ -122,16 +121,14 @@ class OllamaEmbedder(ABaseEmbedder):
         embeddings = await self._async_embed_batch(config_subentry, [text], keep_alive=keep_alive)
         return embeddings[0] if embeddings else []
 
-    async def async_embed_object(self, config_subentry: dict, objects: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
+    async def async_embed_object(self, config_subentry: dict, objects: List[EmbeddableModel]) -> List[EmbeddingRecord]:
         if not objects:
             return []
 
-        device_embeddings = []
-        object_type = DeviceEmbedding if issubclass(objects[0].__class__, Device) else LlmToolEmbedding
+        object_embeddings: List[EmbeddingRecord] = []
         for i in range(0, len(objects), RAGENT_EMBEDDING_BATCH_SIZE):
             chunk = objects[i:i + RAGENT_EMBEDDING_BATCH_SIZE]
             texts = [obj.to_embedding_text() for obj in chunk]
             vectors = await self._async_embed_batch(config_subentry, texts)
-            for obj, vec in zip(chunk, vectors):
-                device_embeddings.append(object_type(obj, vector_embedding=vec))
-        return device_embeddings
+            object_embeddings.extend(self.build_embedding_records(chunk, vectors))
+        return object_embeddings

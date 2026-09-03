@@ -98,9 +98,10 @@ DEFAULT_VECTOR_DB_NAME = "ha_ragent_db"
 #-----------------------------------------------
 # Embedding backend constants
 #-----------------------------------------------
-RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS = 12000
+RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS = 4000
 RAGENT_EMBEDDING_TRUNCATE_RETRIES = 3
-RAGENT_EMBEDDING_BATCH_SIZE = 16
+RAGENT_EMBEDDING_BATCH_SIZE = 32
+RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES = 4
 
 CONF_EMBEDDING_BACKEND_TYPE = "rag_embedding_backend"
 CONF_EMBEDDING_MODEL = "rag_embedding_model"
@@ -249,14 +250,15 @@ Complete the latest request exactly once. Use earlier messages only to resolve e
 - Preserve requested action, names, category, locations, quantity and exclusions. Never add unrequested targets.
 - A successful tool call completes its target scope. Do not repeat it or search for more candidates.
 - Category, plural or “all”: make one call per requested location using `domain`; do not use `name` or enumerate devices.
-- Explicit device: make one call with `name` equal to its exact full `entity_id`.
- - Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
+- Explicit device: make one call with `name` equal to its exact full `entity_id`, including its domain prefix; never shorten it.
+- Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
 - If the requested device or capability is not an exact, unambiguous match in the available tools or context, call `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` once before choosing a similar target, asking the user or giving up. Use `devices` for an entity, `tools` for a capability, or `both` when necessary. Never call a tool that is not in the current tool list or search results.
 - Include every known relevant fact in the search query: the requested action, device name or alias, and `area`, `floor`, `domain` and `device_class` when known. For a tool search, describe the required capability, action and relevant parameters. Never invent missing values.
 - Search at most once for missing context. Retrieved candidates are hints, not targets. Ask only if the target remains ambiguous.
 - If clarification is required, ask one concise question directly instead of guessing or executing an uncertain action.
 - Choose the tool from the requested action. Use light-setting tools only for brightness, color or color temperature. Information requests never change state.
 - Future action: call `{RAGENT_PLANNED_ACTION_TOOL_NAME}` exactly once, do not execute now, then only confirm the schedule.
+- Store a long-term memory only when the user explicitly asks you to remember a stable fact. Never store instructions, credentials, secrets, or temporary device state. Forget only the exact `memory_id` supplied in the memory context.
 - A previous assistant response or tool result never completes a new user request. For every new request, select and call the appropriate tool before confirming; do not copy a previous answer.
 - If the request starts with "Execute this action now. It was previously scheduled", execute it exactly once and never schedule it again.
 
