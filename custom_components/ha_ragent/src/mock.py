@@ -2,12 +2,34 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Any, Callable
 from unittest.mock import Mock
 from types import SimpleNamespace
 
 import aiohttp
+
+
+CONF_LLM_HASS_API = "llm_hass_api"
+
+
+class MockLlmTool:
+    """Minimal substitute for Home Assistant's LLM tool base class."""
+
+
+llm = SimpleNamespace(Tool=MockLlmTool)
+
+
+class MockDateTimeUtil:
+    """Minimal substitute for Home Assistant's datetime helpers."""
+
+    @staticmethod
+    def utcnow() -> datetime:
+        return datetime.now(timezone.utc)
+
+
+dt_util = MockDateTimeUtil()
 
 
 @dataclass

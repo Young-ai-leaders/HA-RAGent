@@ -1,8 +1,14 @@
 from __future__ import annotations
 
 import voluptuous as vol
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import llm
+try:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers import llm
+except ImportError:
+    from custom_components.ha_ragent.src.mock import (
+        MockHomeAssistant as HomeAssistant,
+        llm,
+    )
 from custom_components.ha_ragent.src.const import RAGENT_FORGET_TOOL_NAME
 from custom_components.ha_ragent.src.homeassistant.helpers.memory_manager import MemoryManager
 from custom_components.ha_ragent.src.utils import get_tool_description

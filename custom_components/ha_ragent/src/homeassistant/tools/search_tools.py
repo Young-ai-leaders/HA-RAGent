@@ -6,9 +6,16 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.const import CONF_LLM_HASS_API
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import llm
+try:
+    from homeassistant.const import CONF_LLM_HASS_API
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers import llm
+except ImportError:
+    from custom_components.ha_ragent.src.mock import (
+        CONF_LLM_HASS_API,
+        MockHomeAssistant as HomeAssistant,
+        llm,
+    )
 
 from custom_components.ha_ragent.src.const import (
     CONF_NUM_DEVICES_TO_EXTRACT,

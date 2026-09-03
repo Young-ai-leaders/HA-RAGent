@@ -5,8 +5,14 @@ import hashlib
 import logging
 from typing import Any
 
-from homeassistant.core import HomeAssistant
-from homeassistant.util import dt as dt_util
+try:
+    from homeassistant.core import HomeAssistant
+    from homeassistant.util import dt as dt_util
+except ImportError:
+    from custom_components.ha_ragent.src.mock import (
+        MockHomeAssistant as HomeAssistant,
+        dt_util,
+    )
 
 from custom_components.ha_ragent.src.const import (
     CONF_MAX_MEMORY_ENTRIES,
