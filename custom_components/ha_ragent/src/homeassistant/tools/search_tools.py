@@ -28,7 +28,7 @@ class RAGentSemanticSearchTool(llm.Tool):
     parameters = vol.Schema(
         {
             vol.Required("query"): str,
-            vol.Optional("scope", default="both"): vol.In(["devices", "tools", "both"]),
+            vol.Optional("scope", default="devices_and_tools"): vol.In(["devices", "tools", "devices_and_tools"]),
         }
     )
 
