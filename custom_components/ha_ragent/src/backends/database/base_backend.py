@@ -70,6 +70,10 @@ class ABaseDbBackend(ABC):
         """List all objects in a collection."""
         raise NotImplementedError()
 
+    async def async_increment_memory_retrieval_counts(self, config_subentry: dict, collection_name: str, memory_ids: List[str]) -> None:
+        """Increment retrieval counts for memory records."""
+        raise NotImplementedError()
+
     @abstractmethod
     async def async_delete_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_ids: List[str]) -> int:
         """Delete objects by id."""

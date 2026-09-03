@@ -15,6 +15,7 @@ class MemoryEmbedding:
             "memory_id": self.memory.id,
             "content": self.memory.content,
             "created_at": self.memory.created_at,
+            "retrieval_count": self.memory.retrieval_count,
             "vector_embedding": self.vector_embedding,
         }
 
@@ -24,4 +25,5 @@ class MemoryEmbedding:
             id=str(doc.get("memory_id", "")),
             content=str(doc.get("content", "")),
             created_at=str(doc.get("created_at", "")),
+            retrieval_count=int(doc.get("retrieval_count", 0) or 0),
         )

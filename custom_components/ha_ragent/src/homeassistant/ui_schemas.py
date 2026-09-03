@@ -25,6 +25,7 @@ from custom_components.ha_ragent.src.const import (
     BACKEND_VECTOR_DB_TYPE_OPTIONS,
     CONF_NUM_TOOLS_TO_EXTRACT,
     CONF_NUM_MEMORIES_TO_EXTRACT,
+    CONF_MAX_MEMORY_ENTRIES,
     CONF_EXCLUDED_TOOLS,
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_VECTOR_DB_USERNAME,
@@ -73,6 +74,7 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
     DEFAULT_NUM_MEMORIES_TO_EXTRACT,
+    DEFAULT_MAX_MEMORY_ENTRIES,
     DEFAULT_PROMPT,
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
@@ -394,6 +396,11 @@ def ui_schema_config_options(
             default=options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT),
         ): NumberSelector(NumberSelectorConfig(min=0, max=20, mode=NumberSelectorMode.BOX)),
         vol.Optional(
+            CONF_MAX_MEMORY_ENTRIES,
+            description={"suggested_value": options.get(CONF_MAX_MEMORY_ENTRIES, DEFAULT_MAX_MEMORY_ENTRIES)},
+            default=options.get(CONF_MAX_MEMORY_ENTRIES, DEFAULT_MAX_MEMORY_ENTRIES),
+        ): NumberSelector(NumberSelectorConfig(min=1, max=10000, mode=NumberSelectorMode.BOX)),
+        vol.Optional(
             CONF_EXCLUDED_TOOLS,
             default=options.get(CONF_EXCLUDED_TOOLS, []),
         ): SelectSelector(SelectSelectorConfig(
@@ -417,6 +424,7 @@ def ui_schema_config_options(
         CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_NUM_TOOLS_TO_EXTRACT,
         CONF_NUM_MEMORIES_TO_EXTRACT,
+        CONF_MAX_MEMORY_ENTRIES,
         CONF_EXCLUDED_TOOLS,
         CONF_CONTEXT_LENGTH,
         CONF_MAX_TOKENS,

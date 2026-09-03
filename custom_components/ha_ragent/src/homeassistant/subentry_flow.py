@@ -35,6 +35,7 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_PROMPT,
     CONF_EXCLUDED_TOOLS,
     CONF_NUM_MEMORIES_TO_EXTRACT,
+    CONF_MAX_MEMORY_ENTRIES,
 )
 
 from custom_components.ha_ragent.src.utils import (
@@ -147,6 +148,7 @@ class RagentSubentryFlowHandler(ConfigSubentryFlow):
                 CONF_CONTEXT_LENGTH,
                 CONF_MAX_TOKENS,
                 CONF_NUM_MEMORIES_TO_EXTRACT,
+                CONF_MAX_MEMORY_ENTRIES,
              ):
                 if key in user_input:
                     user_input[key] = try_parse_int(user_input[key], user_input.get(key) or 0)

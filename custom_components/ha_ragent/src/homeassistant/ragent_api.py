@@ -12,8 +12,12 @@ from custom_components.ha_ragent.src.const import (
 )
 
 from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
-from custom_components.ha_ragent.src.homeassistant.tools.clear_planned_actions import RAGentClearPlannedActionsTool
+from custom_components.ha_ragent.src.homeassistant.tools.cancel_all_planned_actions import RAGentCancelAllPlannedActionsTool
+from custom_components.ha_ragent.src.homeassistant.tools.list_planned_actions import RAGentListPlannedActionsTool
 from custom_components.ha_ragent.src.homeassistant.tools.search_tools import RAGentSemanticSearchTool
+from custom_components.ha_ragent.src.homeassistant.tools.forget_fact import RAGentForgetTool
+from custom_components.ha_ragent.src.homeassistant.tools.list_facts import RAGentListFactsTool
+from custom_components.ha_ragent.src.homeassistant.tools.remember_fact import RAGentRememberTool
 
 
 def resolve_llm_api_id(api_id: str) -> str:
@@ -48,7 +52,11 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             language=llm_context.language,
             device_id=llm_context.device_id
         )
-        clear_planned_actions_tool = RAGentClearPlannedActionsTool(hass, subentry_id, llm_context.language)
+        cancel_all_planned_actions_tool = RAGentCancelAllPlannedActionsTool(hass, subentry_id, llm_context.language)
+        list_planned_actions_tool = RAGentListPlannedActionsTool(hass, subentry_id, llm_context.language)
+        remember_tool = RAGentRememberTool(hass, entry_id, subentry_id, llm_context.language)
+        forget_tool = RAGentForgetTool(hass, entry_id, subentry_id, llm_context.language)
+        list_facts_tool = RAGentListFactsTool(hass, entry_id, subentry_id, llm_context.language)
         self.tools = []
         for tool in wrapped_tools:
             tool_name = getattr(tool, "name", None)
@@ -56,8 +64,16 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 self.tools.append(scoped_search_tool)
             elif tool_name == RAGentPlannedActionTool.name:
                 self.tools.append(planned_action_tool)
-            elif tool_name == RAGentClearPlannedActionsTool.name:
-                self.tools.append(clear_planned_actions_tool)
+            elif tool_name == RAGentCancelAllPlannedActionsTool.name:
+                self.tools.append(cancel_all_planned_actions_tool)
+            elif tool_name == RAGentListPlannedActionsTool.name:
+                self.tools.append(list_planned_actions_tool)
+            elif tool_name == RAGentRememberTool.name:
+                self.tools.append(remember_tool)
+            elif tool_name == RAGentForgetTool.name:
+                self.tools.append(forget_tool)
+            elif tool_name == RAGentListFactsTool.name:
+                self.tools.append(list_facts_tool)
             else:
                 self.tools.append(tool)
 
@@ -65,11 +81,19 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             self.tools.append(scoped_search_tool)
         if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentPlannedActionTool.name, wrapped_tools):
             self.tools.append(planned_action_tool)
-        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentClearPlannedActionsTool.name, wrapped_tools):
-            self.tools.append(clear_planned_actions_tool)
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentCancelAllPlannedActionsTool.name, wrapped_tools):
+            self.tools.append(cancel_all_planned_actions_tool)
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentListPlannedActionsTool.name, wrapped_tools):
+            self.tools.append(list_planned_actions_tool)
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentRememberTool.name, wrapped_tools):
+            self.tools.append(remember_tool)
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentForgetTool.name, wrapped_tools):
+            self.tools.append(forget_tool)
+        if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentListFactsTool.name, wrapped_tools):
+            self.tools.append(list_facts_tool)
 
         for tool in self.tools:
-            if isinstance(tool, (RAGentSemanticSearchTool, RAGentPlannedActionTool, RAGentClearPlannedActionsTool)):
+            if isinstance(tool, (RAGentSemanticSearchTool, RAGentPlannedActionTool, RAGentCancelAllPlannedActionsTool)):
                 tool.name = f"{self._custom_tool_namespace}__{tool.name}"
 
     def __getattr__(self, name: str) -> Any:
@@ -87,9 +111,12 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 tool.agent_id = agent_id
 
     def set_search_scope(self, entry_id: str, subentry_id: str) -> None:
-        """Bind semantic search to the RAGent configuration handling this turn."""
+        """Bind scoped custom tools to the RAGent configuration handling this turn."""
         for tool in self.tools:
             if isinstance(tool, RAGentSemanticSearchTool):
+                tool.entry_id = entry_id
+                tool.subentry_id = subentry_id
+            elif isinstance(tool, (RAGentRememberTool, RAGentForgetTool, RAGentListFactsTool)):
                 tool.entry_id = entry_id
                 tool.subentry_id = subentry_id
 
@@ -98,7 +125,11 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         custom_tool_names = {
             f"{self._custom_tool_namespace}__{RAGentSemanticSearchTool.name}",
             f"{self._custom_tool_namespace}__{RAGentPlannedActionTool.name}",
-            f"{self._custom_tool_namespace}__{RAGentClearPlannedActionsTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentCancelAllPlannedActionsTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentListPlannedActionsTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentRememberTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentForgetTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentListFactsTool.name}",
         }
         if tool_input.tool_name in custom_tool_names:
             for tool in self.tools:
