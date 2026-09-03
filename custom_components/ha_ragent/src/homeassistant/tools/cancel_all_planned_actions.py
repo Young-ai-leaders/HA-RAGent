@@ -11,25 +11,17 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_SCHEDULED_ACTION_CANCELLERS,
     RAGENT_SCHEDULED_ACTIONS,
 )
+from custom_components.ha_ragent.src.utils import get_tool_description
 
 
 class RAGentCancelAllPlannedActionsTool(llm.Tool):
     name = RAGENT_CANCEL_ALL_PLANNED_ACTIONS_TOOL_NAME
-    description = (
-        "Cancel all currently scheduled one-time Home Assistant actions. "
-        "Use this when the user asks to clear, cancel or delete all planned actions."
-    )
     parameters = vol.Schema({})
 
     def __init__(self, hass: HomeAssistant, subentry_id: str, language: str | None = None) -> None:
         self.hass = hass
         self.subentry_id = subentry_id
-        if language == "de":
-            self.description = (
-                "Brich alle derzeit geplanten einmaligen Home-Assistant-Aktionen ab. "
-                "Verwende dieses Tool, wenn der Nutzer alle geplanten Aktionen löschen "
-                "oder abbrechen möchte."
-            )
+        self.description = get_tool_description(language, RAGENT_CANCEL_ALL_PLANNED_ACTIONS_TOOL_NAME)
 
     async def async_call(self, _tool_input: llm.ToolInput, *args, **kwargs) -> dict[str, object]:
         domain_data = self.hass.data.setdefault(DOMAIN, {})

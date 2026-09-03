@@ -20,18 +20,11 @@ from custom_components.ha_ragent.src.models.device import Device
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.utils import get_tool_description
 
 
 class RAGentSemanticSearchTool(llm.Tool):
     name = RAGENT_SEMANTIC_SEARCH_TOOL_NAME
-    description = (
-        "Resolve Home Assistant targets with semantic search. "
-        "Use when the request contains a fuzzy name, natural-language reference, area, typo, category, "
-        "or when a requested device cannot be found by name. "
-        "Use `devices` for entities, `tools` for capabilities, or `both` when needed. "
-        "Do not guess when search can resolve the target. "
-        "Describe the intended target and action briefly."
-    )
     parameters = vol.Schema(
         {
             vol.Required("query"): str,
@@ -43,14 +36,7 @@ class RAGentSemanticSearchTool(llm.Tool):
         self.hass = hass
         self.entry_id = entry_id
         self.subentry_id = subentry_id
-        if language == "de":
-            self.description = (
-                "Löse Home-Assistant-Ziele mit semantischer Suche auf. Verwende dieses Tool "
-                "bei ungenauen Namen, natürlichen Gerätebezeichnungen, Orten, Tippfehlern, "
-                "Kategorien oder wenn ein Gerät nicht gefunden wird. Nutze devices für "
-                "Geräte, tools für Funktionen oder both für beides. Rate nicht, wenn "
-                "die Suche das Ziel auflösen kann."
-            )
+        self.description = get_tool_description(language, RAGENT_SEMANTIC_SEARCH_TOOL_NAME)
 
     @staticmethod
     def _get_effective_limits(entry: Any) -> tuple[int, int]:

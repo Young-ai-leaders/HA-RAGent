@@ -1,6 +1,8 @@
 import socket
 import logging
 import json
+from functools import lru_cache
+from importlib.resources import files
 from typing import List, Any
 
 from custom_components.ha_ragent.src.backends.database.faiss_backend import FaissDbBackend
@@ -69,6 +71,23 @@ def llm_backend_to_class(backend_type: str) -> ALlmBaseBackend:
 
 def get_placeholder_translation(translations: List[str], selected_language: str) -> str:
     return translations.get(selected_language, translations["en"])
+
+@lru_cache(maxsize=None)
+def _load_tool_descriptions(language: str) -> dict[str, str]:
+    try:
+        translation_file = files("custom_components.ha_ragent").joinpath(
+            "translations", f"{language}.json"
+        )
+        translation = json.loads(translation_file.read_text(encoding="utf-8"))
+        descriptions = translation.get("tool_descriptions", {})
+        return descriptions if isinstance(descriptions, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, ModuleNotFoundError):
+        return {}
+
+def get_tool_description(language: str | None, tool_name: str) -> str:
+    selected_language = language or "en"
+    descriptions = _load_tool_descriptions(selected_language)
+    return str(descriptions.get(tool_name) or _load_tool_descriptions("en").get(tool_name) or "")
 
 def clean_device_attributes(attributes: dict[str, Any]) -> dict[str, Any]:
     cleaned_attributes = attributes.copy()
