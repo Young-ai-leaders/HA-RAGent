@@ -180,7 +180,7 @@ class RAGentSemanticSearchTool(llm.Tool):
                                 "area": device.area_name,
                                 "floor": device.floor_name,
                                 "domain": device.domain,
-                                "device_class": device.domain,
+                                "device_class": device.device_class,
                                 "aliases": device.aliases or [],
                                 "state": state.state if state else None,
                                 "unit_of_measurement": (

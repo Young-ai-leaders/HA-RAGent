@@ -8,6 +8,7 @@ from custom_components.ha_ragent.src.const import CONF_VECTOR_DB_NAME, INSTRUCTI
 from custom_components.ha_ragent.src.mock import MockHomeAssistant
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.device import Device
 
 
 def _backend(tmp_path) -> FaissDbBackend:
@@ -42,6 +43,19 @@ def test_tool_embedding_omits_parameter_schema() -> None:
     assert tool.to_embedding_text() == (
         "Tool name: HassTurnOff | description: Turn off a Home Assistant device."
     )
+
+
+def test_device_embedding_includes_device_class() -> None:
+    device = Device(
+        id="binary_sensor.patio_door",
+        friendly_name="Patio door",
+        area_name="Living room",
+        floor_name="Ground floor",
+        domain=["binary_sensor"],
+        device_class="door",
+    )
+
+    assert "device_class: door" in device.to_embedding_text()
 
 
 def test_recovery_instruction_searches_for_missing_action_tool() -> None:

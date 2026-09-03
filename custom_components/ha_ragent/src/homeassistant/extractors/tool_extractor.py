@@ -218,7 +218,8 @@ class ToolExtractor:
                 exposed_tools = await self._async_get_embeddable_tools(subentry)
                 _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")
                 if not exposed_tools:
-                    _logger.debug(f"No tools to embed for subentry {subentry_id}")
+                    await self._entry.vector_db_backend.async_cleanup_collection(dict(subentry.data), f"tools_{subentry_id}")
+                    _logger.info("Cleared tool embeddings for empty subentry %s", subentry_id)
                     return
 
                 collection_name = f"tools_{subentry_id}"

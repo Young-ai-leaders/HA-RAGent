@@ -72,11 +72,6 @@ class ToolHelper:
         if not is_domain_aware:
             return None
 
-        if "device_class" in parameters:
-            device_class = parameters.pop("device_class")
-            if not domain:
-                domain = device_class
-
         if domain:
             return domain if isinstance(domain, list) else [domain]
 

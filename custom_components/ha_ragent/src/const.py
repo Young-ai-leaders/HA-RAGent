@@ -284,7 +284,7 @@ DEFAULT_PROMPT = """<persona_prompt>
 
 <devices_prompt>
 {% for device in device_list %}
-- { "name": {{ device.id | tojson }}, "friendly_name": {{ device.friendly_name | tojson }}, "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "device_class": {{ device.domain | tojson }}, "floor": {{ device.floor_name | tojson }}, "area": {{ device.area_name | tojson }}, "state": {{ device.state | tojson }}, "unit_of_measurement": {{ device.attributes.get('unit_of_measurement') | tojson if device.attributes else none }} }
+- { "name": {{ device.id | tojson }}, "friendly_name": {{ device.friendly_name | tojson }}, "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "device_class": {{ device.device_class | tojson }}, "floor": {{ device.floor_name | tojson }}, "area": {{ device.area_name | tojson }}, "state": {{ device.state | tojson }}, "unit_of_measurement": {{ device.attributes.get('unit_of_measurement') | tojson if device.attributes else none }} }
 {% endfor %}
 """
 

@@ -170,6 +170,7 @@ async def _async_test_object_round_trips(
         device_labels=["Climate"],
         services=["turn_on", "turn_off"],
         aliases=["Bath temperature"],
+        device_class="temperature",
         unit_of_measurement="°C",
     )
     tool = LlmTool(

@@ -22,5 +22,6 @@ class DeviceEmbedding(EmbeddingRecord[Device]):
             device_labels=doc.get("device_labels", []),
             services=doc.get("services", []),
             aliases=doc.get("aliases", []),
-            unit_of_measurement=doc.get("unit_of_measurement")
+            unit_of_measurement=doc.get("unit_of_measurement"),
+            device_class=doc.get("device_class"),
         )

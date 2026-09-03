@@ -78,6 +78,7 @@ class DeviceExtractor:
                 aliases=aliases,
                 services=services,
                 unit_of_measurement=state.attributes.get("unit_of_measurement"),
+                device_class=state.attributes.get("device_class"),
             ))
         
         return devices
@@ -107,6 +108,10 @@ class DeviceExtractor:
             try:
                 collection_name = f"devices_{subentry_id}"
                 device_list = await self._async_get_embeddable_devices(entities_to_embed)
+                if not device_list:
+                    await self._entry.vector_db_backend.async_cleanup_collection(dict(subentry.data), collection_name)
+                    _logger.info("Cleared device embeddings for empty subentry %s", subentry_id)
+                    return
                 device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
 
                 if device_embeddings:

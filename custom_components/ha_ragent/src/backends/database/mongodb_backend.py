@@ -254,6 +254,7 @@ class MongoDbBackend(ABaseDbBackend):
                     "device_id": 1,
                     "friendly_name": 1,
                     "domain": 1,
+                    "device_class": 1,
                     "floor_name": 1,
                     "area_name": 1,
                     "device_labels": 1,

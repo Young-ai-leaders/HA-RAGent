@@ -14,6 +14,7 @@ class Device(EmbeddableModel):
     services: List[str] = None
     aliases: List[str] = None
     unit_of_measurement: str = None
+    device_class: str = None
 
     # Loaded from current state not used for embedding
     state: str = None
@@ -25,6 +26,7 @@ class Device(EmbeddableModel):
             "friendly_name": self.friendly_name,
             "aliases": self.aliases,
             "domain": self.domain,
+            "device_class": self.device_class,
             "area": self.area_name,
             "floor": self.floor_name,
             "labels": self.device_labels,
@@ -48,5 +50,6 @@ class Device(EmbeddableModel):
             "device_labels": self.device_labels,
             "services": self.services,
             "aliases": self.aliases,
-            "unit_of_measurement": self.unit_of_measurement
+            "unit_of_measurement": self.unit_of_measurement,
+            "device_class": self.device_class,
         }

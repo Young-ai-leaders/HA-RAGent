@@ -525,7 +525,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 "area": device.area_name,
                                 "floor": device.floor_name,
                                 "domain": device.domain,
-                                "device_class": device.domain,
+                                "device_class": device.device_class,
                             }
                             for device in device_list
                         ],
