@@ -13,17 +13,10 @@ class LlmTool(EmbeddableModel):
     parameters: Dict[str, Any] = None
     
     def to_embedding_text(self) -> str:
+        """Embed the tool's semantic identity without its noisy JSON schema."""
         parts = [f"Tool name: {self.name}"]
-        
         if self.description:
             parts.append(f"description: {self.description}")
-
-        if self.parameters:
-            parts.append(
-                "parameters: "
-                + json.dumps(self.parameters, ensure_ascii=False, separators=(",", ":"))
-            )
-
         return " | ".join(parts)
 
     def to_dict(self) -> dict[str, Any]:

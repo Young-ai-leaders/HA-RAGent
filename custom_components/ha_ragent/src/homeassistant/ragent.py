@@ -200,16 +200,18 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         )
 
     def _ensure_required_tools_exposed(self, tool_list: List[LlmTool], llm_api: llm.APIInstance | None) -> List[LlmTool]:
-        """Always expose required tools without bypassing RAG for other tools."""
+        """Expose required tools before tools selected by semantic retrieval."""
         if not llm_api or not hasattr(llm_api, "tools"):
             return tool_list
 
+        required_names = set(RAGENT_PREFIXED_REQUIRED_TOOL_NAMES)
+        required_tools = [tool for tool in tool_list if tool.name in required_names]
+        searched_tools = [tool for tool in tool_list if tool.name not in required_names]
         seen_tool_names = {tool.name for tool in tool_list}
 
-        required_tools: list[LlmTool] = []
         for api_tool in llm_api.tools:
             tool_name = getattr(api_tool, "name", None)
-            if tool_name not in RAGENT_PREFIXED_REQUIRED_TOOL_NAMES or tool_name in seen_tool_names:
+            if tool_name not in required_names or tool_name in seen_tool_names:
                 continue
 
             converted_tool = self._convert_api_tool(api_tool, llm_api)
@@ -217,7 +219,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 required_tools.append(converted_tool)
                 seen_tool_names.add(tool_name)
 
-        return [*tool_list, *required_tools]
+        return [*required_tools, *searched_tools]
 
     @staticmethod
     def _exclude_prohibited_scheduled_request_tools(tool_list: List[LlmTool], scheduled_request: bool) -> List[LlmTool]:

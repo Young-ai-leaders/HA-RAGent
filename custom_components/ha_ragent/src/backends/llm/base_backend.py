@@ -55,18 +55,18 @@ class ALlmBaseBackend(ABC):
 
     @staticmethod
     def split_tool_names(tools: List[LlmTool]) -> tuple[list[str], list[str]]:
-        """Separate selected and always-required tool names for logging."""
+        """Separate always-required and searched tool names for logging."""
         required_names = set(RAGENT_PREFIXED_REQUIRED_TOOL_NAMES)
-        tools_names: list[str] = []
         required_tools_names: list[str] = []
+        searched_tool_names: list[str] = []
         for tool in tools:
             target = (
                 required_tools_names
                 if tool.name in required_names
-                else tools_names
+                else searched_tool_names
             )
             target.append(tool.name)
-        return tools_names, required_tools_names
+        return required_tools_names, searched_tool_names
 
     @staticmethod
     def truncate_messages(messages: List[ChatMessage], max_chars: int) -> List[ChatMessage]:

@@ -3,9 +3,14 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
-from homeassistant.components import conversation
-from homeassistant.components.conversation import ConversationInput
-from homeassistant.util import dt as dt_util
+try:
+    from homeassistant.components import conversation
+    from homeassistant.components.conversation import ConversationInput
+    from homeassistant.util import dt as dt_util
+except ImportError:
+    from custom_components.ha_ragent.src.mock import conversation, dt_util
+
+    ConversationInput = Any
 
 from custom_components.ha_ragent.src.const import (
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
@@ -69,16 +74,12 @@ class HistoryManager:
         return prompt_history
 
     def retrieval_texts(self, chat_log: conversation.ChatLog) -> list[str]:
-        """Select retained history and convert it into retrieval text."""
-        retrieval_texts = [
-            MessageHelper.message_to_retrieval_text(
-                MessageHelper.compact_tool_result(message)
-                if isinstance(message, conversation.ToolResultContent)
-                else message
-            )
+        """Return retained user queries for semantic retrieval context."""
+        return [
+            message.content.strip()
             for message in self.select_retained_history(chat_log)
+            if isinstance(message, conversation.UserContent) and message.content.strip()
         ]
-        return [text for text in retrieval_texts if text]
 
     def recent_user_requests(self, chat_log: conversation.ChatLog) -> list[str]:
         """Return retained user text without assistant or tool-result noise."""

@@ -50,7 +50,7 @@ class FaissDbBackend(ABaseDbBackend):
         return index_path, meta_path
 
     def _load_collection(self, collection_name: str, embedding_length: int = 1536):
-        """Lazy load or initialize the index and metadata."""
+        """Lazy load or initialize a cosine-similarity index."""
         idx_path, meta_path = self._get_paths(collection_name)
         
         if collection_name not in self._indices:
@@ -67,7 +67,8 @@ class FaissDbBackend(ABaseDbBackend):
                 self._create_empty(collection_name, embedding_length)
 
     def _create_empty(self, collection_name: str, embedding_length: int):
-        self._indices[collection_name] = faiss.IndexFlatL2(embedding_length)
+        # Cosine similarity is inner product over unit-normalized vectors.
+        self._indices[collection_name] = faiss.IndexFlatIP(embedding_length)
         self._metadata[collection_name] = []
 
     def _save_to_disk(self, collection_name: str):
@@ -84,6 +85,7 @@ class FaissDbBackend(ABaseDbBackend):
         self._load_collection(collection_name, dim)
 
         vectors = np.asarray([emb.vector_embedding for emb in device_embeddings], dtype=np.float32)
+        faiss.normalize_L2(vectors)
         metadatas = [emb.to_dict() for emb in device_embeddings]
 
         self._indices[collection_name].add(vectors)
@@ -96,6 +98,7 @@ class FaissDbBackend(ABaseDbBackend):
         self._load_collection(collection_name, len(query_embedding))
         
         query_vector = np.asarray([query_embedding], dtype=np.float32)
+        faiss.normalize_L2(query_vector)
         _, indices = self._indices[collection_name].search(query_vector, top_k)
 
         metadata = self._metadata[collection_name]
@@ -142,6 +145,7 @@ class FaissDbBackend(ABaseDbBackend):
         self._create_empty(collection_name, dimension)
         if remaining_metadata:
             vectors = np.asarray([item["vector_embedding"] for item in remaining_metadata], dtype=np.float32)
+            faiss.normalize_L2(vectors)
             self._indices[collection_name].add(vectors)
             self._metadata[collection_name] = remaining_metadata
 
@@ -162,6 +166,7 @@ class FaissDbBackend(ABaseDbBackend):
         ]
         combined_metadata = [*retained_metadata, *incoming_metadata]
         vectors = np.asarray([item["vector_embedding"] for item in combined_metadata], dtype=np.float32)
+        faiss.normalize_L2(vectors)
 
         self._create_empty(collection_name, dimension)
         self._indices[collection_name].add(vectors)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 from typing import Any
 
 import voluptuous as vol
@@ -39,7 +39,7 @@ class RAGentSemanticSearchTool(llm.Tool):
     name = RAGENT_SEMANTIC_SEARCH_TOOL_NAME
     parameters = vol.Schema(
         {
-            vol.Optional("query", default=""): str,
+            vol.Required("search_query"): str,
             vol.Optional("scope", default="devices_and_tools"): vol.In(["devices", "tools", "devices_and_tools"]),
         }
     )
@@ -56,22 +56,12 @@ class RAGentSemanticSearchTool(llm.Tool):
         return " ".join(str(value or "").split())
 
     @classmethod
-    def _list_text(cls, value: object) -> str:
-        if isinstance(value, (list, tuple, set)):
-            return ", ".join(text for item in value if (text := cls._clean(item)))
-        return cls._clean(value)
-
-    @classmethod
     def _build_search_query(
         cls,
         latest_request: str = "",
         recent_requests: Iterable[str] = (),
-        area: str = "",
-        floor: str = "",
-        candidates: Iterable[Mapping[str, Any]] = (),
-        model_query: str = ""
     ) -> str:
-        """Build a bounded search query from trusted turn context."""
+        """Build a bounded search query from user requests only."""
         sections: list[str] = []
         latest = cls._clean(latest_request)
         if latest:
@@ -87,29 +77,6 @@ class RAGentSemanticSearchTool(llm.Tool):
         for text in recent[-3:]:
             sections.append(f"Recent user request: {text}")
 
-        location = ", ".join(
-            part for part in (cls._clean(area), cls._clean(floor)) if part
-        )
-        if location:
-            sections.append(f"Known location: {location}")
-
-        for candidate in list(candidates)[:6]:
-            fields = [
-                ("friendly_name", cls._clean(candidate.get("friendly_name"))),
-                ("aliases", cls._list_text(candidate.get("aliases"))),
-                ("area", cls._clean(candidate.get("area"))),
-                ("floor", cls._clean(candidate.get("floor"))),
-                ("domain", cls._list_text(candidate.get("domain"))),
-                ("device_class", cls._list_text(candidate.get("device_class"))),
-                ("entity_id", cls._clean(candidate.get("name"))),
-            ]
-            details = "; ".join(f"{key}: {value}" for key, value in fields if value)
-            if details:
-                sections.append(f"Known candidate: {details}")
-
-        if not sections and (fallback := cls._clean(model_query)):
-            sections.append(fallback)
-
         return "\n".join(sections)[:MAX_SEARCH_QUERY_CHARS].strip()
 
     def set_search_context(
@@ -124,9 +91,6 @@ class RAGentSemanticSearchTool(llm.Tool):
         self._contextual_query = self._build_search_query(
             latest_request=latest_request,
             recent_requests=recent_requests,
-            area=area,
-            floor=floor,
-            candidates=candidates,
         )
 
     @staticmethod
@@ -140,13 +104,11 @@ class RAGentSemanticSearchTool(llm.Tool):
         return device_limit, tool_limit
 
     async def _validate_query(self, tool_input: llm.ToolInput) -> str | None:
-        model_query = str(tool_input.tool_args.get("query", "")).strip()
-        if model_query and self._contextual_query:
-            query = f"Search query: {model_query}\n{self._contextual_query}"
-            query = query[:MAX_SEARCH_QUERY_CHARS].strip()
-        else:
-            query = model_query or self._contextual_query
-        return query or None
+        """Prefer the model's explicit search intent, with user context as fallback."""
+        model_search_query = self._clean(tool_input.tool_args.get("search_query"))
+        if model_search_query:
+            return model_search_query[:MAX_SEARCH_QUERY_CHARS]
+        return self._contextual_query or None
 
     def _iter_searchable_entries(self):
         """Yield only the active entry and subentry."""
@@ -165,13 +127,13 @@ class RAGentSemanticSearchTool(llm.Tool):
         return await entry.embedder_backend.async_embed_text(dict(subentry.data), query)
 
     async def async_call(self, tool_input, *args, **kwargs) -> dict[str, object]:
-        model_query = str(tool_input.tool_args.get("query", "")).strip()
+        model_search_query = self._clean(tool_input.tool_args.get("search_query"))
         query = await self._validate_query(tool_input)
         if not query:
-            return {"error": "query must not be empty"}
+            return {"error": "search_query must not be empty"}
         _logger.debug(
-            "Semantic search model query=%r effective query=%r",
-            model_query,
+            "Semantic search model search_query=%r effective query=%r",
+            model_search_query,
             query,
         )
 
@@ -256,7 +218,7 @@ class RAGentSemanticSearchTool(llm.Tool):
                 errors.append(f"Failed to search subentry {subentry.title}: {err}")
 
         return {
-            "query": query,
+            "search_query": query,
             "scope": scope,
             "devices": devices[:device_limit] if search_devices else [],
             "tools": tools[:tool_limit] if search_tools else [],

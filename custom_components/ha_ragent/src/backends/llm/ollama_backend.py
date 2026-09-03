@@ -153,8 +153,8 @@ class OllamaLlmBackend(ALlmBaseBackend):
 
         if tools:
             payload["tools"] = [tool.to_tool_dict() for tool in tools]
-            tool_names, required_tool_names = self.split_tool_names(tools)
-            _logger.debug(f"Added {len(tools)} tools to Ollama request: tools={tool_names}, required_tools={required_tool_names}")
+            required_tool_names, searched_tool_names = self.split_tool_names(tools)
+            _logger.debug(f"Added {len(tools)} tools to Ollama request: required_tools={required_tool_names}, searched_tools={searched_tool_names}")
         
         try:
             async with session.post(self._chat_url, json=payload, timeout=ALlmBaseBackend._chat_timeout) as response:

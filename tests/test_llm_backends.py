@@ -255,10 +255,10 @@ def test_tool_names_are_split_for_request_logging() -> None:
         ),
     ]
 
-    tool_names, required_tool_names = ALlmBaseBackend.split_tool_names(tools)
+    required_tool_names, searched_tool_names = ALlmBaseBackend.split_tool_names(tools)
 
-    assert tool_names == ["HassTurnOn"]
     assert required_tool_names == [RAGENT_PREFIXED_REQUIRED_TOOL_NAMES[0]]
+    assert searched_tool_names == ["HassTurnOn"]
 
 def test_validate_connection(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test connection validation for every backend."""
