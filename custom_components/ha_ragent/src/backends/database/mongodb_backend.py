@@ -176,7 +176,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
 
-    async def async_ensure_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_ensure_collection_exists(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         conn = None
         try:
             conn = self._get_connection()
@@ -204,7 +204,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
 
-    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
+    async def async_save_objects(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
         conn = None
         try:
             conn = self._get_connection()
@@ -218,7 +218,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
 
-    async def async_upsert_object_embeddings(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
+    async def async_upsert_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
         conn = None
         try:
             if not object_embeddings:

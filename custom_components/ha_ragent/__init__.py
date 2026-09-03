@@ -36,7 +36,12 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_MEMORY_LOCKS,
 )
 
-from custom_components.ha_ragent.src.utils import vector_db_to_class, embedding_backend_to_class, llm_backend_to_class
+from custom_components.ha_ragent.src.utils import (
+    async_load_tool_descriptions,
+    vector_db_to_class,
+    embedding_backend_to_class,
+    llm_backend_to_class,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -187,6 +192,7 @@ async def _async_run_startup_embeddings(hass: HomeAssistant, entry: RAGentConfig
 async def async_setup_entry(hass: HomeAssistant, entry: RAGentConfigEntry):
     """Set up HA Ragent from a config entry."""
     hass.data.setdefault(DOMAIN, {})
+    await async_load_tool_descriptions(hass)
 
     _ensure_llm_api_registered(hass)
     _cancel_scheduled_actions(hass, entry.subentries)

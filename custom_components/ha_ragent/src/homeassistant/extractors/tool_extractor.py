@@ -228,7 +228,7 @@ class ToolExtractor:
 
                 if tool_embeddings:
                     _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
-                    await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, tool_embeddings)
+                    await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, tool_embeddings)
                     total_embedded_tools += len(tool_embeddings)
                 else:
                     _logger.warning(f"No tools to embed for subentry {subentry_id}")

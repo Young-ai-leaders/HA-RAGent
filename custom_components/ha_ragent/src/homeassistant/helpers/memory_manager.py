@@ -77,12 +77,12 @@ class MemoryManager:
             return None
 
         async with self._get_lock():
-            await entry.vector_db_backend.async_ensure_collection(
+            await entry.vector_db_backend.async_ensure_collection_exists(
                 config,
                 self.collection_name,
                 len(vector),
             )
-            await entry.vector_db_backend.async_upsert_object_embeddings(
+            await entry.vector_db_backend.async_upsert_objects(
                 config,
                 self.collection_name,
                 "memory_id",

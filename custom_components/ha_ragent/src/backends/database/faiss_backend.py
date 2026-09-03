@@ -208,7 +208,7 @@ class FaissDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error resetting collection: {e}", exc_info=True)
 
-    async def async_ensure_collection(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+    async def async_ensure_collection_exists(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
         try:
             await self.hass.async_add_executor_job(self._ensure_collection, collection_name, embedding_length)
         except Exception as e:
@@ -221,14 +221,14 @@ class FaissDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
-    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
+    async def async_save_objects(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
         except Exception as e:
             _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
             raise
 
-    async def async_upsert_object_embeddings(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
+    async def async_upsert_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(
                 self._upsert_object_embeddings,
