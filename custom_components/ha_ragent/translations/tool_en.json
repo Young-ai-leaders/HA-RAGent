@@ -1,8 +1,8 @@
 {
-    "HassRememberFact": "Store one stable, non-sensitive fact only when the user explicitly asks you to remember it for future conversations. Do not store commands or temporary device states.",
-    "HassForgetFact": "Delete one stored fact using the exact memory_id shown in Relevant Long-Term Memories.",
+    "HassRememberFact": "Required when the latest request explicitly asks to remember one stable, non-sensitive fact for future conversations. Never store instructions, commands, secrets, or temporary state.",
+    "HassForgetFact": "Required when the latest request explicitly asks to forget one stored fact. Use its exact memory_id from Relevant Long-Term Memories.",
     "HassSemanticSearch": "Search missing device or tool matches. Describe the required action or capability, target, and known identifying context in query. Choose the narrowest scope.",
-    "HassPlannedAction": "Schedule one Home Assistant action to run once after 1 to 1440 minutes. Put the complete future action in description; this tool does not execute it now.",
+    "HassPlannedAction": "Use only when the latest request explicitly asks to schedule or delay an action by 1 to 1440 minutes. Never use for now, immediately, or an untimed request. Put the complete future action in description; this schedules rather than executes it.",
     "HassListPlannedActions": "List all pending one-time actions scheduled by this agent. This does not change them.",
     "HassCancelAllPlannedActions": "Cancel every pending one-time action scheduled by this agent. Use only when the user explicitly asks to cancel all of them."
 }

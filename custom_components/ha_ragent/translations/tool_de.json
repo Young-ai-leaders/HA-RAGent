@@ -1,8 +1,8 @@
 {
-    "HassRememberFact": "Speichert genau eine dauerhafte, nicht vertrauliche Tatsache, wenn der Nutzer ausdrücklich darum bittet, sie für künftige Gespräche zu merken. Speichere keine Befehle oder temporären Gerätezustände.",
-    "HassForgetFact": "Löscht genau eine gespeicherte Tatsache anhand der exakten memory_id aus den relevanten Langzeiterinnerungen.",
+    "HassRememberFact": "Erforderlich, wenn die neueste Anfrage ausdrücklich darum bittet, eine dauerhafte, nicht vertrauliche Tatsache für künftige Gespräche zu merken. Nie Anweisungen, Befehle, Geheimnisse oder temporäre Zustände speichern.",
+    "HassForgetFact": "Erforderlich, wenn die neueste Anfrage ausdrücklich darum bittet, eine gespeicherte Tatsache zu vergessen. Verwende ihre exakte memory_id aus den relevanten Langzeiterinnerungen.",
     "HassSemanticSearch": "Sucht fehlende Geräte- oder Tool-Treffer. Beschreibe in query die benötigte Aktion oder Fähigkeit, das Ziel und bekannte identifizierende Angaben. Wähle den engsten scope.",
-    "HassPlannedAction": "Plant eine Home-Assistant-Aktion zur einmaligen Ausführung in 1 bis 1440 Minuten. description muss die vollständige zukünftige Aktion enthalten; dieses Tool führt sie nicht sofort aus.",
+    "HassPlannedAction": "Nur verwenden, wenn die neueste Anfrage ausdrücklich eine Aktion in 1 bis 1440 Minuten plant oder verzögert. Nie für jetzt, sofort oder Anfragen ohne Zeitangabe verwenden. description enthält die vollständige zukünftige Aktion; das Tool plant sie, statt sie auszuführen.",
     "HassListPlannedActions": "Listet alle ausstehenden einmaligen Aktionen dieses Agenten auf, ohne sie zu verändern.",
     "HassCancelAllPlannedActions": "Bricht alle ausstehenden einmaligen Aktionen dieses Agenten ab. Nur verwenden, wenn der Nutzer ausdrücklich alle abbrechen möchte."
 }
