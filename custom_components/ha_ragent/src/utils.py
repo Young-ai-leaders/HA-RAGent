@@ -74,10 +74,10 @@ def get_placeholder_translation(translations: List[str], selected_language: str)
 def _read_tool_descriptions(language: str) -> dict[str, str]:
     try:
         translation_file = files("custom_components.ha_ragent").joinpath(
-            "translations", f"{language}.json"
+            "translations", f"tool_{language}.json"
         )
         translation = json.loads(translation_file.read_text(encoding="utf-8"))
-        descriptions = translation.get("tool_descriptions", {})
+        descriptions = translation
         return descriptions if isinstance(descriptions, dict) else {}
     except (FileNotFoundError, json.JSONDecodeError, ModuleNotFoundError):
         return {}
