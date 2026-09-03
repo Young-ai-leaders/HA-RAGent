@@ -18,7 +18,7 @@ from homeassistant.helpers import chat_session, intent, llm
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.llm import LLMContext
 from homeassistant.helpers import area_registry as ar, device_registry as dr, floor_registry as fr
-from voluptuous_openapi import convert
+from probatio import to_openapi
 
 from custom_components.ha_ragent.src.homeassistant.helpers.history_manager import HistoryManager
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
@@ -183,9 +183,13 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         parameters = {}
         if hasattr(api_tool, "parameters") and api_tool.parameters:
             try:
-                parameters = convert(api_tool.parameters, custom_serializer=llm_api.custom_serializer if llm_api else None)
+                parameters = to_openapi(api_tool.parameters, custom_serializer=llm_api.custom_serializer if llm_api else None)
+                if not isinstance(parameters, dict):
+                    _logger.warning(f"Could not convert parameters for tool {tool_name}: converter returned {type(parameters).__name__}")
+                    parameters = {}
             except Exception as err:
                 _logger.warning(f"Could not convert parameters for tool {tool_name}: {err}")
+                parameters = {}
 
         return LlmTool(
             name=tool_name,
