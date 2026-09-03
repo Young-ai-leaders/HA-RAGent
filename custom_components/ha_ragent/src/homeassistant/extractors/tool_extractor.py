@@ -222,11 +222,11 @@ class ToolExtractor:
                     return
 
                 collection_name = f"tools_{subentry_id}"
-                embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
-                await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                 tool_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), exposed_tools)
 
                 if tool_embeddings:
+                    embedding_len = len(tool_embeddings[0].vector_embedding)
+                    await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                     _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
                     await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, tool_embeddings)
                     total_embedded_tools += len(tool_embeddings)

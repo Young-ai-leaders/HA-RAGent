@@ -16,20 +16,13 @@ class DeviceExtractor:
         self._entry = entry
 
 
-    async def _async_get_services_for_domain(self, target_domain: str):
-        services = self._hass.services.async_services()
-
-        if target_domain not in services:
-            return []
-
-        return [service_name for service_name in services[target_domain]]
-
     async def _async_get_embeddable_devices(self, exposed_entities: list[str]) -> list[Device]:
         area_reg = area_registry.async_get(self._hass)
         device_reg = device_registry.async_get(self._hass)
         entity_reg = entity_registry.async_get(self._hass)
         floor_reg = floor_registry.async_get(self._hass)
         label_reg = label_registry.async_get(self._hass)
+        services_by_domain = self._hass.services.async_services()
         
         devices = []
         
@@ -72,8 +65,8 @@ class DeviceExtractor:
 
             if aliases:
                 friendly_name = aliases[0]
-
-            services = await self._async_get_services_for_domain(domain)
+            
+            services = list(services_by_domain.get(domain, {}))
 
             devices.append(Device(
                 id=entity_id,
@@ -113,12 +106,12 @@ class DeviceExtractor:
 
             try:
                 collection_name = f"devices_{subentry_id}"
-                embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
-                await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                 device_list = await self._async_get_embeddable_devices(entities_to_embed)
                 device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
 
                 if device_embeddings:
+                    embedding_len = len(device_embeddings[0].vector_embedding)
+                    await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                     _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
                     await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, device_embeddings)
                     total_embedded_devices += len(device_embeddings)
