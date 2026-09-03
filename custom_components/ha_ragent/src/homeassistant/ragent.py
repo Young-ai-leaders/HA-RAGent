@@ -23,10 +23,12 @@ from probatio import to_openapi
 from custom_components.ha_ragent.src.homeassistant.helpers.history_manager import HistoryManager
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
+from custom_components.ha_ragent.src.homeassistant.helpers.memory_manager import MemoryManager
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.chat_message import ChatMessage
+from custom_components.ha_ragent.src.models.memory import Memory
 
 from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
@@ -39,19 +41,23 @@ from custom_components.ha_ragent.src.models.device import Device
 from custom_components.ha_ragent.src.const import (
     CONF_NUM_DEVICES_TO_EXTRACT,
     CONF_NUM_TOOLS_TO_EXTRACT,
+    CONF_NUM_MEMORIES_TO_EXTRACT,
     CONF_PROMPT,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     DEFAULT_NUM_DEVICES_TO_EXTRACT,
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
+    DEFAULT_NUM_MEMORIES_TO_EXTRACT,
     DEFAULT_PROMPT,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     DOMAIN,
     PERSONA_PROMPTS,
-    CURRENT_DATE_PROMPT,
     DEVICES_PROMPT,
     AREAS_PROMPT,
     MAX_RETRIES_PROMPT,
-    DEVICE_CONTROL_PROMPT,
+    INSTRUCTION_PROMPT,
+    MEMORIES_CONTEXT_PROMPT,
+    CONF_SELECTED_LANGUAGE,
+    DEFAULT_SELECTED_LANGUAGE,
     CONF_ALLOW_QUESTIONS,
     DEFAULT_ALLOW_QUESTIONS,
     RAGENT_REQUIRED_TOOL_NAMES,
@@ -157,19 +163,33 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         
         return retrieved_tools
 
-    async def _async_render_system_prompt(self, devices: List[Device], area: ar.AreaEntry, floor: fr.FloorEntry) -> str | None:
+    async def _async_retrieve_memories(self, query_embedding: List[float], n_memories: int) -> List[Memory]:
+        """Retrieve relevant persistent memories for this agent."""
+        try:
+            return await MemoryManager(
+                self.hass,
+                self.entry_id,
+                self.subentry_id,
+            ).async_recall(query_embedding, n_memories)
+        except Exception as err:
+            _logger.error(f"Error retrieving memories from vector DB: {err}", exc_info=True)
+            return []
+
+    async def _async_render_system_prompt(self, devices: List[Device], memories: List[Memory], area: ar.AreaEntry, floor: fr.FloorEntry) -> str | None:
         """Render the system prompt with retrieved device context."""
         raw_prompt = self.runtime_options.get(CONF_PROMPT, DEFAULT_PROMPT)
 
         try:
             template = Template(raw_prompt, self.hass)
-            return template.async_render({
+            rendered_prompt = template.async_render({
                 "device_list": devices,
+                "memory_list": memories,
                 "area_list": list(set(device.area_name for device in devices if device.area_name)),
                 "area_name": area.name if area else None,
                 "floor_name": floor.name if floor else None,
                 "max_retries": self.runtime_options.get(CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS),
             })
+            return rendered_prompt
         except Exception as err:
             _logger.error(f"Error rendering prompt: {err}", exc_info=True)
             return None
@@ -467,13 +487,21 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 retrieve_devices_task = self._async_retrieve_devices(query_embedding, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
                 retrieve_tools_task = self._async_retrieve_tools(query_embedding, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT)) if llm_api else None
+                retrieve_memories_task = self._async_retrieve_memories(query_embedding, n_memories=self.runtime_options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT))
 
                 if retrieve_tools_task:
-                    retrieved_devices, retrieved_tools = await asyncio.gather(retrieve_devices_task, retrieve_tools_task)
+                    retrieved_devices, retrieved_tools, retrieved_memories = await asyncio.gather(
+                        retrieve_devices_task,
+                        retrieve_tools_task,
+                        retrieve_memories_task,
+                    )
                 else:
-                    retrieved_devices = await retrieve_devices_task
+                    retrieved_devices, retrieved_memories = await asyncio.gather(
+                        retrieve_devices_task,
+                        retrieve_memories_task,
+                    )
                     retrieved_tools = []
-                log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices and {len(retrieved_tools)} tools")
+                log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices, {len(retrieved_tools)} tools and {len(retrieved_memories)} memories")
 
                 if not retrieved_devices:
                     intent_response = intent.IntentResponse(language=user_input.language)
@@ -502,6 +530,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 system_prompt_content = await self._async_render_system_prompt(
                     device_list,
+                    retrieved_memories,
                     area,
                     floor,
                 )
