@@ -21,7 +21,8 @@ def test_create_tool_failure_message() -> None:
 def test_compact_tool_result_only_compacts_semantic_search() -> None:
     search = conversation.ToolResultContent(
         agent_id="agent", tool_call_id="call-1",
-        tool_name="HassSemanticSearch", tool_result={"devices": ["large"]},
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_result={"devices": ["large"]},
     )
     other = conversation.ToolResultContent(
         agent_id="agent", tool_call_id="call-2",
@@ -95,7 +96,7 @@ def test_repeated_list_and_search_results_remain_successful() -> None:
         "agent", "call-3", "HassTurnOff", {"success": ["light.bedroom"]},
     )
     search_result = MessageHelper.create_repeated_tool_result_message(
-        "agent", "call-4", "HassSemanticSearch", {"devices": [], "error": []},
+        "agent", "call-4", "ha_ragent__HassSemanticSearch", {"devices": [], "error": []},
     )
 
     assert list_result.tool_result["success"] is True

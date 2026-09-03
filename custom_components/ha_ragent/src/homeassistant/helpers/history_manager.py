@@ -70,7 +70,14 @@ class HistoryManager:
 
     def retrieval_texts(self, chat_log: conversation.ChatLog) -> list[str]:
         """Select retained history and convert it into retrieval text."""
-        retrieval_texts = [MessageHelper.message_to_retrieval_text(message) for message in self.select_retained_history(chat_log)]
+        retrieval_texts = [
+            MessageHelper.message_to_retrieval_text(
+                MessageHelper.compact_tool_result(message)
+                if isinstance(message, conversation.ToolResultContent)
+                else message
+            )
+            for message in self.select_retained_history(chat_log)
+        ]
         return [text for text in retrieval_texts if text]
 
     def recent_user_requests(self, chat_log: conversation.ChatLog) -> list[str]:

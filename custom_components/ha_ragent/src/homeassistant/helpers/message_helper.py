@@ -9,6 +9,7 @@ except ImportError:
     from custom_components.ha_ragent.src.mock import conversation
 
 from custom_components.ha_ragent.src.const import (
+    RAGENT_PREFIXED_TOOL_NAMES_BY_NAME,
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
     TOOL_REGEX_PATTERN,
 )
@@ -64,7 +65,7 @@ class MessageHelper:
     @staticmethod
     def compact_tool_result(tool_message: conversation.ToolResultContent) -> conversation.ToolResultContent:
         """Compact semantic-search results stored in prompt history."""
-        if tool_message.tool_name != RAGENT_SEMANTIC_SEARCH_TOOL_NAME:
+        if tool_message.tool_name != RAGENT_PREFIXED_TOOL_NAMES_BY_NAME[RAGENT_SEMANTIC_SEARCH_TOOL_NAME]:
             return tool_message
 
         return conversation.ToolResultContent(
