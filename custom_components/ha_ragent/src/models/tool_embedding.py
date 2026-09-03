@@ -1,25 +1,20 @@
 import json
-from typing import Any, List, Dict
+from typing import Any
 
+from custom_components.ha_ragent.src.models.embedding_record import EmbeddingRecord
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 
-class LlmToolEmbedding:
-    def __init__(self, tool: LlmTool, vector_embedding: List[float]) -> None:
+class LlmToolEmbedding(EmbeddingRecord[LlmTool]):
+    def __init__(self, tool: LlmTool, vector_embedding: list[float]) -> None:
         self.tool = tool
-        self.vector_embedding = vector_embedding
-    
-    def to_dict(self) -> Dict:
-        return {
-                "name": self.tool.name,
-                "description": self.tool.description,
-                "parameters": json.dumps(self.tool.parameters),
-                "metadata": self.tool.metadata.to_json(),
-                "vector_embedding": self.vector_embedding
-            }
+        super().__init__(tool, vector_embedding)
+
+    def object_to_dict(self) -> dict[str, Any]:
+        return self.tool.to_dict()
     
     @staticmethod
-    def parse_object(doc: Dict[str, Any]) -> 'LlmTool':
+    def parse_object(doc: dict[str, Any]) -> LlmTool:
         return LlmTool(
             name=doc.get("name"),
             description=doc.get("description"),

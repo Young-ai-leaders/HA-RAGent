@@ -1,11 +1,11 @@
 {
     "tool_descriptions": {
-        "HassRememberFact": "Stores a fact for future conversations.",
-        "HassForgetFact": "Deletes a saved fact by its memory ID.",
-        "HassSemanticSearch": "Searches Home Assistant devices and tools.",
-        "HassPlannedAction": "Schedules a one-time Home Assistant action.",
-        "HassListPlannedActions": "Lists this agent's planned actions.",
-        "HassCancelAllPlannedActions": "Cancels this agent's planned actions."
+        "HassRememberFact": "Store one stable, non-sensitive fact only when the user explicitly asks you to remember it for future conversations. Do not store commands or temporary device states.",
+        "HassForgetFact": "Delete one stored fact using the exact memory_id shown in Relevant Long-Term Memories.",
+        "HassSemanticSearch": "Search indexed Home Assistant devices, entity IDs, and tool capabilities when the current context lacks an exact match. Put the action, name or alias, location, domain, and device class in query when known, and choose the narrowest scope.",
+        "HassPlannedAction": "Schedule one Home Assistant action to run once after 1 to 1440 minutes. Put the complete future action in description; this tool does not execute it now.",
+        "HassListPlannedActions": "List all pending one-time actions scheduled by this agent. This does not change them.",
+        "HassCancelAllPlannedActions": "Cancel every pending one-time action scheduled by this agent. Use only when the user explicitly asks to cancel all of them."
     },
     "config": {
         "step": {

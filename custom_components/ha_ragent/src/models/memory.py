@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
 
-@dataclass(frozen=True)
-class Memory:
+
+@dataclass
+class Memory(EmbeddableModel):
     id: str
     content: str
     created_at: str
     retrieval_count: int = 0
 
     def to_embedding_text(self) -> str:
-        return json.dumps({"memory": self.content})
+        return f"Content: {self.content}"
 
     def to_dict(self) -> dict[str, Any]:
         return {
