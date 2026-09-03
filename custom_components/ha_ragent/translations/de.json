@@ -1,11 +1,11 @@
 {
     "tool_descriptions": {
-        "HassRememberFact": "Speichere eine stabile Tatsache im Langzeitgedächtnis, wenn der Nutzer ausdrücklich darum bittet. Speichere keine Befehle, Passwörter, Zugangscodes, API-Schlüssel, Authentifizierungsdaten oder temporären Gerätezustände.",
-        "HassForgetFact": "Lösche genau eine Langzeiterinnerung mit der exakten memory_id.",
-        "HassSemanticSearch": "Löse Home-Assistant-Ziele mit semantischer Suche auf. Verwende dieses Tool bei ungenauen Namen, natürlichen Gerätebezeichnungen, Orten, Tippfehlern, Kategorien oder wenn ein Gerät nicht gefunden wird.",
-        "HassPlannedAction": "Plane eine einmalige Home-Assistant-Aktion für später. Verwende dieses Tool bei zukünftigen Verzögerungen. Nicht für Timer-Anfragen verwenden und die Aktion nicht sofort ausführen.",
-        "HassListPlannedActions": "Liste alle derzeit geplanten einmaligen Home-Assistant-Aktionen auf.",
-        "HassCancelAllPlannedActions": "Brich alle derzeit geplanten einmaligen Home-Assistant-Aktionen ab."
+        "HassRememberFact": "Speichert eine Tatsache für künftige Gespräche.",
+        "HassForgetFact": "Löscht eine gespeicherte Tatsache anhand ihrer memory_id.",
+        "HassSemanticSearch": "Durchsucht Home-Assistant-Geräte und -Tools.",
+        "HassPlannedAction": "Plant eine einmalige Home-Assistant-Aktion für später.",
+        "HassListPlannedActions": "Listet die geplanten Aktionen dieses Agenten auf.",
+        "HassCancelAllPlannedActions": "Bricht alle geplanten Aktionen dieses Agenten ab."
     },
     "config": {
         "step": {

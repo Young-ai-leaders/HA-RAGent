@@ -8,8 +8,11 @@ from homeassistant.helpers import llm
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
     RAGENT_LLM_API_ID,
-    RAGENT_LLM_API_NAME
+    RAGENT_LLM_API_NAME,
+    RAGENT_PREFIXED_TOOL_NAMES_BY_NAME,
+    RAGENT_TOOL_NAMES_BY_PREFIXED_NAME,
 )
+from custom_components.ha_ragent.src.utils import get_tool_description
 
 from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
 from custom_components.ha_ragent.src.homeassistant.tools.cancel_all_planned_actions import RAGentCancelAllPlannedActionsTool
@@ -39,8 +42,6 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         self._wrapped_api = wrapped_api
         self.prompt = getattr(wrapped_api, "prompt", "")
         self.custom_serializer = getattr(wrapped_api, "custom_serializer", None)
-        self._custom_tool_namespace = DOMAIN
-
         wrapped_tools = list(getattr(wrapped_api, "tools", []) or [])
         scoped_search_tool = RAGentSemanticSearchTool(hass, entry_id, subentry_id, llm_context.language)
         planned_action_tool = RAGentPlannedActionTool(
@@ -71,6 +72,9 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             elif tool_name == RAGentForgetTool.name:
                 self.tools.append(forget_tool)
             else:
+                description = get_tool_description(llm_context.language, tool_name)
+                if description:
+                    tool.description = description
                 self.tools.append(tool)
 
         if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentSemanticSearchTool.name, wrapped_tools):
@@ -87,8 +91,18 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
             self.tools.append(forget_tool)
 
         for tool in self.tools:
-            if isinstance(tool, (RAGentSemanticSearchTool, RAGentPlannedActionTool, RAGentCancelAllPlannedActionsTool)):
-                tool.name = f"{self._custom_tool_namespace}__{tool.name}"
+            if isinstance(
+                tool,
+                (
+                    RAGentSemanticSearchTool,
+                    RAGentPlannedActionTool,
+                    RAGentCancelAllPlannedActionsTool,
+                    RAGentListPlannedActionsTool,
+                    RAGentRememberTool,
+                    RAGentForgetTool,
+                ),
+            ):
+                tool.name = RAGENT_PREFIXED_TOOL_NAMES_BY_NAME[tool.name]
 
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to the wrapped API instance."""
@@ -116,20 +130,13 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:
         """Intercept calls to RAGent tools and delegate to the appropriate tool instance."""
-        custom_tool_names = {
-            f"{self._custom_tool_namespace}__{RAGentSemanticSearchTool.name}",
-            f"{self._custom_tool_namespace}__{RAGentPlannedActionTool.name}",
-            f"{self._custom_tool_namespace}__{RAGentCancelAllPlannedActionsTool.name}",
-            f"{self._custom_tool_namespace}__{RAGentListPlannedActionsTool.name}",
-            f"{self._custom_tool_namespace}__{RAGentRememberTool.name}",
-            f"{self._custom_tool_namespace}__{RAGentForgetTool.name}",
-        }
+        custom_tool_names = set(RAGENT_TOOL_NAMES_BY_PREFIXED_NAME)
         if tool_input.tool_name in custom_tool_names:
             for tool in self.tools:
                 if tool.name == tool_input.tool_name:
                     return await tool.async_call(
                         llm.ToolInput(
-                            tool_name=tool_input.tool_name.rsplit("__", 1)[-1],
+                            tool_name=RAGENT_TOOL_NAMES_BY_PREFIXED_NAME[tool_input.tool_name],
                             tool_args=tool_input.tool_args,
                             id=tool_input.id,
                             external=tool_input.external,

@@ -20,7 +20,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_MODEL,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
-    RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+    RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.models.tool import LlmTool
@@ -248,7 +248,7 @@ def test_tool_names_are_split_for_request_logging() -> None:
             metadata={},
         ),
         LlmTool(
-            name=RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+            name=RAGENT_PREFIXED_REQUIRED_TOOL_NAMES[0],
             description="Search",
             parameters={},
             metadata={},
@@ -258,7 +258,7 @@ def test_tool_names_are_split_for_request_logging() -> None:
     tool_names, required_tool_names = ALlmBaseBackend.split_tool_names(tools)
 
     assert tool_names == ["HassTurnOn"]
-    assert required_tool_names == [RAGENT_SEMANTIC_SEARCH_TOOL_NAME]
+    assert required_tool_names == [RAGENT_PREFIXED_REQUIRED_TOOL_NAMES[0]]
 
 def test_validate_connection(backend_case: BackendCase, hass: MockHomeAssistant) -> None:
     """Test connection validation for every backend."""

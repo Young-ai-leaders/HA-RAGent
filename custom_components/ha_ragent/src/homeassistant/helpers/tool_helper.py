@@ -31,7 +31,7 @@ class ToolHelper:
         if not isinstance(json_string, str):
             return None
 
-        json_string = json_string.replace("'", '"').strip()
+        json_string = json_string.strip()
 
         try:
             return json.loads(json_string)

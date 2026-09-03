@@ -17,8 +17,29 @@ RAGENT_SCHEDULED_ACTIONS = "scheduled_actions"
 RAGENT_MEMORY_LOCKS = "memory_locks"
 RAGENT_SCHEDULED_REQUEST_PREFIX = "[scheduled-action] "
 
+RAGENT_TOOL_NAMES = [
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+    RAGENT_PLANNED_ACTION_TOOL_NAME,
+    RAGENT_CANCEL_ALL_PLANNED_ACTIONS_TOOL_NAME,
+    RAGENT_LIST_PLANNED_ACTIONS_TOOL_NAME,
+    RAGENT_REMEMBER_TOOL_NAME,
+    RAGENT_FORGET_TOOL_NAME,
+]
+
+RAGENT_PREFIXED_TOOL_NAMES = [
+    f"{DOMAIN}__{tool_name}" for tool_name in RAGENT_TOOL_NAMES
+]
+RAGENT_PREFIXED_TOOL_NAMES_BY_NAME = dict(zip(RAGENT_TOOL_NAMES, RAGENT_PREFIXED_TOOL_NAMES))
+RAGENT_TOOL_NAMES_BY_PREFIXED_NAME = {
+    prefixed_name: tool_name
+    for tool_name, prefixed_name in RAGENT_PREFIXED_TOOL_NAMES_BY_NAME.items()
+}
+
 RAGENT_REQUIRED_TOOL_NAMES = [
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+]
+RAGENT_PREFIXED_REQUIRED_TOOL_NAMES = [
+    RAGENT_PREFIXED_TOOL_NAMES_BY_NAME[name] for name in RAGENT_REQUIRED_TOOL_NAMES
 ]
 
 RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
@@ -27,6 +48,10 @@ RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
     RAGENT_CANCEL_ALL_PLANNED_ACTIONS_TOOL_NAME,
     RAGENT_REMEMBER_TOOL_NAME,
     RAGENT_FORGET_TOOL_NAME,
+]
+RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
+    RAGENT_PREFIXED_TOOL_NAMES_BY_NAME[name]
+    for name in RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES
 ]
 
 STARTUP_EMBEDDING_RUNNING_FLAG = "ha_ragent_startup_embedding_running"
@@ -192,7 +217,10 @@ INSTRUCTION_PROMPT = {
 Erfülle die neueste Anfrage exakt einmal. Frühere Nachrichten dienen nur zum Auflösen von Bezügen und Antworten wie „ja“.
 
 ## Regeln
-- Wenn ein angefordertes Gerät nicht gefunden wird, verwende `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` einmal mit einer Beschreibung des gesuchten Geräts, bevor du nachfragst oder aufgibst.
+- Entscheide zuerst, ob für die neueste Anfrage überhaupt ein Tool nötig ist. Beantworte eine Frage direkt, wenn die Antwort bereits im Gespräch, in den relevanten Langzeiterinnerungen oder im Systemkontext steht.
+- Rufe für eine Gesprächs-, Fakten-, Erinnerungs- oder Informationsfrage niemals ein Tool auf, das den Home-Assistant-Zustand ändert. Insbesondere darf `intent__HassCancelAllTimers` nur aufgerufen werden, wenn die neueste Nutzeranfrage ausdrücklich das Abbrechen aller Timer verlangt.
+- Wenn das angeforderte Gerät oder die benötigte Fähigkeit nicht exakt und eindeutig in den verfügbaren Tools oder im Kontext vorhanden ist, rufe `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` einmal auf, bevor du ein ähnliches Ziel auswählst, nachfragst oder aufgibst. Verwende `devices` für eine Entität, `tools` für eine Fähigkeit oder bei Bedarf `both`. Rufe niemals ein Tool auf, das nicht in der aktuellen Tool-Liste oder in den Suchergebnissen vorhanden ist.
+- Nimm in die Suchanfrage alle bekannten relevanten Fakten auf: die gewünschte Aktion, den Gerätenamen oder Alias sowie `area`, `floor`, `domain` und `device_class`, sofern bekannt. Bei einer Tool-Suche beschreibe die benötigte Fähigkeit, Aktion und relevante Parameter; erfinde keine fehlenden Werte.
 - Wenn eine Klärung erforderlich ist, stelle eine kurze Frage direkt, statt zu raten oder eine unsichere Aktion auszuführen.
 - Ermittle Aktion, Ziel, Ort, Anfrage und Tool-Argumente neu aus der neuesten Nachricht.
 - Neue Gerätenamen oder Orte ersetzen frühere Ziele und Tool-Argumente. Frühere Tool-Ergebnisse dienen nur als Kontext.
@@ -214,6 +242,8 @@ Gib entweder alle nötigen unabhängigen Tool-Aufrufe oder eine kurze Antwort in
 Complete the latest request exactly once. Use earlier messages only to resolve explicit references such as “yes”, “the same one”, or “there”.
 
 ## Rules
+- First decide whether a tool is necessary for the latest request. Answer directly when the request is a question whose answer is already present in the conversation, Relevant Long-Term Memories, or system context.
+- Do not call any tool that changes Home Assistant state for a conversational, factual, memory, or informational question. In particular, never call `intent__HassCancelAllTimers` unless the latest user request explicitly asks to cancel every timer.
 - Re-determine the action, target, location, query and tool arguments from the latest message.
 - New device names or locations replace earlier targets and tool arguments. Previous tool results are context only.
 - Preserve requested action, names, category, locations, quantity and exclusions. Never add unrequested targets.
@@ -221,7 +251,8 @@ Complete the latest request exactly once. Use earlier messages only to resolve e
 - Category, plural or “all”: make one call per requested location using `domain`; do not use `name` or enumerate devices.
 - Explicit device: make one call with `name` equal to its exact full `entity_id`.
  - Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
- - If a requested device cannot be found, use `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` once with a description of the intended device before asking the user or giving up.
+- If the requested device or capability is not an exact, unambiguous match in the available tools or context, call `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` once before choosing a similar target, asking the user or giving up. Use `devices` for an entity, `tools` for a capability, or `both` when necessary. Never call a tool that is not in the current tool list or search results.
+- Include every known relevant fact in the search query: the requested action, device name or alias, and `area`, `floor`, `domain` and `device_class` when known. For a tool search, describe the required capability, action and relevant parameters. Never invent missing values.
 - Search at most once for missing context. Retrieved candidates are hints, not targets. Ask only if the target remains ambiguous.
 - If clarification is required, ask one concise question directly instead of guessing or executing an uncertain action.
 - Choose the tool from the requested action. Use light-setting tools only for brightness, color or color temperature. Information requests never change state.

@@ -21,7 +21,7 @@ from homeassistant.helpers.llm import LLMContext
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
     CONF_EXCLUDED_TOOLS,
-    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_TIMER_DEVICE_ID,
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
@@ -160,7 +160,7 @@ class ToolExtractor:
                 base_tool_name = tool_name.rsplit("__", 1)[-1]
                 if (
                     base_tool_name == "GetLiveContext"
-                    or base_tool_name in RAGENT_REQUIRED_TOOL_NAMES
+                    or tool_name in RAGENT_PREFIXED_REQUIRED_TOOL_NAMES
                     or tool_name in excluded_tools
                     or base_tool_name in excluded_tools
                     or tool_name in seen_tool_names

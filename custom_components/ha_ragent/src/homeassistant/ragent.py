@@ -60,9 +60,9 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_SELECTED_LANGUAGE,
     CONF_ALLOW_QUESTIONS,
     DEFAULT_ALLOW_QUESTIONS,
-    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
-    RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
+    RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
 )
 
 from custom_components.ha_ragent.src.utils import (
@@ -228,7 +228,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         required_tools: list[LlmTool] = []
         for api_tool in llm_api.tools:
             tool_name = getattr(api_tool, "name", None)
-            if tool_name not in RAGENT_REQUIRED_TOOL_NAMES or tool_name in seen_tool_names:
+            if tool_name not in RAGENT_PREFIXED_REQUIRED_TOOL_NAMES or tool_name in seen_tool_names:
                 continue
 
             converted_tool = self._convert_api_tool(api_tool, llm_api)
@@ -244,7 +244,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         if not scheduled_request:
             return tool_list
         
-        prohibited = set(RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
+        prohibited = set(RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
         return [tool for tool in tool_list if tool.name not in prohibited]
 
     def _get_current_device_location(self, llm_context: LLMContext) -> ar.AreaEntry | None:

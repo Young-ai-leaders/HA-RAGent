@@ -1,11 +1,11 @@
 {
     "tool_descriptions": {
-        "HassRememberFact": "Store one stable fact in long-term memory. Call this only when the user explicitly asks you to remember, save, or retain that fact for future conversations. Store the fact itself as a short self-contained statement. Never store commands, passwords, access codes, API keys, authentication data, or temporary device states.",
-        "HassForgetFact": "Delete one long-term memory. Use only the exact memory_id shown in Relevant Long-Term Memories. Never guess an ID. If no matching recalled memory is present, ask the user for clarification instead of deleting another memory.",
-        "HassSemanticSearch": "Resolve Home Assistant targets with semantic search. Use when the request contains a fuzzy name, natural-language reference, area, typo, category, or when a requested device cannot be found by name. Use `devices` for entities, `tools` for capabilities, or `both` when needed. Do not guess when search can resolve the target. Describe the intended target and action briefly.",
-        "HassPlannedAction": "Schedule one Home Assistant action for future execution. Use whenever the user asks an action to happen later or after a delay. Do not use for explicit timer requests or execute the action now. The description must contain only the immediate action and target, without time wording.",
-        "HassListPlannedActions": "List all currently scheduled one-time Home Assistant actions.",
-        "HassCancelAllPlannedActions": "Cancel all currently scheduled one-time Home Assistant actions. Use this when the user asks to clear, cancel or delete all planned actions."
+        "HassRememberFact": "Stores a fact for future conversations.",
+        "HassForgetFact": "Deletes a saved fact by its memory ID.",
+        "HassSemanticSearch": "Searches Home Assistant devices and tools.",
+        "HassPlannedAction": "Schedules a one-time Home Assistant action.",
+        "HassListPlannedActions": "Lists this agent's planned actions.",
+        "HassCancelAllPlannedActions": "Cancels this agent's planned actions."
     },
     "config": {
         "step": {
