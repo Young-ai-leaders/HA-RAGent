@@ -102,6 +102,8 @@
                         "rag_max_tool_call_iterations": "Maximale Tool-Call-Iterationen",
                         "rag_num_devices_to_extract": "Anzahl Geräte",
                         "rag_num_tools_to_extract": "Anzahl Tools",
+                        "rag_num_memories_to_extract": "Anzahl Langzeiterinnerungen",
+                        "rag_max_memory_entries": "Maximale Anzahl gespeicherter Erinnerungen",
                         "rag_excluded_tools": "Tools vom Embedding ausschließen",
                         "rag_remember_conversation_num_interactions": "Gespeicherte Gesprächsinteraktionen",
                         "rag_remember_conversation_time_minutes": "Gesprächsspeicherdauer (Minuten)"
@@ -117,6 +119,8 @@
                         "rag_max_tool_call_iterations": "Begrenzung, wie oft der Agent pro Anfrage externe Tools aufrufen darf",
                         "rag_num_devices_to_extract": "Anzahl relevanter Geräte, die pro Anfrage extrahiert und in den Modellkontext aufgenommen werden",
                         "rag_num_tools_to_extract": "Anzahl relevanter Tools, die pro Anfrage extrahiert und in den Modellkontext aufgenommen werden",
+                        "rag_num_memories_to_extract": "Maximale Anzahl relevanter Langzeiterinnerungen im Modellkontext pro Anfrage. 0 deaktiviert den Abruf, ohne gespeicherte Erinnerungen zu löschen.",
+                        "rag_max_memory_entries": "Maximale Anzahl der zu speichernden Langzeiterinnerungen.",
                         "rag_excluded_tools": "Tool-Namen vom Embedding ausschließen. Exakte Tool-Namen eingeben (Groß/Kleinschreibung wird beachtet).",
                         "rag_remember_conversation_num_interactions": "Wie viele frühere Benutzerinteraktionen im Speicher behalten werden",
                         "rag_remember_conversation_time_minutes": "Wie lange sich der Assistent das Gespräch in Minuten merken soll"

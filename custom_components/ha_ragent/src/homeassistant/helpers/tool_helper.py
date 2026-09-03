@@ -31,7 +31,7 @@ class ToolHelper:
         if not isinstance(json_string, str):
             return None
 
-        json_string = json_string.replace("'", '"').strip()
+        json_string = json_string.strip()
 
         try:
             return json.loads(json_string)
@@ -217,7 +217,7 @@ class ToolHelper:
         if (name or domain) and area:
             return
 
-        raise ValueError(f"Device tool {tool_call.tool_name} requires a combination of name and area or domain and area.")
+        raise ValueError(f"Device tool {tool_call.tool_name} requires a combination: name plus area/floor for one device, or domain plus area/floor without name for an all/plural/category target. Never enumerate a whole category.")
 
     @staticmethod
     def parse_tool_results(tool_result: JsonObjectType) -> Dict[str, Any]:

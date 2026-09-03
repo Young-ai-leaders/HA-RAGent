@@ -2,22 +2,26 @@ import logging
 import os
 from typing import Any, Dict, List
 
-from homeassistant.core import HomeAssistant
+try:
+    from homeassistant.core import HomeAssistant
+except ImportError:
+    from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
 import faiss
 import numpy as np
 import pickle
 
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
+from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.memory import Memory
+from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
 
-from ...const import (
+from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_NAME
 )
-
-from ...models.device import Device
-from ...models.device_embedding import DeviceEmbedding
-from ...models.tool import LlmTool
-from ...models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
 
@@ -55,6 +59,7 @@ class FaissDbBackend(ABaseDbBackend):
                     self._indices[collection_name] = faiss.read_index(idx_path)
                     with open(meta_path, "rb") as f:
                         self._metadata[collection_name] = pickle.load(f)
+
                 except Exception as e:
                     _logger.error(f"Failed to load collection {collection_name}: {e}")
                     self._create_empty(collection_name, embedding_length)
@@ -71,7 +76,7 @@ class FaissDbBackend(ABaseDbBackend):
         with open(meta_path, "wb") as f:
             pickle.dump(self._metadata[collection_name], f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]):
+    def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]):
         if not device_embeddings:
             return
 
@@ -114,6 +119,55 @@ class FaissDbBackend(ABaseDbBackend):
         self._create_empty(collection_name, embedding_length)
         self._save_to_disk(collection_name)
 
+    def _ensure_collection(self, collection_name: str, embedding_length: int):
+        self._load_collection(collection_name, embedding_length)
+        index_path, metadata_path = self._get_paths(collection_name)
+        if not os.path.exists(index_path) or not os.path.exists(metadata_path):
+            self._save_to_disk(collection_name)
+
+    def _delete_objects(self, collection_name: str, id_field: str, object_ids: List[str]) -> int:
+        index_path, metadata_path = self._get_paths(collection_name)
+        if collection_name not in self._indices and not (os.path.exists(index_path) and os.path.exists(metadata_path)):
+            return 0
+
+        self._load_collection(collection_name)
+        ids = set(object_ids)
+        current_metadata = self._metadata[collection_name]
+        remaining_metadata = [item for item in current_metadata if item.get(id_field) not in ids]
+        deleted = len(current_metadata) - len(remaining_metadata)
+        if not deleted:
+            return 0
+
+        dimension = self._indices[collection_name].d
+        self._create_empty(collection_name, dimension)
+        if remaining_metadata:
+            vectors = np.asarray([item["vector_embedding"] for item in remaining_metadata], dtype=np.float32)
+            self._indices[collection_name].add(vectors)
+            self._metadata[collection_name] = remaining_metadata
+
+        self._save_to_disk(collection_name)
+        return deleted
+
+    def _upsert_object_embeddings(self, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]):
+        if not object_embeddings:
+            return
+
+        dimension = len(object_embeddings[0].vector_embedding)
+        self._load_collection(collection_name, dimension)
+        incoming_metadata = [embedding.to_dict() for embedding in object_embeddings]
+        incoming_ids = {item[id_field] for item in incoming_metadata}
+        retained_metadata = [
+            item for item in self._metadata[collection_name]
+            if item.get(id_field) not in incoming_ids
+        ]
+        combined_metadata = [*retained_metadata, *incoming_metadata]
+        vectors = np.asarray([item["vector_embedding"] for item in combined_metadata], dtype=np.float32)
+
+        self._create_empty(collection_name, dimension)
+        self._indices[collection_name].add(vectors)
+        self._metadata[collection_name] = combined_metadata
+        self._save_to_disk(collection_name)
+
     def _cleanup_collection(self, collection_name: str):
         self._indices.pop(collection_name, None)
         self._metadata.pop(collection_name, None)
@@ -126,6 +180,22 @@ class FaissDbBackend(ABaseDbBackend):
                 except OSError as err:
                     _logger.warning(f"Failed to remove stale FAISS file {path}: {err}")
 
+    def _list_objects(self, object_type, collection_name: str):
+        self._load_collection(collection_name)
+        return [object_type.parse_object(metadata) for metadata in self._metadata[collection_name]]
+
+    def _increment_memory_retrieval_counts(self, collection_name: str, memory_ids: List[str]):
+        self._load_collection(collection_name)
+        ids = set(memory_ids)
+        changed = False
+        for metadata in self._metadata[collection_name]:
+            if metadata.get("memory_id") in ids:
+                metadata["retrieval_count"] = int(metadata.get("retrieval_count", 0) or 0) + 1
+                changed = True
+
+        if changed:
+            self._save_to_disk(collection_name)
+
     async def async_cleanup_database(self) -> None:
         try:
             await self.hass.async_add_executor_job(self._cleanup_database)
@@ -137,6 +207,13 @@ class FaissDbBackend(ABaseDbBackend):
             await self.hass.async_add_executor_job(self._reset_collection, collection_name, embedding_length)
         except Exception as e:
             _logger.error(f"Error resetting collection: {e}", exc_info=True)
+
+    async def async_ensure_collection_exists(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._ensure_collection, collection_name, embedding_length)
+        except Exception as e:
+            _logger.error(f"Error ensuring collection: {e}", exc_info=True)
+            raise
     
     async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
         try:
@@ -144,18 +221,48 @@ class FaissDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
-    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
+    async def async_save_objects(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
         except Exception as e:
             _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
+            raise
 
-    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
-        devices: List[Device] = []
+    async def async_upsert_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
+        try:
+            await self.hass.async_add_executor_job(
+                self._upsert_object_embeddings,
+                collection_name,
+                id_field,
+                object_embeddings,
+            )
+        except Exception as e:
+            _logger.error(f"Error upserting objects: {e}", exc_info=True)
+            raise
+
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
+        devices: List[Device | LlmTool | Memory] = []
         try:
             results = await self.hass.async_add_executor_job(self._query_devices, collection_name, query_embedding, top_k)
             devices = [object_type.parse_object(m) for m in results]
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
         return devices
+
+    async def async_list_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
+        try:
+            return await self.hass.async_add_executor_job(self._list_objects, object_type, collection_name)
+        except Exception as e:
+            _logger.error(f"Error listing objects: {e}", exc_info=True)
+            return []
+
+    async def async_increment_memory_retrieval_counts(self, config_subentry: dict, collection_name: str, memory_ids: List[str]) -> None:
+        await self.hass.async_add_executor_job(self._increment_memory_retrieval_counts, collection_name, memory_ids)
+
+    async def async_delete_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_ids: List[str]) -> int:
+        try:
+            return await self.hass.async_add_executor_job(self._delete_objects, collection_name, id_field, object_ids)
+        except Exception as e:
+            _logger.error(f"Error deleting objects: {e}", exc_info=True)
+            raise
 

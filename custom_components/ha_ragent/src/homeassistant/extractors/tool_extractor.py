@@ -21,7 +21,7 @@ from homeassistant.helpers.llm import LLMContext
 from custom_components.ha_ragent.src.const import (
     DOMAIN,
     CONF_EXCLUDED_TOOLS,
-    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_TIMER_DEVICE_ID,
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
@@ -160,7 +160,7 @@ class ToolExtractor:
                 base_tool_name = tool_name.rsplit("__", 1)[-1]
                 if (
                     base_tool_name == "GetLiveContext"
-                    or base_tool_name in RAGENT_REQUIRED_TOOL_NAMES
+                    or tool_name in RAGENT_PREFIXED_REQUIRED_TOOL_NAMES
                     or tool_name in excluded_tools
                     or base_tool_name in excluded_tools
                     or tool_name in seen_tool_names
@@ -222,13 +222,13 @@ class ToolExtractor:
                     return
 
                 collection_name = f"tools_{subentry_id}"
-                embedding_len = len(await self._entry.embedder_backend.async_embed_text(dict(subentry.data), "Test"))
-                await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                 tool_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), exposed_tools)
 
                 if tool_embeddings:
+                    embedding_len = len(tool_embeddings[0].vector_embedding)
+                    await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                     _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
-                    await self._entry.vector_db_backend.async_save_object_embeddings(dict(subentry.data), collection_name, tool_embeddings)
+                    await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, tool_embeddings)
                     total_embedded_tools += len(tool_embeddings)
                 else:
                     _logger.warning(f"No tools to embed for subentry {subentry_id}")

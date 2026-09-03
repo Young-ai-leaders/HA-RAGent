@@ -73,6 +73,14 @@ class HistoryManager:
         retrieval_texts = [MessageHelper.message_to_retrieval_text(message) for message in self.select_retained_history(chat_log)]
         return [text for text in retrieval_texts if text]
 
+    def recent_user_requests(self, chat_log: conversation.ChatLog) -> list[str]:
+        """Return retained user text without assistant or tool-result noise."""
+        return [
+            message.content.strip()
+            for message in self.select_retained_history(chat_log)
+            if isinstance(message, conversation.UserContent) and message.content.strip()
+        ]
+
     def build_prompt_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, system_prompt_content: str) -> list[conversation.Content]:
         """Build model history with system prompt first and current user last."""
         self._message_history = [

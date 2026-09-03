@@ -7,16 +7,20 @@ from pymongo.errors import OperationFailure
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.collection import AsyncCollection
 
-from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SSL
+try:
+    from homeassistant.core import HomeAssistant
+except ImportError:
+    from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
-from .base_backend import ABaseDbBackend
-from ...models.device import Device
-from ...models.device_embedding import DeviceEmbedding
-from ...models.tool import LlmTool
-from ...models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
+from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.memory import Memory
+from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
 
-from ...const import (
+from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_NAME,
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
@@ -171,6 +175,19 @@ class MongoDbBackend(ABaseDbBackend):
         finally:
             if conn:
                 await conn.close()
+
+    async def async_ensure_collection_exists(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+        conn = None
+        try:
+            conn = self._get_connection()
+            database = self._get_database(conn)
+            await self._async_init_database(conn, database, collection_name, embedding_length)
+        except Exception as e:
+            _logger.error(f"Error ensuring collection: {e}", exc_info=True)
+            raise
+        finally:
+            if conn:
+                await conn.close()
             
     async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
         conn = None
@@ -187,7 +204,7 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
 
-    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
+    async def async_save_objects(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
         conn = None
         try:
             conn = self._get_connection()
@@ -196,28 +213,53 @@ class MongoDbBackend(ABaseDbBackend):
             _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
         except Exception as e:
             _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
+            raise
         finally:
             if conn:
                 await conn.close()
-        
-    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
+
+    async def async_upsert_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
+        conn = None
+        try:
+            if not object_embeddings:
+                return
+            conn = self._get_connection()
+            collection = self._get_collection(conn, collection_name)
+            for embedding in object_embeddings:
+                document = embedding.to_dict()
+                await collection.replace_one(
+                    {id_field: document[id_field]},
+                    document,
+                    upsert=True,
+                )
+        except Exception as e:
+            _logger.error(f"Error upserting objects: {e}", exc_info=True)
+            raise
+        finally:
+            if conn:
+                await conn.close()
+
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
         conn = None
         devices = []
 
         try:
             conn = self._get_connection()
+            if not await self._async_collection_exists(conn, collection_name):
+                return []
             collection = self._get_collection(conn, collection_name)
 
             if object_type == DeviceEmbedding:
                 projection = {
                     "device_id": 1,
-                    "name": 1,
+                    "friendly_name": 1,
                     "domain": 1,
                     "floor_name": 1,
                     "area_name": 1,
                     "device_labels": 1,
                     "services": 1,
-                    "aliases": 1
+                    "aliases": 1,
+                    "unit_of_measurement": 1,
                 }
             elif object_type == LlmToolEmbedding:
                 projection = {
@@ -225,6 +267,13 @@ class MongoDbBackend(ABaseDbBackend):
                     "description": 1,
                     "parameters": 1,
                     "metadata": 1
+                }
+            elif object_type == MemoryEmbedding:
+                projection = {
+                    "memory_id": 1,
+                    "content": 1,
+                    "created_at": 1,
+                    "retrieval_count": 1,
                 }
             else:
                 _logger.error(f"Unsupported object type for retrieval: {object_type}")
@@ -256,3 +305,55 @@ class MongoDbBackend(ABaseDbBackend):
                 await conn.close()
                 
         return devices
+
+    async def async_list_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
+        conn = None
+        try:
+            conn = self._get_connection()
+            if not await self._async_collection_exists(conn, collection_name):
+                return []
+            collection = self._get_collection(conn, collection_name)
+            projection = {"_id": 0}
+            cursor = collection.find({}, projection)
+            results = await cursor.to_list(length=None)
+            return [object_type.parse_object(doc) for doc in results]
+        except Exception as e:
+            _logger.error(f"Error listing objects: {e}", exc_info=True)
+            return []
+        finally:
+            if conn:
+                await conn.close()
+
+    async def async_increment_memory_retrieval_counts(self, config_subentry: dict, collection_name: str, memory_ids: List[str]) -> None:
+        if not memory_ids:
+            return
+        conn = None
+        try:
+            conn = self._get_connection()
+            if await self._async_collection_exists(conn, collection_name):
+                collection = self._get_collection(conn, collection_name)
+                await collection.update_many(
+                    {"memory_id": {"$in": memory_ids}},
+                    {"$inc": {"retrieval_count": 1}},
+                )
+        finally:
+            if conn:
+                await conn.close()
+
+    async def async_delete_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_ids: List[str]) -> int:
+        conn = None
+        try:
+            if not object_ids:
+                return 0
+            conn = self._get_connection()
+            if not await self._async_collection_exists(conn, collection_name):
+                return 0
+            collection = self._get_collection(conn, collection_name)
+            result = await collection.delete_many({id_field: {"$in": object_ids}})
+            return result.deleted_count
+        except Exception as e:
+            _logger.error(f"Error deleting objects: {e}", exc_info=True)
+            raise
+        finally:
+            if conn:
+                await conn.close()

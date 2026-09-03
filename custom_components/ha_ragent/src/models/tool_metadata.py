@@ -1,21 +1,21 @@
 import json
 from dataclasses import dataclass
+from typing import Any
+
+from custom_components.ha_ragent.src.models.serializable_model import SerializableModel
 
 @dataclass
-class ToolMetadata:
+class ToolMetadata(SerializableModel):
     is_domain_aware: bool = False
     is_area_aware: bool = False
     is_device_class_aware: bool = False
 
-    def __str__(self):
-        return self.to_json()
-
-    def to_json(self):
-        return json.dumps({
+    def to_dict(self) -> dict[str, Any]:
+        return {
             "is_domain_aware": self.is_domain_aware,
             "is_area_aware": self.is_area_aware,
-            "is_device_class_aware": self.is_device_class_aware
-        })
+            "is_device_class_aware": self.is_device_class_aware,
+        }
 
     @staticmethod
     def from_json(json_str: str) -> 'ToolMetadata':

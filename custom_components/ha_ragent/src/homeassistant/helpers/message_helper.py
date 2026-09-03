@@ -24,8 +24,13 @@ class MessageHelper:
     @staticmethod
     def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, previous_result: object) -> conversation.ToolResultContent:
         """Return the original result for a repeated tool call."""
+        success_value = previous_result.get("success")
+        if success_value is None:
+            success = not any(previous_result.get(key) for key in ("error", "errors"))
+        else:
+            success = bool(success_value)
         result = {
-            "success": previous_result.get("success") is True,
+            "success": success,
             "already_executed": True,
         }
         for error_key in ("error", "errors"):

@@ -3,23 +3,27 @@ import asyncio
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from homeassistant.core import HomeAssistant
+try:
+    from homeassistant.core import HomeAssistant
+except ImportError:
+    from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
 from chromadb import Client
 from chromadb.config import Settings
 
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
+from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.memory import Memory
+from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
 
-from ...const import (
+from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_HOST,
     CONF_VECTOR_DB_PORT,
     CONF_VECTOR_DB_SSL,
 )
-
-from ...models.device import Device
-from ...models.device_embedding import DeviceEmbedding
-from ...models.tool import LlmTool
-from ...models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
 
@@ -44,7 +48,6 @@ class ChromaDbBackend(ABaseDbBackend):
         host = client_options.get(CONF_VECTOR_DB_HOST)
         port = client_options.get(CONF_VECTOR_DB_PORT)
         ssl = client_options.get(CONF_VECTOR_DB_SSL)
-
         settings = Settings(
             chroma_api_impl="chromadb.api.fastapi.FastAPI",
             chroma_server_host=host,
@@ -61,23 +64,36 @@ class ChromaDbBackend(ABaseDbBackend):
             return await hass.async_add_executor_job(ChromaDbBackend._validate_connection, user_input)
         except Exception as e:
             _logger.error(f"Error validating ChromaDB connection: {e}", exc_info=True)
+            return str(e)
 
     def _get_client(self) -> Client:
         if self._client is None:
             self._client = Client(settings=self._settings)
+
         return self._client
     
     def _collection_exists(self, client: Client, collection_name: str) -> bool:
         collections = [col.name for col in client.list_collections()]
         return collection_name in collections
+
+    @staticmethod
+    def _sanitize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Remove values that are invalid or redundant in Chroma metadata."""
+        return {
+            key: value
+            for key, value in metadata.items()
+            if key != "vector_embedding"
+            and value is not None
+            and not (isinstance(value, list) and not value)
+        }
     
-    def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]):
+    def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]):
         collection = self._get_client().get_or_create_collection(name=collection_name)
 
-        metadatas = []
-        for emb in device_embeddings:
-            meta = emb.to_dict()
-            metadatas.append({k: v for k, v in meta.items() if not (isinstance(v, list) and len(v) == 0)})
+        metadatas = [
+            self._sanitize_metadata(embedding.to_dict())
+            for embedding in device_embeddings
+        ]
 
         ids = [str(uuid4()) for emb in device_embeddings]
         embeddings = [emb.vector_embedding for emb in device_embeddings]
@@ -85,10 +101,18 @@ class ChromaDbBackend(ABaseDbBackend):
         _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
 
     def _query_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
-        collection = self._get_client().get_collection(name=collection_name)
+        client = self._get_client()
+        if not self._collection_exists(client, collection_name):
+            return {"metadatas": []}
+        
+        collection = client.get_collection(name=collection_name)
+        object_count = collection.count()
+        if object_count == 0:
+            return {"metadatas": []}
+        
         return collection.query(
             query_embeddings=[query_embedding],
-            n_results=top_k,
+            n_results=min(top_k, object_count),
             include=["metadatas"],
         )
 
@@ -104,6 +128,37 @@ class ChromaDbBackend(ABaseDbBackend):
             _logger.info(f"Collection {collection_name} reset successfully")
         except Exception as e:
             _logger.error(f"Error resetting Chroma collection: {e}", exc_info=True)
+
+    def _ensure_collection(self, collection_name: str):
+        self._get_client().get_or_create_collection(name=collection_name)
+
+    def _delete_objects(self, collection_name: str, id_field: str, object_ids: List[str]) -> int:
+        client = self._get_client()
+        if not object_ids or not self._collection_exists(client, collection_name):
+            return 0
+
+        collection = client.get_collection(name=collection_name)
+        where = {id_field: object_ids[0]} if len(object_ids) == 1 else {id_field: {"$in": object_ids}}
+        matching_ids = collection.get(where=where, include=[]).get("ids", [])
+        if matching_ids:
+            collection.delete(ids=matching_ids)
+
+        return len(matching_ids)
+
+    def _upsert_object_embeddings(self, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]):
+        if not object_embeddings:
+            return
+
+        collection = self._get_client().get_or_create_collection(name=collection_name)
+        metadatas = [
+            self._sanitize_metadata(embedding.to_dict())
+            for embedding in object_embeddings
+        ]
+        collection.upsert(
+            ids=[str(metadata[id_field]) for metadata in metadatas],
+            metadatas=metadatas,
+            embeddings=[embedding.vector_embedding for embedding in object_embeddings],
+        )
     
     def _cleanup_collection(self, collection_name: str):
         try:
@@ -111,13 +166,40 @@ class ChromaDbBackend(ABaseDbBackend):
             if self._collection_exists(client, collection_name):
                 client.delete_collection(name=collection_name)
                 _logger.info(f"Collection {collection_name} deleted successfully")
+
         except Exception as e:
             _logger.error(f"Error deleting Chroma collection: {e}", exc_info=True)
+
+    def _list_objects(self, object_type, collection_name: str):
+        client = self._get_client()
+        if not self._collection_exists(client, collection_name):
+            return []
+        metadata = client.get_collection(name=collection_name).get().get("metadatas") or []
+        return [object_type.parse_object(item) for item in metadata if item]
+
+    def _increment_memory_retrieval_counts(self, collection_name: str, memory_ids: List[str]):
+        client = self._get_client()
+        if not memory_ids or not self._collection_exists(client, collection_name):
+            return
+        
+        collection = client.get_collection(name=collection_name)
+        result = collection.get(ids=memory_ids, include=["metadatas"])
+        ids = result.get("ids", [])
+        metadatas = result.get("metadatas", [])
+        updated = []
+        for metadata in metadatas:
+            metadata = dict(metadata or {})
+            metadata["retrieval_count"] = int(metadata.get("retrieval_count", 0) or 0) + 1
+            updated.append(self._sanitize_metadata(metadata))
+
+        if ids:
+            collection.update(ids=ids, metadatas=updated)
     
     def _cleanup_database(self):
         try:
             for col in self._get_client().list_collections():
                 self._get_client().delete_collection(col.name)
+
             _logger.info(f"Database cleanup for {self._get_client()} successful.")
         except Exception as e:
              _logger.error(f"Error cleaning up database: {e}", exc_info=True)
@@ -134,26 +216,64 @@ class ChromaDbBackend(ABaseDbBackend):
         except Exception as e:
             _logger.error(f"Error resetting collection: {e}", exc_info=True)
 
+    async def async_ensure_collection_exists(self, config_subentry: dict, collection_name: str, embedding_length: int) -> None:
+        try:
+            await self.hass.async_add_executor_job(self._ensure_collection, collection_name)
+        except Exception as e:
+            _logger.error(f"Error ensuring collection: {e}", exc_info=True)
+            raise
+
     async def async_cleanup_collection(self, config_subentry: dict, collection_name: str) -> None:
         try:
             await self.hass.async_add_executor_job(self._cleanup_collection, collection_name)
         except Exception as e:
             _logger.error(f"Error cleaning up collection: {e}", exc_info=True)
 
-    async def async_save_object_embeddings(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding]) -> None:
+    async def async_save_objects(self, config_subentry: dict, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]) -> None:
         try:
             await self.hass.async_add_executor_job(self._save_device_embeddings, collection_name, device_embeddings)
         except Exception as e:
              _logger.error(f"Error saving device embeddings: {e}", exc_info=True)
+             raise
 
-    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool]:
-        devices: List[Device] = []
+    async def async_upsert_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_embeddings: List[MemoryEmbedding]) -> None:
+        try:
+            await self.hass.async_add_executor_job(
+                self._upsert_object_embeddings,
+                collection_name,
+                id_field,
+                object_embeddings,
+            )
+        except Exception as e:
+            _logger.error(f"Error upserting objects: {e}", exc_info=True)
+            raise
+
+    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
+        devices: List[Device | LlmTool | Memory] = []
         try:
             result = await self.hass.async_add_executor_job(self._query_devices, collection_name, query_embedding, top_k)
             metadata = result.get("metadatas") or []
             if metadata:
                 devices = [object_type.parse_object(m) for m in metadata[0]]
+                
         except Exception as e:
             _logger.error(f"Error retrieving devices: {e}", exc_info=True)
         return devices
+
+    async def async_list_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
+        try:
+            return await self.hass.async_add_executor_job(self._list_objects, object_type, collection_name)
+        except Exception as e:
+            _logger.error(f"Error listing objects: {e}", exc_info=True)
+            return []
+
+    async def async_increment_memory_retrieval_counts(self, config_subentry: dict, collection_name: str, memory_ids: List[str]) -> None:
+        await self.hass.async_add_executor_job(self._increment_memory_retrieval_counts, collection_name, memory_ids)
+
+    async def async_delete_objects(self, config_subentry: dict, collection_name: str, id_field: str, object_ids: List[str]) -> int:
+        try:
+            return await self.hass.async_add_executor_job(self._delete_objects, collection_name, id_field, object_ids)
+        except Exception as e:
+            _logger.error(f"Error deleting objects: {e}", exc_info=True)
+            raise
 

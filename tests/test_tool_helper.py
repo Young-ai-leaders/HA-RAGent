@@ -23,6 +23,18 @@ def test_parse_tool_call_preserves_friendly_name() -> None:
     }
     hass.states.get.assert_not_called()
 
+def test_parse_tool_call_preserves_apostrophes_in_json_strings() -> None:
+    """Valid JSON strings containing apostrophes must not be rewritten."""
+    helper = ToolHelper(Mock())
+    response = """```homeassistant
+{"tool": "HassRememberFact", "arguments": {"memory": "My brother's name is Elias."}}
+```"""
+
+    calls = helper.parse_tool_calls(response)
+
+    assert len(calls) == 1
+    assert calls[0].tool_args == {"memory": "My brother's name is Elias."}
+
 def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     """A device class supplies the domain when the model omitted it."""
     hass = Mock()

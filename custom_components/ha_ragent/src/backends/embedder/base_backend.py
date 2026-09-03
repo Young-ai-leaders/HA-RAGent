@@ -3,6 +3,8 @@ import aiohttp
 from typing import Any, Dict, List
 
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
+from custom_components.ha_ragent.src.models.embedding_record import EmbeddingRecord
 
 try:
     from homeassistant.core import HomeAssistant
@@ -19,6 +21,8 @@ from custom_components.ha_ragent.src.models.device import Device
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.memory import Memory
+from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
 
 
 class ABaseEmbedder(ABC):
@@ -37,40 +41,75 @@ class ABaseEmbedder(ABC):
 
     @staticmethod
     def normalize_api_key(api_key: str) -> str:
+        """Normalize the API key by stripping whitespaces and returning an empty string if None."""
         return str(api_key or "").strip()
         
     @staticmethod
     def format_url(hostname: str, port: str, ssl: bool, path: str) -> str:
+        """Format the URL for the embedding backend."""
         return f"{'https' if ssl else 'http'}://{hostname}{ ':' + str(port) if port else ''}{path}"
 
     @staticmethod
     def get_name() -> str:
+        """Return the name of the embedding backend."""
         return "Embedder"
+
+    @staticmethod
+    def build_embedding_records(objects: List[EmbeddableModel], vectors: List[List[float]]) -> List[EmbeddingRecord]:
+        """Pair objects with validated vectors using their persisted record type."""
+        if len(objects) != len(vectors):
+            raise ValueError(f"Embedding backend returned {len(vectors)} vectors for {len(objects)} objects")
+
+        records: List[EmbeddingRecord] = []
+        dimension = len(vectors[0]) if vectors else 0
+        if not dimension and objects:
+            raise ValueError("Embedding backend returned an empty vector")
+
+        for obj, vector in zip(objects, vectors):
+            if len(vector) != dimension:
+                raise ValueError("Embedding backend returned vectors with inconsistent dimensions")
+            if isinstance(obj, Device):
+                records.append(DeviceEmbedding(obj, vector))
+            elif isinstance(obj, LlmTool):
+                records.append(LlmToolEmbedding(obj, vector))
+            elif isinstance(obj, Memory):
+                records.append(MemoryEmbedding(obj, vector))
+            else:
+                raise TypeError(f"Unsupported embeddable object: {type(obj).__name__}")
+
+        return records
     
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
+        """Validate the connection to the embedding backend."""
         raise NotImplementedError()
     
     @abstractmethod
     async def async_get_model_info(self, model_name: str) -> ModelInfo:
+        """Return information about the specified embedding model."""
         raise NotImplementedError()
     
     @abstractmethod
     async def async_preload_model(self, config_subentry: dict) -> None:
+        """Preload the model and any resources associated with it."""
         raise NotImplementedError()
     
     @abstractmethod
     async def async_unload_model(self, config_subentry: dict) -> None:
+        """Unload the model and free any resources associated with it."""
         raise NotImplementedError()
     
     @abstractmethod
     async def async_get_available_models(self) -> List[str]:
+        """Return a list of available embedding models."""
         raise NotImplementedError()
     
     @abstractmethod
     async def async_embed_text(self, config_subentry: dict, text: str, **kwargs) -> List[float]:
+        """Embed a single text string and return the vector embedding."""
         raise NotImplementedError()
     
     @abstractmethod
-    async def async_embed_object(self, config_subentry: dict, objects: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
+    async def async_embed_object(self, config_subentry: dict, objects: List[EmbeddableModel]) -> List[EmbeddingRecord]:
+        """Embed a list of objects and return the vector embeddings."""
         raise NotImplementedError()

@@ -13,7 +13,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_HOST,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
-    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
 )
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -56,14 +56,13 @@ class ALlmBaseBackend(ABC):
     @staticmethod
     def split_tool_names(tools: List[LlmTool]) -> tuple[list[str], list[str]]:
         """Separate selected and always-required tool names for logging."""
-        required_names = set(RAGENT_REQUIRED_TOOL_NAMES)
+        required_names = set(RAGENT_PREFIXED_REQUIRED_TOOL_NAMES)
         tools_names: list[str] = []
         required_tools_names: list[str] = []
         for tool in tools:
-            base_tool_name = tool.name.rsplit("__", 1)[-1]
             target = (
                 required_tools_names
-                if base_tool_name in required_names
+                if tool.name in required_names
                 else tools_names
             )
             target.append(tool.name)

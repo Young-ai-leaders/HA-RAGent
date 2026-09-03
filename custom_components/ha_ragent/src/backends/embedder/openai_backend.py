@@ -21,11 +21,9 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_EMBEDDING_BATCH_SIZE
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
+from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
+from custom_components.ha_ragent.src.models.embedding_record import EmbeddingRecord
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 
 _logger = logging.getLogger(__name__)
     
@@ -57,7 +55,7 @@ class OpenAiEmbedder(ABaseEmbedder):
     @staticmethod
     def _truncate_inputs(inputs: List[str], max_chars: int = RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS) -> List[str]:
         """Keep embedding requests within a conservative context-size limit."""
-        return [text[-max_chars:] if len(text) > max_chars else text for text in inputs]
+        return [text[:max_chars] if len(text) > max_chars else text for text in inputs]
 
     @staticmethod
     async def async_validate_connection(hass: HomeAssistant, user_input: Dict[str, Any]) -> str | None:
@@ -127,7 +125,7 @@ class OpenAiEmbedder(ABaseEmbedder):
 
         client = await self._async_get_client()
         for attempt in range(RAGENT_EMBEDDING_TRUNCATE_RETRIES + 1):
-            request_inputs = self._truncate_inputs(inputs, max_chars) if attempt else inputs
+            request_inputs = self._truncate_inputs(inputs, max_chars)
             try:
                 response = await client.embeddings.create(
                     model=config_subentry[CONF_EMBEDDING_MODEL],
@@ -152,16 +150,14 @@ class OpenAiEmbedder(ABaseEmbedder):
         embeddings = await self._async_embed_batch(config_subentry, [text])
         return embeddings[0] if embeddings else []
 
-    async def async_embed_object(self, config_subentry: dict, objects: List[Device | LlmTool]) -> List[DeviceEmbedding | LlmToolEmbedding]:
+    async def async_embed_object(self, config_subentry: dict, objects: List[EmbeddableModel]) -> List[EmbeddingRecord]:
         if not objects:
             return []
 
-        device_embeddings = []
-        object_type = DeviceEmbedding if issubclass(objects[0].__class__, Device) else LlmToolEmbedding
+        object_embeddings: List[EmbeddingRecord] = []
         for i in range(0, len(objects), RAGENT_EMBEDDING_BATCH_SIZE):
             chunk = objects[i:i + RAGENT_EMBEDDING_BATCH_SIZE]
             texts = [obj.to_embedding_text() for obj in chunk]
             vectors = await self._async_embed_batch(config_subentry, texts)
-            for obj, vec in zip(chunk, vectors):
-                device_embeddings.append(object_type(obj, vector_embedding=vec))
-        return device_embeddings
+            object_embeddings.extend(self.build_embedding_records(chunk, vectors))
+        return object_embeddings

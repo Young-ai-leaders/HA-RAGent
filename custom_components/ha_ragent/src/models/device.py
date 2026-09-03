@@ -1,11 +1,12 @@
 from typing import List, Dict, Any
-import json
 from dataclasses import dataclass
 
+from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
+
 @dataclass
-class Device:
+class Device(EmbeddableModel):
     id: str
-    name: str
+    friendly_name: str
     area_name: str
     floor_name: str
     domain: List[str] = None
@@ -18,28 +19,34 @@ class Device:
     state: str = None
     attributes: Dict[str, Any] = None
     
-    def __str__(self):
-        return self.to_json()
-
-    def to_embedding_text(self):
-        return json.dumps({
-            "name": self.name,
-            "domain": self.domain,
-            "area_name": self.area_name,
-            "floor_name": self.floor_name,
-            "device_labels": self.device_labels,
+    def to_embedding_text(self) -> str:
+        fields = {
+            "entity_id": self.id,
+            "friendly_name": self.friendly_name,
             "aliases": self.aliases,
-            "unit_of_measurement": self.unit_of_measurement
-        })
+            "domain": self.domain,
+            "area": self.area_name,
+            "floor": self.floor_name,
+            "labels": self.device_labels,
+            "capabilities": self.services,
+            "unit": self.unit_of_measurement,
+        }
 
-    def to_json(self):
-        return json.dumps({
+        return" | ".join(
+            f"{key}: {', '.join(value) if isinstance(value, list) else value}"
+            for key, value in fields.items()
+            if value
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
             "device_id": self.id,
-            "name": self.name,
+            "friendly_name": self.friendly_name,
             "domain": self.domain,
             "area_name": self.area_name,
             "floor_name": self.floor_name,
             "device_labels": self.device_labels,
             "services": self.services,
-            "aliases": self.aliases
-        })
+            "aliases": self.aliases,
+            "unit_of_measurement": self.unit_of_measurement
+        }

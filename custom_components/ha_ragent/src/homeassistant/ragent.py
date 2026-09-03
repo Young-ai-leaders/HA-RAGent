@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import time
-import math
 from typing import Any, List, Tuple
 
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
@@ -23,10 +22,12 @@ from probatio import to_openapi
 from custom_components.ha_ragent.src.homeassistant.helpers.history_manager import HistoryManager
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
+from custom_components.ha_ragent.src.homeassistant.helpers.memory_manager import MemoryManager
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.chat_message import ChatMessage
+from custom_components.ha_ragent.src.models.memory import Memory
 
 from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
@@ -39,24 +40,29 @@ from custom_components.ha_ragent.src.models.device import Device
 from custom_components.ha_ragent.src.const import (
     CONF_NUM_DEVICES_TO_EXTRACT,
     CONF_NUM_TOOLS_TO_EXTRACT,
+    CONF_NUM_MEMORIES_TO_EXTRACT,
     CONF_PROMPT,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     DEFAULT_NUM_DEVICES_TO_EXTRACT,
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
+    DEFAULT_NUM_MEMORIES_TO_EXTRACT,
     DEFAULT_PROMPT,
     DEFAULT_MAX_TOOL_CALL_ITERATIONS,
     DOMAIN,
     PERSONA_PROMPTS,
-    CURRENT_DATE_PROMPT,
     DEVICES_PROMPT,
     AREAS_PROMPT,
     MAX_RETRIES_PROMPT,
-    DEVICE_CONTROL_PROMPT,
+    INSTRUCTION_PROMPT,
+    MEMORIES_CONTEXT_PROMPT,
+    CONF_SELECTED_LANGUAGE,
+    DEFAULT_SELECTED_LANGUAGE,
     CONF_ALLOW_QUESTIONS,
     DEFAULT_ALLOW_QUESTIONS,
-    RAGENT_REQUIRED_TOOL_NAMES,
+    RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
-    RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
+    RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
+    RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES,
 )
 
 from custom_components.ha_ragent.src.utils import (
@@ -87,41 +93,22 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         return MATCH_ALL
 
     async def _async_embed_query(self, user_input: ConversationInput, history_texts: list[str]) -> list[float] | None:
-        """Embed the current query plus older messages with recency decay."""
-        texts_to_embed = [*history_texts, user_input.text]
-        embedding_config = dict(self.subentry.data)
+        """Embed one current-request-first document with limited recent context."""
+        recent_context = history_texts[-RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES:]
+        sections = [f"Current Home Assistant request: {user_input.text.strip()}"]
+        
+        if recent_context:
+            sections.append("Recent conversation context:\n" + "\n".join(recent_context))
+
+        retrieval_text = "\n\n".join(sections)
 
         try:
-            embeddings = await asyncio.gather(
-                *[self.entry.embedder_backend.async_embed_text(embedding_config, text) for text in texts_to_embed]
-            )
+            embedding = await self.entry.embedder_backend.async_embed_text(dict(self.subentry.data), retrieval_text)
         except Exception as err:
             _logger.error(f"Error embedding user input with history: {err}", exc_info=True)
             return None
 
-        valid_embeddings = [embedding for embedding in embeddings if embedding]
-        if not valid_embeddings:
-            return None
-
-        weighted_embedding = [0.0] * len(valid_embeddings[0])
-        total_weight = 0.0
-
-        for index, embedding in enumerate(valid_embeddings):
-            recency_rank = len(valid_embeddings) - index
-            weight = (1.0 if recency_rank == 1 else 1.0 / math.log2(recency_rank + 1))
-
-            if len(embedding) != len(weighted_embedding):
-                _logger.warning(f"Skipping history embedding due to mismatched dimensions ({len(embedding)} != {len(weighted_embedding)}).")
-                continue
-
-            weighted_embedding = [current + (value * weight) for current, value in zip(weighted_embedding, embedding)]
-            total_weight += weight
-
-        if total_weight == 0:
-            return None
-
-        query_embedding = [value / total_weight for value in weighted_embedding]
-        return query_embedding
+        return embedding or None
 
     async def _async_retrieve_devices(self, query_embedding: List[float], n_devices: int) -> List[Device]:
         """Retrieve relevant devices from vector database based on query embedding."""
@@ -157,19 +144,33 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         
         return retrieved_tools
 
-    async def _async_render_system_prompt(self, devices: List[Device], area: ar.AreaEntry, floor: fr.FloorEntry) -> str | None:
+    async def _async_retrieve_memories(self, query_embedding: List[float], n_memories: int) -> List[Memory]:
+        """Retrieve relevant persistent memories for this agent."""
+        try:
+            return await MemoryManager(
+                self.hass,
+                self.entry_id,
+                self.subentry_id,
+            ).async_recall(query_embedding, n_memories)
+        except Exception as err:
+            _logger.error(f"Error retrieving memories from vector DB: {err}", exc_info=True)
+            return []
+
+    async def _async_render_system_prompt(self, devices: List[Device], memories: List[Memory], area: ar.AreaEntry, floor: fr.FloorEntry) -> str | None:
         """Render the system prompt with retrieved device context."""
         raw_prompt = self.runtime_options.get(CONF_PROMPT, DEFAULT_PROMPT)
 
         try:
             template = Template(raw_prompt, self.hass)
-            return template.async_render({
+            rendered_prompt = template.async_render({
                 "device_list": devices,
+                "memory_list": memories,
                 "area_list": list(set(device.area_name for device in devices if device.area_name)),
                 "area_name": area.name if area else None,
                 "floor_name": floor.name if floor else None,
                 "max_retries": self.runtime_options.get(CONF_MAX_TOOL_CALL_ITERATIONS, DEFAULT_MAX_TOOL_CALL_ITERATIONS),
             })
+            return rendered_prompt
         except Exception as err:
             _logger.error(f"Error rendering prompt: {err}", exc_info=True)
             return None
@@ -208,7 +209,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         required_tools: list[LlmTool] = []
         for api_tool in llm_api.tools:
             tool_name = getattr(api_tool, "name", None)
-            if tool_name not in RAGENT_REQUIRED_TOOL_NAMES or tool_name in seen_tool_names:
+            if tool_name not in RAGENT_PREFIXED_REQUIRED_TOOL_NAMES or tool_name in seen_tool_names:
                 continue
 
             converted_tool = self._convert_api_tool(api_tool, llm_api)
@@ -224,7 +225,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         if not scheduled_request:
             return tool_list
         
-        prohibited = set(RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
+        prohibited = set(RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
         return [tool for tool in tool_list if tool.name not in prohibited]
 
     def _get_current_device_location(self, llm_context: LLMContext) -> ar.AreaEntry | None:
@@ -459,7 +460,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     retrieval_texts,
                 )
                 embedding_dimension = len(query_embedding) if query_embedding else 0
-                log_timing(f"Step 1 embedded {len(retrieval_texts) + 1} messages, shape {embedding_dimension}")
+                log_timing(f"Step 1 embedded retrieval query with shape {embedding_dimension}")
                 if not query_embedding:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
@@ -467,13 +468,21 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
                 retrieve_devices_task = self._async_retrieve_devices(query_embedding, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
                 retrieve_tools_task = self._async_retrieve_tools(query_embedding, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT)) if llm_api else None
+                retrieve_memories_task = self._async_retrieve_memories(query_embedding, n_memories=self.runtime_options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT))
 
                 if retrieve_tools_task:
-                    retrieved_devices, retrieved_tools = await asyncio.gather(retrieve_devices_task, retrieve_tools_task)
+                    retrieved_devices, retrieved_tools, retrieved_memories = await asyncio.gather(
+                        retrieve_devices_task,
+                        retrieve_tools_task,
+                        retrieve_memories_task,
+                    )
                 else:
-                    retrieved_devices = await retrieve_devices_task
+                    retrieved_devices, retrieved_memories = await asyncio.gather(
+                        retrieve_devices_task,
+                        retrieve_memories_task,
+                    )
                     retrieved_tools = []
-                log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices and {len(retrieved_tools)} tools")
+                log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices, {len(retrieved_tools)} tools and {len(retrieved_memories)} memories")
 
                 if not retrieved_devices:
                     intent_response = intent.IntentResponse(language=user_input.language)
@@ -500,8 +509,29 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 
                 area, floor = self._get_current_device_location(user_input.as_llm_context(DOMAIN))
 
+                if isinstance(llm_api, RAGentAugmentedAPIInstance):
+                    llm_api.set_search_context(
+                        latest_request=user_input.text,
+                        recent_requests=history_manager.recent_user_requests(chat_log),
+                        area=area.name if area else "",
+                        floor=floor.name if floor else "",
+                        candidates=[
+                            {
+                                "name": device.id,
+                                "friendly_name": device.friendly_name,
+                                "aliases": device.aliases,
+                                "area": device.area_name,
+                                "floor": device.floor_name,
+                                "domain": device.domain,
+                                "device_class": device.domain,
+                            }
+                            for device in device_list
+                        ],
+                    )
+
                 system_prompt_content = await self._async_render_system_prompt(
                     device_list,
+                    retrieved_memories,
                     area,
                     floor,
                 )
@@ -537,10 +567,10 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
     def build_base_prompt_template(selected_language: str, prompt_template: str):
         """Build base prompt template from constants in specified language."""
         prompt_template = prompt_template.replace("<persona_prompt>", get_placeholder_translation(PERSONA_PROMPTS, selected_language))
-        prompt_template = prompt_template.replace("<current_date_prompt>", get_placeholder_translation(CURRENT_DATE_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<area_prompt>", get_placeholder_translation(AREAS_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<devices_prompt>", get_placeholder_translation(DEVICES_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<memories_context_prompt>", get_placeholder_translation(MEMORIES_CONTEXT_PROMPT, selected_language))
         prompt_template = prompt_template.replace("<max_retries_prompt>", get_placeholder_translation(MAX_RETRIES_PROMPT, selected_language))
-        prompt_template = prompt_template.replace("<device_control_prompt>", get_placeholder_translation(DEVICE_CONTROL_PROMPT, selected_language))
+        prompt_template = prompt_template.replace("<instruction_prompt>", get_placeholder_translation(INSTRUCTION_PROMPT, selected_language))
 
         return prompt_template
