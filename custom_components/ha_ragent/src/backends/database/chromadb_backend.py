@@ -74,14 +74,25 @@ class ChromaDbBackend(ABaseDbBackend):
     def _collection_exists(self, client: Client, collection_name: str) -> bool:
         collections = [col.name for col in client.list_collections()]
         return collection_name in collections
+
+    @staticmethod
+    def _sanitize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+        """Remove values that are invalid or redundant in Chroma metadata."""
+        return {
+            key: value
+            for key, value in metadata.items()
+            if key != "vector_embedding"
+            and value is not None
+            and not (isinstance(value, list) and not value)
+        }
     
     def _save_device_embeddings(self, collection_name: str, device_embeddings: List[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding]):
         collection = self._get_client().get_or_create_collection(name=collection_name)
 
-        metadatas = []
-        for emb in device_embeddings:
-            meta = emb.to_dict()
-            metadatas.append({k: v for k, v in meta.items() if not (isinstance(v, list) and len(v) == 0)})
+        metadatas = [
+            self._sanitize_metadata(embedding.to_dict())
+            for embedding in device_embeddings
+        ]
 
         ids = [str(uuid4()) for emb in device_embeddings]
         embeddings = [emb.vector_embedding for emb in device_embeddings]
@@ -138,7 +149,10 @@ class ChromaDbBackend(ABaseDbBackend):
             return
 
         collection = self._get_client().get_or_create_collection(name=collection_name)
-        metadatas = [embedding.to_dict() for embedding in object_embeddings]
+        metadatas = [
+            self._sanitize_metadata(embedding.to_dict())
+            for embedding in object_embeddings
+        ]
         collection.upsert(
             ids=[str(metadata[id_field]) for metadata in metadatas],
             metadatas=metadatas,
@@ -175,7 +189,7 @@ class ChromaDbBackend(ABaseDbBackend):
         for metadata in metadatas:
             metadata = dict(metadata or {})
             metadata["retrieval_count"] = int(metadata.get("retrieval_count", 0) or 0) + 1
-            updated.append(metadata)
+            updated.append(self._sanitize_metadata(metadata))
 
         if ids:
             collection.update(ids=ids, metadatas=updated)

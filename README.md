@@ -88,7 +88,8 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 
 **Pick Models**
 - `Embedding Model`
-    - **Only shows downloaded models** that can be used for ebedding generation
+    - **Only shows downloaded models** that can be used for embedding generation
+    - Prefer a dedicated semantic-search embedding model.
 - `LLM Model`
     - **Only shows downloaded models** that can be used as LLM model
 
@@ -108,6 +109,8 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - Controls how many relevant entity candidates are retrieved and added to the prompt
 - `Number of Tools`
     - Controls how many relevant tools are retrieved and offered to the model (required HA-RAGent tools do not count to this limit)
+- `Number of Long-Term Memories`
+    - Controls how many semantically relevant, explicitly stored memories are added to each prompt. Set it to `0` to disable recall without deleting memories.
 - `Tools excluded from embedding`
     - Excludes selected tool names from the vector index. Names are matched exactly and are case-sensitive
 - `Context Length` (Ollama only)
@@ -128,6 +131,8 @@ The **System Prompt** is rendered as a Home Assistant Jinja template for every r
 
 - `device_list`
     - The retrieved device candidates whose entities currently exist in Home Assistant. Each device provides `id`, `name`, `area_name`, `floor_name`, `domain`, `device_labels`, `services`, `aliases`, `state`, `attributes` and `unit_of_measurement`.
+- `memory_list`
+    - The retrieved memory context candidates. Each memory provides `id`, `content` and `created_at`.
 - `area_list`
     - A list of the distinct, non-empty area names found in `device_list`. It contains only areas associated with the retrieved candidates, not every area in Home Assistant.
 - `area_name`
@@ -146,8 +151,17 @@ When **Assist** is selected, HA-RAGent resolves it to its custom LLM API, which 
 **HassPlannedAction**
 - Schedules a one-time Home Assistant action for execution after a specified delay.
 
-**HassClearPlannedActions**
+**HassListPlannedActions**
+- Lists all currently scheduled one-time Home Assistant actions.
+
+**HassCancelAllPlannedActions**
 - Cancels all currently scheduled one-time Home Assistant actions.
+
+**HassRememberFact**
+- Stores a fact and seves as per-agent long-term memory when the user explicitly asks for it to be remembered.
+
+**HassForgetFact**
+- Deletes one recalled long-term memory by its exact memory ID.
 
 ## Services
 HA-RAGent registers the following Home Assistant services for each conversation entity created by the integration:

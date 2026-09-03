@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import time
-import math
 from typing import Any, List, Tuple
 
 from homeassistant.components.conversation import ConversationInput, ConversationResult, ConversationEntity
@@ -63,6 +62,7 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
     RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
+    RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES,
 )
 
 from custom_components.ha_ragent.src.utils import (
@@ -93,41 +93,22 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         return MATCH_ALL
 
     async def _async_embed_query(self, user_input: ConversationInput, history_texts: list[str]) -> list[float] | None:
-        """Embed the current query plus older messages with recency decay."""
-        texts_to_embed = [*history_texts, user_input.text]
-        embedding_config = dict(self.subentry.data)
+        """Embed one current-request-first document with limited recent context."""
+        recent_context = history_texts[-RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES:]
+        sections = [f"Current Home Assistant request: {user_input.text.strip()}"]
+        
+        if recent_context:
+            sections.append("Recent conversation context:\n" + "\n".join(recent_context))
+
+        retrieval_text = "\n\n".join(sections)
 
         try:
-            embeddings = await asyncio.gather(
-                *[self.entry.embedder_backend.async_embed_text(embedding_config, text) for text in texts_to_embed]
-            )
+            embedding = await self.entry.embedder_backend.async_embed_text(dict(self.subentry.data), retrieval_text)
         except Exception as err:
             _logger.error(f"Error embedding user input with history: {err}", exc_info=True)
             return None
 
-        valid_embeddings = [embedding for embedding in embeddings if embedding]
-        if not valid_embeddings:
-            return None
-
-        weighted_embedding = [0.0] * len(valid_embeddings[0])
-        total_weight = 0.0
-
-        for index, embedding in enumerate(valid_embeddings):
-            recency_rank = len(valid_embeddings) - index
-            weight = (1.0 if recency_rank == 1 else 1.0 / math.log2(recency_rank + 1))
-
-            if len(embedding) != len(weighted_embedding):
-                _logger.warning(f"Skipping history embedding due to mismatched dimensions ({len(embedding)} != {len(weighted_embedding)}).")
-                continue
-
-            weighted_embedding = [current + (value * weight) for current, value in zip(weighted_embedding, embedding)]
-            total_weight += weight
-
-        if total_weight == 0:
-            return None
-
-        query_embedding = [value / total_weight for value in weighted_embedding]
-        return query_embedding
+        return embedding or None
 
     async def _async_retrieve_devices(self, query_embedding: List[float], n_devices: int) -> List[Device]:
         """Retrieve relevant devices from vector database based on query embedding."""
@@ -479,7 +460,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     retrieval_texts,
                 )
                 embedding_dimension = len(query_embedding) if query_embedding else 0
-                log_timing(f"Step 1 embedded {len(retrieval_texts) + 1} messages, shape {embedding_dimension}")
+                log_timing(f"Step 1 embedded retrieval query with shape {embedding_dimension}")
                 if not query_embedding:
                     intent_response = intent.IntentResponse(language=user_input.language)
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
