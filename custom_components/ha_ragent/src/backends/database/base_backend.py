@@ -12,6 +12,7 @@ from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.memory import Memory
 from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.scored_result import ScoredResult
 
 class ABaseDbBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -60,9 +61,14 @@ class ABaseDbBackend(ABC):
         """Insert objects without replacing existing records."""
         raise NotImplementedError()
 
-    @abstractmethod
     async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
-        """Retrieve objects from the database based on a query embedding."""
+        """Retrieve objects, discarding scores from the canonical result."""
+        results = await self.async_retrieve_scored_objects(object_type, config_subentry, collection_name, query_embedding, top_k)
+        return [result.item for result in results]
+
+    @abstractmethod
+    async def async_retrieve_scored_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[ScoredResult[Device | LlmTool | Memory]]:
+        """Retrieve ranked objects with normalized confidence."""
         raise NotImplementedError()
 
     @abstractmethod

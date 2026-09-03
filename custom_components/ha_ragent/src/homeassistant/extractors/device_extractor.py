@@ -37,14 +37,17 @@ class DeviceExtractor:
             area_name = ""
             floor_name = ""
             entity_entry = entity_reg.async_get(entity_id)
+            device_entry = (
+                device_reg.async_get(entity_entry.device_id)
+                if entity_entry and entity_entry.device_id
+                else None
+            )
             if entity_entry:
                 area = None
                 if entity_entry.area_id:
                     area = area_reg.async_get_area(entity_entry.area_id)
-                elif entity_entry.device_id:
-                    device = device_reg.async_get(entity_entry.device_id)
-                    if device and device.area_id:
-                        area = area_reg.async_get_area(device.area_id)
+                elif device_entry and device_entry.area_id:
+                    area = area_reg.async_get_area(device_entry.area_id)
 
                 if area:
                     area_name = area.name

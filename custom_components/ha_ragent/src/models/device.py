@@ -30,7 +30,6 @@ class Device(EmbeddableModel):
             "area": self.area_name,
             "floor": self.floor_name,
             "labels": self.device_labels,
-            "capabilities": self.services,
             "unit": self.unit_of_measurement,
         }
 

@@ -191,8 +191,10 @@ class ToolExtractor:
 
         except HomeAssistantError as err:
             _logger.warning(f"Error getting LLM API for tool extraction: {err}")
+            return None
         except Exception as err:
             _logger.error(f"Error extracting tools from LLM API: {err}", exc_info=True)
+            return None
         finally:
             self._remove_fake_timer_device()
 
@@ -200,7 +202,8 @@ class ToolExtractor:
 
     async def async_get_embeddable_tool_names(self, subentry: ConfigSubentry) -> list[str]:
         """Return the tool names currently produced by the extractor."""
-        return [tool.name for tool in await self._async_get_embeddable_tools(subentry)]
+        tools = await self._async_get_embeddable_tools(subentry)
+        return [tool.name for tool in tools or []]
 
     async def async_embed_exposed_tools(self, subentry_id: str) -> None:
         total_embedded_tools = 0

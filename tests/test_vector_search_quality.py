@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 
 import faiss
@@ -29,8 +30,26 @@ def test_faiss_uses_cosine_similarity(tmp_path) -> None:
     ])
 
     assert backend._indices[collection].metric_type == faiss.METRIC_INNER_PRODUCT
-    result = backend._query_devices(collection, [1.0, 0.0], 1)
-    assert result[0]["name"] == "aligned"
+    result = backend._query_scored_devices(collection, [1.0, 0.0], 1)
+    assert result[0][0]["name"] == "aligned"
+
+
+def test_faiss_returns_normalized_vector_scores(tmp_path) -> None:
+    backend = _backend(tmp_path)
+    tool = LlmTool(name="aligned", description="", parameters={})
+    backend._save_device_embeddings("tools", [LlmToolEmbedding(tool, [1.0, 0.0])])
+
+    result = asyncio.run(backend.async_retrieve_scored_objects(
+        LlmToolEmbedding,
+        {},
+        "tools",
+        [1.0, 0.0],
+        1,
+    ))
+
+    assert result[0].item == tool
+    assert result[0].score == 1.0
+    assert result[0].rank == 1
 
 
 def test_tool_embedding_omits_parameter_schema() -> None:

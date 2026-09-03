@@ -23,6 +23,7 @@ from custom_components.ha_ragent.src.homeassistant.helpers.history_manager impor
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
 from custom_components.ha_ragent.src.homeassistant.helpers.memory_manager import MemoryManager
+from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper import RetrievalHelper
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
@@ -62,7 +63,6 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_SCHEDULED_REQUEST_PREFIX,
     RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES,
-    RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES,
 )
 
 from custom_components.ha_ragent.src.utils import (
@@ -92,15 +92,9 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         """Return a list of supported languages."""
         return MATCH_ALL
 
-    async def _async_embed_query(self, user_input: ConversationInput, history_texts: list[str]) -> list[float] | None:
-        """Embed one current-request-first document with limited recent context."""
-        recent_context = history_texts[-RAGENT_RETRIEVAL_HISTORY_MAX_MESSAGES:]
-        sections = [f"Current Home Assistant request: {user_input.text.strip()}"]
-        
-        if recent_context:
-            sections.append("Recent conversation context:\n" + "\n".join(recent_context))
-
-        retrieval_text = "\n\n".join(sections)
+    async def _async_embed_query(self, user_input: ConversationInput) -> list[float] | None:
+        """Embed the current request without language-specific heuristics."""
+        retrieval_text = RetrievalHelper.build_retrieval_text(user_input.text)
 
         try:
             embedding = await self.entry.embedder_backend.async_embed_text(dict(self.subentry.data), retrieval_text)
@@ -110,39 +104,96 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return embedding or None
 
-    async def _async_retrieve_devices(self, query_embedding: List[float], n_devices: int) -> List[Device]:
+    async def _async_retrieve_devices(self, query_embedding: List[float], query: str, n_devices: int) -> List[Device]:
         """Retrieve relevant devices from vector database based on query embedding."""
+        if n_devices <= 0:
+            return []
         collection_name = f"devices_{self.subentry_id}"
-        retrieved_devices = []
         try:
-            retrieved_devices = await self.entry.vector_db_backend.async_retrieve_objects(
-                object_type=DeviceEmbedding,
-                config_subentry=dict(self.subentry.data),
-                collection_name=collection_name,
-                query_embedding=query_embedding,
-                top_k=n_devices
+            candidate_limit = RetrievalHelper.adaptive_candidate_limit(n_devices)
+            scored_devices, all_devices = await asyncio.gather(
+                self.entry.vector_db_backend.async_retrieve_scored_objects(
+                    DeviceEmbedding,
+                    dict(self.subentry.data),
+                    collection_name,
+                    query_embedding,
+                    candidate_limit,
+                ),
+                self.entry.vector_db_backend.async_list_objects(
+                    DeviceEmbedding,
+                    dict(self.subentry.data),
+                    collection_name,
+                ),
             )
         except Exception as e:
             _logger.error(f"Error retrieving devices from vector DB: {e}", exc_info=True)
-        
-        return retrieved_devices
+            return []
 
-    async def _async_retrieve_tools(self, query_embedding: List[float], n_tools: int) -> List[LlmTool]:
+        return RetrievalHelper.rank_scored_candidates(
+            scored_devices,
+            all_devices,
+            query,
+            lambda device: device.id,
+            lambda device: (
+                device.id,
+                device.friendly_name,
+                *(device.aliases or []),
+                device.area_name,
+                device.floor_name,
+                *(device.domain or []),
+                device.device_class,
+                *(device.device_labels or []),
+            ),
+            n_devices,
+            metadata_score=lambda device: RetrievalHelper.field_match_score(
+                query,
+                (
+                    device.area_name,
+                    device.floor_name,
+                    *(device.domain or []),
+                    device.device_class,
+                    *(device.device_labels or []),
+                ),
+            ),
+        )
+
+    async def _async_retrieve_tools(self, query_embedding: List[float], query: str, n_tools: int) -> List[LlmTool]:
         """Retrieve relevant tools from vector database based on query embedding."""
+        if n_tools <= 0:
+            return []
         collection_name = f"tools_{self.subentry_id}"
-        retrieved_tools = []
         try:
-            retrieved_tools = await self.entry.vector_db_backend.async_retrieve_objects(
-                object_type=LlmToolEmbedding,
-                config_subentry=dict(self.subentry.data),
-                collection_name=collection_name,
-                query_embedding=query_embedding,
-                top_k=n_tools
+            candidate_limit = RetrievalHelper.adaptive_candidate_limit(n_tools)
+            scored_tools, all_tools = await asyncio.gather(
+                self.entry.vector_db_backend.async_retrieve_scored_objects(
+                    LlmToolEmbedding,
+                    dict(self.subentry.data),
+                    collection_name,
+                    query_embedding,
+                    candidate_limit,
+                ),
+                self.entry.vector_db_backend.async_list_objects(
+                    LlmToolEmbedding,
+                    dict(self.subentry.data),
+                    collection_name,
+                ),
             )
         except Exception as e:
             _logger.error(f"Error retrieving tools from vector DB: {e}", exc_info=True)
-        
-        return retrieved_tools
+            return []
+
+        return RetrievalHelper.rank_scored_candidates(
+            scored_tools,
+            all_tools,
+            query,
+            lambda tool: tool.name,
+            lambda tool: (tool.name, tool.description),
+            min(candidate_limit, n_tools * 2),
+            metadata_score=lambda tool: RetrievalHelper.field_match_score(
+                query,
+                ((tool.parameters or {}).get("properties") or {}).keys(),
+            ),
+        )
 
     async def _async_retrieve_memories(self, query_embedding: List[float], n_memories: int) -> List[Memory]:
         """Retrieve relevant persistent memories for this agent."""
@@ -456,11 +507,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 history_manager = HistoryManager(
                     runtime_options=self.runtime_options,
                 )
-                retrieval_texts = history_manager.retrieval_texts(chat_log)
-                query_embedding = await self._async_embed_query(
-                    user_input,
-                    retrieval_texts,
-                )
+                query_embedding = await self._async_embed_query(user_input)
                 embedding_dimension = len(query_embedding) if query_embedding else 0
                 log_timing(f"Step 1 embedded retrieval query with shape {embedding_dimension}")
                 if not query_embedding:
@@ -468,8 +515,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                retrieve_devices_task = self._async_retrieve_devices(query_embedding, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
-                retrieve_tools_task = self._async_retrieve_tools(query_embedding, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT)) if llm_api else None
+                retrieve_devices_task = self._async_retrieve_devices(query_embedding, user_input.text, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
+                retrieve_tools_task = self._async_retrieve_tools(query_embedding, user_input.text, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT)) if llm_api else None
                 retrieve_memories_task = self._async_retrieve_memories(query_embedding, n_memories=self.runtime_options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT))
 
                 if retrieve_tools_task:
@@ -486,10 +533,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     retrieved_tools = []
                 log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices, {len(retrieved_tools)} tools and {len(retrieved_memories)} memories")
 
-                if not retrieved_devices:
-                    intent_response = intent.IntentResponse(language=user_input.language)
-                    intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to retrieve relevant devices.")
-                    return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
+                retrieved_tools = RetrievalHelper.rerank_tools_for_devices(
+                    retrieved_tools,
+                    retrieved_devices,
+                    self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT),
+                )
 
                 retrieved_tools = self._ensure_required_tools_exposed(retrieved_tools, llm_api)
                 retrieved_tools = self._exclude_prohibited_scheduled_request_tools(retrieved_tools, scheduled_request)

@@ -18,6 +18,7 @@ from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.memory import Memory
 from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.scored_result import ScoredResult
 
 from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_NAME
@@ -94,16 +95,20 @@ class FaissDbBackend(ABaseDbBackend):
         self._save_to_disk(collection_name)
         _logger.info(f"Saved {len(device_embeddings)} embeddings to local FAISS index: {collection_name}")
 
-    def _query_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
+    def _query_scored_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
         self._load_collection(collection_name, len(query_embedding))
         
         query_vector = np.asarray([query_embedding], dtype=np.float32)
         faiss.normalize_L2(query_vector)
-        _, indices = self._indices[collection_name].search(query_vector, top_k)
+        scores, indices = self._indices[collection_name].search(query_vector, top_k)
 
         metadata = self._metadata[collection_name]
-        return [metadata[idx] for idx in indices[0] if idx != -1 and idx < len(metadata)]
-    
+        return [
+            (metadata[idx], min(1.0, max(0.0, (float(score) + 1.0) / 2.0)))
+            for score, idx in zip(scores[0], indices[0])
+            if idx != -1 and idx < len(metadata)
+        ]
+
     def _cleanup_database(self):
         db_path = os.path.join(self._storage_path, self.db_name)
         for filename in os.listdir(db_path):
@@ -245,14 +250,16 @@ class FaissDbBackend(ABaseDbBackend):
             _logger.error(f"Error upserting objects: {e}", exc_info=True)
             raise
 
-    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
-        devices: List[Device | LlmTool | Memory] = []
+    async def async_retrieve_scored_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[ScoredResult[Device | LlmTool | Memory]]:
         try:
-            results = await self.hass.async_add_executor_job(self._query_devices, collection_name, query_embedding, top_k)
-            devices = [object_type.parse_object(m) for m in results]
-        except Exception as e:
-            _logger.error(f"Error retrieving devices: {e}", exc_info=True)
-        return devices
+            results = await self.hass.async_add_executor_job(self._query_scored_devices, collection_name, query_embedding, top_k)
+            return [
+                ScoredResult(object_type.parse_object(metadata), score, rank)
+                for rank, (metadata, score) in enumerate(results, start=1)
+            ]
+        except Exception as err:
+            _logger.error(f"Error retrieving scored objects: {err}", exc_info=True)
+            return []
 
     async def async_list_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
         try:

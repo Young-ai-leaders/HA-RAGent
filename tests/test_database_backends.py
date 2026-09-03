@@ -228,6 +228,17 @@ async def _async_test_object_round_trips(
     assert retrieved_devices == [device]
     assert retrieved_tools == [tool]
 
+    scored_devices = await backend.async_retrieve_scored_objects(
+        DeviceEmbedding,
+        config,
+        device_collection,
+        [1.0, 0.0, 0.0],
+        top_k=1,
+    )
+    assert scored_devices[0].item == device
+    assert 0.0 <= scored_devices[0].score <= 1.0
+    assert scored_devices[0].rank == 1
+
     await backend.async_reset_collection(
         config, device_collection, EMBEDDING_DIMENSION
     )

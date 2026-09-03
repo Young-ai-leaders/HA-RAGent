@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterable
 from typing import Any
@@ -29,6 +30,7 @@ from custom_components.ha_ragent.src.models.device import Device
 from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
 from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper import RetrievalHelper
 from custom_components.ha_ragent.src.utils import get_tool_description
 
 _logger = logging.getLogger(__name__)
@@ -50,6 +52,7 @@ class RAGentSemanticSearchTool(llm.Tool):
         self.subentry_id = subentry_id
         self.description = get_tool_description(language, RAGENT_SEMANTIC_SEARCH_TOOL_NAME)
         self._contextual_query = ""
+        self._candidate_context: list[dict[str, object]] = []
 
     @staticmethod
     def _clean(value: object) -> str:
@@ -60,8 +63,10 @@ class RAGentSemanticSearchTool(llm.Tool):
         cls,
         latest_request: str = "",
         recent_requests: Iterable[str] = (),
+        area: str = "",
+        floor: str = "",
     ) -> str:
-        """Build a bounded search query from user requests only."""
+        """Build a bounded fallback query from user requests and trusted location."""
         sections: list[str] = []
         latest = cls._clean(latest_request)
         if latest:
@@ -77,6 +82,13 @@ class RAGentSemanticSearchTool(llm.Tool):
         for text in recent[-3:]:
             sections.append(f"Recent user request: {text}")
 
+        current_area = cls._clean(area)
+        current_floor = cls._clean(floor)
+        if current_area:
+            sections.append(f"Default area when the request has no explicit location: {current_area}")
+        if current_floor:
+            sections.append(f"Default floor when the request has no explicit location: {current_floor}")
+
         return "\n".join(sections)[:MAX_SEARCH_QUERY_CHARS].strip()
 
     def set_search_context(
@@ -91,7 +103,10 @@ class RAGentSemanticSearchTool(llm.Tool):
         self._contextual_query = self._build_search_query(
             latest_request=latest_request,
             recent_requests=recent_requests,
+            area=area,
+            floor=floor,
         )
+        self._candidate_context = candidates
 
     @staticmethod
     def _get_effective_limits(entry: Any, subentry: Any) -> tuple[int, int]:
@@ -160,14 +175,52 @@ class RAGentSemanticSearchTool(llm.Tool):
                 continue
 
             try:
+                compatible_devices: list[Device | dict[str, object]] = list(self._candidate_context)
                 if search_devices and len(devices) < device_limit:
-                    retrieved_devices = await entry.vector_db_backend.async_retrieve_objects(
-                        object_type=DeviceEmbedding,
-                        config_subentry=dict(subentry.data),
-                        collection_name=f"devices_{subentry_id}",
-                        query_embedding=query_embedding,
-                        top_k=device_limit,
+                    collection_name = f"devices_{subentry_id}"
+                    candidate_limit = RetrievalHelper.adaptive_candidate_limit(device_limit)
+                    scored_devices, all_devices = await asyncio.gather(
+                        entry.vector_db_backend.async_retrieve_scored_objects(
+                            DeviceEmbedding,
+                            dict(subentry.data),
+                            collection_name,
+                            query_embedding,
+                            candidate_limit,
+                        ),
+                        entry.vector_db_backend.async_list_objects(
+                            DeviceEmbedding,
+                            dict(subentry.data),
+                            collection_name,
+                        ),
                     )
+                    retrieved_devices = RetrievalHelper.rank_scored_candidates(
+                        scored_devices,
+                        all_devices,
+                        query,
+                        lambda device: device.id,
+                        lambda device: (
+                            device.id,
+                            device.friendly_name,
+                            *(device.aliases or []),
+                            device.area_name,
+                            device.floor_name,
+                            *(device.domain or []),
+                            device.device_class,
+                            *(device.device_labels or []),
+                        ),
+                        device_limit,
+                        metadata_score=lambda device: RetrievalHelper.field_match_score(
+                            query,
+                            (
+                                device.area_name,
+                                device.floor_name,
+                                *(device.domain or []),
+                                device.device_class,
+                                *(device.device_labels or []),
+                            ),
+                        ),
+                    )
+                    compatible_devices = retrieved_devices
                     for device in retrieved_devices:
                         if not isinstance(device, Device) or device.id in seen_device_ids:
                             continue
@@ -194,12 +247,38 @@ class RAGentSemanticSearchTool(llm.Tool):
                             break
 
                 if search_tools and len(tools) < tool_limit:
-                    retrieved_tools = await entry.vector_db_backend.async_retrieve_objects(
-                        object_type=LlmToolEmbedding,
-                        config_subentry=dict(subentry.data),
-                        collection_name=f"tools_{subentry_id}",
-                        query_embedding=query_embedding,
-                        top_k=tool_limit,
+                    collection_name = f"tools_{subentry_id}"
+                    candidate_limit = RetrievalHelper.adaptive_candidate_limit(tool_limit)
+                    scored_tools, all_tools = await asyncio.gather(
+                        entry.vector_db_backend.async_retrieve_scored_objects(
+                            LlmToolEmbedding,
+                            dict(subentry.data),
+                            collection_name,
+                            query_embedding,
+                            candidate_limit,
+                        ),
+                        entry.vector_db_backend.async_list_objects(
+                            LlmToolEmbedding,
+                            dict(subentry.data),
+                            collection_name,
+                        ),
+                    )
+                    retrieved_tools = RetrievalHelper.rank_scored_candidates(
+                        scored_tools,
+                        all_tools,
+                        query,
+                        lambda tool: tool.name,
+                        lambda tool: (tool.name, tool.description),
+                        min(candidate_limit, tool_limit * 2),
+                        metadata_score=lambda tool: RetrievalHelper.field_match_score(
+                            query,
+                            ((tool.parameters or {}).get("properties") or {}).keys(),
+                        ),
+                    )
+                    retrieved_tools = RetrievalHelper.rerank_tools_for_devices(
+                        retrieved_tools,
+                        compatible_devices,
+                        tool_limit,
                     )
                     for tool in retrieved_tools:
                         if not isinstance(tool, LlmTool) or tool.name in seen_tool_names:
