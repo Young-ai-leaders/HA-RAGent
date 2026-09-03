@@ -6,7 +6,7 @@ from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableMo
 @dataclass
 class Device(EmbeddableModel):
     id: str
-    name: str
+    friendly_name: str
     area_name: str
     floor_name: str
     domain: List[str] = None
@@ -22,7 +22,7 @@ class Device(EmbeddableModel):
     def to_embedding_text(self) -> str:
         fields = {
             "entity_id": self.id,
-            "name": self.name,
+            "friendly_name": self.friendly_name,
             "aliases": self.aliases,
             "domain": self.domain,
             "area": self.area_name,
@@ -41,7 +41,7 @@ class Device(EmbeddableModel):
     def to_dict(self) -> dict[str, Any]:
         return {
             "device_id": self.id,
-            "name": self.name,
+            "friendly_name": self.friendly_name,
             "domain": self.domain,
             "area_name": self.area_name,
             "floor_name": self.floor_name,

@@ -64,6 +64,7 @@ class ChromaDbBackend(ABaseDbBackend):
             return await hass.async_add_executor_job(ChromaDbBackend._validate_connection, user_input)
         except Exception as e:
             _logger.error(f"Error validating ChromaDB connection: {e}", exc_info=True)
+            return str(e)
 
     def _get_client(self) -> Client:
         if self._client is None:

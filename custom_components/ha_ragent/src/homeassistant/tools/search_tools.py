@@ -39,11 +39,13 @@ class RAGentSemanticSearchTool(llm.Tool):
         self.description = get_tool_description(language, RAGENT_SEMANTIC_SEARCH_TOOL_NAME)
 
     @staticmethod
-    def _get_effective_limits(entry: Any) -> tuple[int, int]:
+    def _get_effective_limits(entry: Any, subentry: Any) -> tuple[int, int]:
         """Use the same configured limits as normal retrieval."""
         entry_options = getattr(entry, "options", {}) or {}
-        device_limit = int(entry_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
-        tool_limit = int(entry_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT))
+        subentry_data = getattr(subentry, "data", {}) or {}
+        runtime_options = {**entry_options, **subentry_data}
+        device_limit = int(runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
+        tool_limit = int(runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT))
         return device_limit, tool_limit
 
     async def _validate_query(self, tool_input: llm.ToolInput) -> str | None:
@@ -59,7 +61,7 @@ class RAGentSemanticSearchTool(llm.Tool):
         subentry = entry.subentries.get(self.subentry_id)
         if not subentry or subentry.data.get(CONF_LLM_HASS_API) == "none":
             return
-        device_limit, tool_limit = self._get_effective_limits(entry)
+        device_limit, tool_limit = self._get_effective_limits(entry, subentry)
         yield entry, self.subentry_id, subentry, device_limit, tool_limit
 
     async def _embed_query_for_subentry(self, entry: Any, subentry: Any, query: str) -> list[float]:
@@ -106,9 +108,10 @@ class RAGentSemanticSearchTool(llm.Tool):
                         state = self.hass.states.get(device.id)
                         devices.append(
                             {
-                                "entity_id": device.id,
-                                "name": device.name,
+                                "name": device.id,
+                                "friendly_name": device.friendly_name,
                                 "area": device.area_name,
+                                "floor": device.floor_name,
                                 "domain": device.domain,
                                 "device_class": device.domain,
                                 "aliases": device.aliases or [],

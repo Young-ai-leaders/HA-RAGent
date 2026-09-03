@@ -130,7 +130,7 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 The **System Prompt** is rendered as a Home Assistant Jinja template for every request. The following variables are passed to it:
 
 - `device_list`
-    - The retrieved device candidates whose entities currently exist in Home Assistant. Each device provides `id`, `name`, `area_name`, `floor_name`, `domain`, `device_labels`, `services`, `aliases`, `state`, `attributes` and `unit_of_measurement`.
+    - The retrieved device candidates whose entities currently exist in Home Assistant. Each device provides `id`, `friendly_name`, `area_name`, `floor_name`, `domain`, `device_labels`, `services`, `aliases`, `state`, `attributes` and `unit_of_measurement`.
 - `memory_list`
     - The retrieved memory context candidates. Each memory provides `id`, `content` and `created_at`.
 - `area_list`

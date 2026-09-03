@@ -15,7 +15,7 @@ class DeviceEmbedding(EmbeddingRecord[Device]):
     def parse_object(doc: dict[str, Any]) -> Device:
         return Device(
             id=doc.get("device_id"),
-            name=doc.get("name"),
+            friendly_name=doc.get("friendly_name"),
             domain=doc.get("domain"),
             floor_name=doc.get("floor_name"),
             area_name=doc.get("area_name"),

@@ -70,7 +70,7 @@ class DeviceExtractor:
 
             devices.append(Device(
                 id=entity_id,
-                name=friendly_name,
+                friendly_name=friendly_name,
                 domain=[domain],
                 floor_name=floor_name,
                 area_name=area_name,

@@ -252,7 +252,7 @@ class MongoDbBackend(ABaseDbBackend):
             if object_type == DeviceEmbedding:
                 projection = {
                     "device_id": 1,
-                    "name": 1,
+                    "friendly_name": 1,
                     "domain": 1,
                     "floor_name": 1,
                     "area_name": 1,

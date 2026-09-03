@@ -227,11 +227,12 @@ Erfülle die neueste Anfrage exakt einmal. Frühere Nachrichten dienen nur zum A
 - Neue Gerätenamen oder Orte ersetzen frühere Ziele und Tool-Argumente. Frühere Tool-Ergebnisse dienen nur als Kontext.
 - Bewahre Aktion, Namen, Kategorie, Orte, Anzahl und Ausschlüsse. Verwende nie nicht verlangte Geräte oder Orte.
 - Ein erfolgreicher Tool-Aufruf erledigt den Zielbereich seiner Argumente. Wiederhole ihn nicht und suche danach keine weiteren Kandidaten für dieses Ziel.
-- Kategorie, Plural oder „alle“: genau ein Aufruf mit `domain` je verlangtem Ort; kein `name` und keine Aufzählung einzelner Geräte.
-- Ein ausdrücklich benanntes Gerät: genau ein Aufruf mit `name` = exakte, vollständige `entity_id` einschließlich Domain (zum Beispiel `light.bedroom_1_ceiling_light`); entferne niemals den Domain-Präfix und verkürze niemals die Entity-ID; kein `domain`.
-- Ein Geräte-Aufruf braucht `name` oder passende `domain`/`device_class`; nie nur `area` oder `floor`.
+- Kategorie, Plural oder „alle“: genau ein Aufruf mit `domain` plus `area` oder `floor` je verlangtem Ort; kein `name` und keine Aufzählung einzelner Geräte.
+- Wenn die abgerufenen Kandidaten die verlangte Kategorie und den Ort bereits enthalten, suche nicht erneut; rufe direkt das passende Kategorie-Tool mit `domain` und `area` oder `floor` auf.
+- Ein ausdrücklich benanntes Gerät: Kopiere den exakten `name`-Wert des Kandidaten (die vollständige Entity-ID einschließlich Domain, zum Beispiel `light.bedroom_1_ceiling_light`) in das Tool-Argument `name`. Verwende niemals `friendly_name` als `name`, entferne niemals den Domain-Präfix und verkürze niemals die Entity-ID. Eine exakte Entity-ID benötigt kein `area`, `floor` oder `domain`, sofern das Tool-Schema dies nicht ausdrücklich verlangt.
+- Ein Geräte-Aufruf braucht entweder die exakte Entity-ID in `name` oder `domain`/`device_class` zusammen mit `area` oder `floor`; nie nur einen Anzeigenamen, `area` oder `floor`.
 - Kandidaten sind nur Hinweise, keine zusätzlichen Ziele. Suche höchstens einmal nach fehlendem Kontext. Frage nur, wenn das Ziel wirklich mehrdeutig ist.
-- Wähle das Tool nach der Aktion. Verwende das Licht-Einstell-Tool nur für Helligkeit, Farbe oder Farbtemperatur. Fragen und Informationen ändern keinen Zustand.
+- Wähle das Tool nach der Aktion. Verwende für Ein- und Ausschalten das Ein-/Aus-Tool. Verwende das Licht-Einstell-Tool nur, wenn der Nutzer ausdrücklich Helligkeit, Farbe oder Farbtemperatur verlangt; erfinde diese Werte nie. Fragen und Informationen ändern keinen Zustand.
 - Für eine zukünftige Aktion verwende `{RAGENT_PLANNED_ACTION_TOOL_NAME}` genau einmal. Nach Erfolg ist die Anfrage erledigt: führe die Aktion nicht sofort aus, rufe kein weiteres Tool auf und bestätige den Zeitplan.
 - Beginnt die Anfrage mit "Execute this action now. It was previously scheduled", führe nur diese Aktion jetzt einmal aus, plane sie nicht erneut und antworte nach Erfolg.
 
@@ -249,14 +250,15 @@ Complete the latest request exactly once. Use earlier messages only to resolve e
 - New device names or locations replace earlier targets and tool arguments. Previous tool results are context only.
 - Preserve requested action, names, category, locations, quantity and exclusions. Never add unrequested targets.
 - A successful tool call completes its target scope. Do not repeat it or search for more candidates.
-- Category, plural or “all”: make one call per requested location using `domain`; do not use `name` or enumerate devices.
-- Explicit device: make one call with `name` equal to its exact full `entity_id`, including its domain prefix; never shorten it.
-- Every device call requires `name` or matching `domain`/`device_class`; never use only `area` or `floor`.
+- Category, plural or “all”: make one call per requested location using `domain` plus `area` or `floor`; do not use `name` or enumerate devices.
+- When retrieved candidates already contain the requested category and location, do not search again; call the matching category tool directly with `domain` and `area` or `floor`.
+- Explicit device: copy the candidate's exact `name` value (the full entity ID including its domain prefix) into the tool's `name` argument. Never pass `friendly_name` as `name` and never shorten the ID. An exact entity ID does not need `area`, `floor` or `domain` unless the tool schema explicitly requires it.
+- Every device call requires either an exact entity ID in `name`, or matching `domain`/`device_class` together with `area` or `floor`; never use only a display name, `area` or `floor`.
 - If the requested device or capability is not an exact, unambiguous match in the available tools or context, call `{RAGENT_SEMANTIC_SEARCH_TOOL_NAME}` once before choosing a similar target, asking the user or giving up. Use `devices` for an entity, `tools` for a capability, or `both` when necessary. Never call a tool that is not in the current tool list or search results.
 - Include every known relevant fact in the search query: the requested action, device name or alias, and `area`, `floor`, `domain` and `device_class` when known. For a tool search, describe the required capability, action and relevant parameters. Never invent missing values.
 - Search at most once for missing context. Retrieved candidates are hints, not targets. Ask only if the target remains ambiguous.
 - If clarification is required, ask one concise question directly instead of guessing or executing an uncertain action.
-- Choose the tool from the requested action. Use light-setting tools only for brightness, color or color temperature. Information requests never change state.
+- Choose the tool from the requested action. Use the on/off tool for turn-on and turn-off requests. Use light-setting tools only when the user explicitly requests brightness, color or color temperature; never invent those values. Information requests never change state.
 - Future action: call `{RAGENT_PLANNED_ACTION_TOOL_NAME}` exactly once, do not execute now, then only confirm the schedule.
 - Store a long-term memory only when the user explicitly asks you to remember a stable fact. Never store instructions, credentials, secrets, or temporary device state. Forget only the exact `memory_id` supplied in the memory context.
 - A previous assistant response or tool result never completes a new user request. For every new request, select and call the appropriate tool before confirming; do not copy a previous answer.
@@ -269,12 +271,12 @@ Return all necessary independent tool calls or one brief response in the user's 
 MAX_RETRIES_PROMPT = {
     "de": """Du hast hoechstens {{ max_retries }} Tool-/Antwortiterationen. Dies ist eine Sicherheitsgrenze und kein Ziel fuer Wiederholungen.
 
-Pruefe nach einem Tool-Fehler den Fehler und die neuesten Kandidaten. Wenn der vorherige Aufruf widerspruechliche oder falsche Argumente enthielt, fuehre genau einen korrigierten Aufruf mit der passenden exakten `entity_id` und den zugehoerigen Metadaten aus.
+Pruefe nach einem Tool-Fehler den Fehler und die neuesten Kandidaten. Wenn der vorherige Aufruf widerspruechliche oder falsche Argumente enthielt, fuehre genau einen korrigierten Aufruf aus. Fuer ein ausdruecklich genanntes Geraet kopiere den exakten `name`-Wert des Kandidaten; fuer eine Kategorie verwende `domain` zusammen mit dem verlangten `area` oder `floor`. Verwende niemals `friendly_name` als `name`.
 Wiederhole niemals unveraenderte Argumente, wechsle nicht zu einem unabhaengigen Ziel und erfinde keine Metadaten. Verwende nach einem Ausfuehrungsfehler keine semantische Suche, ausser fuer diese eine Korrektur und nur wenn der Fehler zeigt, dass das Ziel weiterhin nicht aufgeloest ist.
 Wenn keine eindeutige Korrektur moeglich ist, melde den Fehler.""",
     "en": """You have at most {{ max_retries }} tool/response iterations. This is a safety cap, not a retry target.
 
-After a tool failure, inspect the error and latest candidates. If the previous call used a contradictory or incorrect argument, make exactly one corrected call using the matching candidate's exact `entity_id` and metadata.
+After a tool failure, inspect the error and latest candidates. If the previous call used contradictory or incorrect arguments, make exactly one corrected call. For an explicit device, copy the candidate's exact `name` value; for a category, use `domain` together with the requested `area` or `floor`. Never substitute `friendly_name` for `name`.
 Never repeat unchanged arguments, switch to an unrelated target or invent metadata. Do not use semantic search after an execution failure unless it is the single correction and the error shows the target is still unresolved.
 If no unambiguous correction exists, report the failure."""
 }
@@ -308,7 +310,7 @@ DEFAULT_PROMPT = """<persona_prompt>
 
 <devices_prompt>
 {% for device in device_list %}
-- { "entity_id": {{ device.id | tojson }}, "friendly_name": {{ device.name | tojson }}, "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "device_class": {{ device.domain | tojson }}, "floor": {{ device.floor_name | tojson }}, "area": {{ device.area_name | tojson }}, "state": {{ device.state | tojson }}, "unit_of_measurement": {{ device.attributes.get('unit_of_measurement') | tojson if device.attributes else none }} }
+- { "name": {{ device.id | tojson }}, "friendly_name": {{ device.friendly_name | tojson }}, "aliases": {{ device.aliases | tojson }}, "domain": {{ device.domain | tojson }}, "device_class": {{ device.domain | tojson }}, "floor": {{ device.floor_name | tojson }}, "area": {{ device.area_name | tojson }}, "state": {{ device.state | tojson }}, "unit_of_measurement": {{ device.attributes.get('unit_of_measurement') | tojson if device.attributes else none }} }
 {% endfor %}
 """
 
