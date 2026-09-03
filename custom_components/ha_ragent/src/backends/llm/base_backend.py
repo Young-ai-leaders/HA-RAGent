@@ -60,9 +60,10 @@ class ALlmBaseBackend(ABC):
         tools_names: list[str] = []
         required_tools_names: list[str] = []
         for tool in tools:
+            base_tool_name = tool.name.rsplit("__", 1)[-1]
             target = (
                 required_tools_names
-                if tool.name in required_names
+                if base_tool_name in required_names
                 else tools_names
             )
             target.append(tool.name)

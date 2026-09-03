@@ -6,6 +6,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
 
 from custom_components.ha_ragent.src.const import (
+    DOMAIN,
     RAGENT_LLM_API_ID,
     RAGENT_LLM_API_NAME
 )
@@ -35,6 +36,7 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         self._wrapped_api = wrapped_api
         self.prompt = getattr(wrapped_api, "prompt", "")
         self.custom_serializer = getattr(wrapped_api, "custom_serializer", None)
+        self._custom_tool_namespace = DOMAIN
 
         wrapped_tools = list(getattr(wrapped_api, "tools", []) or [])
         scoped_search_tool = RAGentSemanticSearchTool(hass, entry_id, subentry_id, llm_context.language)
@@ -66,6 +68,10 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
         if RAGentAugmentedAPIInstance._check_if_tool_exists(RAGentClearPlannedActionsTool.name, wrapped_tools):
             self.tools.append(clear_planned_actions_tool)
 
+        for tool in self.tools:
+            if isinstance(tool, (RAGentSemanticSearchTool, RAGentPlannedActionTool, RAGentClearPlannedActionsTool)):
+                tool.name = f"{self._custom_tool_namespace}__{tool.name}"
+
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to the wrapped API instance."""
         return getattr(self._wrapped_api, name)
@@ -89,14 +95,22 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:
         """Intercept calls to RAGent tools and delegate to the appropriate tool instance."""
-        if tool_input.tool_name in {
-            RAGentSemanticSearchTool.name,
-            RAGentPlannedActionTool.name,
-            RAGentClearPlannedActionsTool.name,
-        }:
+        custom_tool_names = {
+            f"{self._custom_tool_namespace}__{RAGentSemanticSearchTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentPlannedActionTool.name}",
+            f"{self._custom_tool_namespace}__{RAGentClearPlannedActionsTool.name}",
+        }
+        if tool_input.tool_name in custom_tool_names:
             for tool in self.tools:
                 if tool.name == tool_input.tool_name:
-                    return await tool.async_call(tool_input)
+                    return await tool.async_call(
+                        llm.ToolInput(
+                            tool_name=tool_input.tool_name.rsplit("__", 1)[-1],
+                            tool_args=tool_input.tool_args,
+                            id=tool_input.id,
+                            external=tool_input.external,
+                        )
+                    )
 
         return await self._wrapped_api.async_call_tool(tool_input)
 

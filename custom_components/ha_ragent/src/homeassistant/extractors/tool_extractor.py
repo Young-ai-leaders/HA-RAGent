@@ -6,7 +6,7 @@ from typing import Any, List, Tuple
 
 from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 import voluptuous as vol
-from voluptuous_openapi import convert
+from probatio import to_openapi
 
 from homeassistant.const import CONF_LLM_HASS_API
 from homeassistant.components.conversation.const import DOMAIN as CONVERSATION_DOMAIN
@@ -83,10 +83,13 @@ class ToolExtractor:
 
         return list(values), universal, has_field
 
-    def _extract_tool_metadata(self, parameters: dict[str, Any]) -> ToolMetadata:
+    def _extract_tool_metadata(self, parameters: Any) -> ToolMetadata:
         metadata = ToolMetadata()
 
-        properties = parameters.get("properties") if parameters else None
+        if not isinstance(parameters, dict):
+            return metadata
+
+        properties = parameters.get("properties")
         if not properties or not isinstance(properties, dict):
             return metadata
 
@@ -154,17 +157,22 @@ class ToolExtractor:
 
             for tool in llm_api.tools:
                 tool_name = getattr(tool, "name", "unknown")
+                base_tool_name = tool_name.rsplit("__", 1)[-1]
                 if (
-                    tool_name == "GetLiveContext"
-                    or tool_name in RAGENT_REQUIRED_TOOL_NAMES
+                    base_tool_name == "GetLiveContext"
+                    or base_tool_name in RAGENT_REQUIRED_TOOL_NAMES
                     or tool_name in excluded_tools
+                    or base_tool_name in excluded_tools
                     or tool_name in seen_tool_names
                 ):
                     continue
 
                 if hasattr(tool, "parameters") and tool.parameters:
                     try:
-                        parameters = convert(tool.parameters, custom_serializer=llm_api.custom_serializer)
+                        parameters = to_openapi(tool.parameters, custom_serializer=llm_api.custom_serializer)
+                        if not isinstance(parameters, dict):
+                            _logger.warning(f"Could not convert parameters for tool {tool_name}: converter returned {type(parameters).__name__}")
+                            parameters = {}
                     except Exception as param_err:
                         _logger.warning(f"Could not convert parameters for tool {tool_name}: {param_err}")
                         parameters = {}
