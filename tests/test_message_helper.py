@@ -89,3 +89,14 @@ def test_repeated_failure_preserves_error() -> None:
         "already_executed": True,
         "error": "target not found",
     }
+
+def test_repeated_list_and_search_results_remain_successful() -> None:
+    list_result = MessageHelper.create_repeated_tool_result_message(
+        "agent", "call-3", "HassTurnOff", {"success": ["light.bedroom"]},
+    )
+    search_result = MessageHelper.create_repeated_tool_result_message(
+        "agent", "call-4", "HassSemanticSearch", {"devices": [], "error": []},
+    )
+
+    assert list_result.tool_result["success"] is True
+    assert search_result.tool_result["success"] is True

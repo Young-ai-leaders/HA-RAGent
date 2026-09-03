@@ -509,6 +509,26 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 
                 area, floor = self._get_current_device_location(user_input.as_llm_context(DOMAIN))
 
+                if isinstance(llm_api, RAGentAugmentedAPIInstance):
+                    llm_api.set_search_context(
+                        latest_request=user_input.text,
+                        recent_requests=history_manager.recent_user_requests(chat_log),
+                        area=area.name if area else "",
+                        floor=floor.name if floor else "",
+                        candidates=[
+                            {
+                                "name": device.id,
+                                "friendly_name": device.friendly_name,
+                                "aliases": device.aliases,
+                                "area": device.area_name,
+                                "floor": device.floor_name,
+                                "domain": device.domain,
+                                "device_class": device.domain,
+                            }
+                            for device in device_list
+                        ],
+                    )
+
                 system_prompt_content = await self._async_render_system_prompt(
                     device_list,
                     retrieved_memories,

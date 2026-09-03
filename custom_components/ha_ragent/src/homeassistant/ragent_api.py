@@ -128,6 +128,18 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 tool.entry_id = entry_id
                 tool.subentry_id = subentry_id
 
+    def set_search_context(self, latest_request: str, recent_requests: list[str], area: str, floor: str, candidates: list[dict[str, object]]) -> None:
+        """Bind trusted request context to semantic-search tools."""
+        for tool in self.tools:
+            if isinstance(tool, RAGentSemanticSearchTool):
+                tool.set_search_context(
+                    latest_request=latest_request,
+                    recent_requests=recent_requests,
+                    area=area,
+                    floor=floor,
+                    candidates=candidates,
+                )
+
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:
         """Intercept calls to RAGent tools and delegate to the appropriate tool instance."""
         custom_tool_names = set(RAGENT_TOOL_NAMES_BY_PREFIXED_NAME)
