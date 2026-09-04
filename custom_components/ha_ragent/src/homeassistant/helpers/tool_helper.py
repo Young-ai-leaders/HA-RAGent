@@ -196,6 +196,11 @@ class ToolHelper:
         )
 
     @staticmethod
+    def is_identical_failed_retry(tool_call: ToolInput, failed_signatures: set[str] | dict[str, Any]) -> bool:
+        """Return whether the same canonical call has already failed."""
+        return ToolHelper.tool_call_signature(tool_call) in failed_signatures
+
+    @staticmethod
     def block_broad_tool_calls(tool_call: ToolInput, metadata: ToolMetadata) -> None:
         """Reject broad calls using the tool's target metadata."""
         if not metadata or not metadata.is_domain_aware:

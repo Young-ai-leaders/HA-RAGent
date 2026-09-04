@@ -13,7 +13,7 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
     TOOL_REGEX_PATTERN,
 )
-from custom_components.ha_ragent.src.models.chat_message import (
+from custom_components.ha_ragent.src.models.chat.chat_message import (
     ChatFunction,
     ChatMessage,
     ChatToolCall,
@@ -22,6 +22,21 @@ from custom_components.ha_ragent.src.models.chat_message import (
 
 
 class MessageHelper:
+    @staticmethod
+    def tool_result_succeeded(result: object) -> bool:
+        """Return whether a tool result represents a success."""
+        if isinstance(result, dict):
+            if result.get("success"):
+                return True
+            if any(result.get(key) for key in ("error", "errors", "failed")):
+                return False
+            return True
+
+        success = getattr(result, "success", None)
+        if success is not None:
+            return bool(success)
+        return not any(getattr(result, key, None) for key in ("error", "errors", "failed"))
+
     @staticmethod
     def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, previous_result: object) -> conversation.ToolResultContent:
         """Return the original result for a repeated tool call."""
