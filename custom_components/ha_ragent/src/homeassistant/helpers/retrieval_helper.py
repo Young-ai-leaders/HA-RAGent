@@ -171,8 +171,9 @@ class RetrievalHelper:
         text_parts: Callable[[T], Iterable[object]],
         limit: int,
         metadata_score: Callable[[T], float] | None = None,
+        continuity_score: Callable[[T], float] | None = None,
     ) -> list[T]:
-        """Fuse vector, exact, fuzzy, and metadata rankings with adaptive top-k."""
+        """Fuse rank-based signals and suppress stale continuity on strong matches."""
         if limit <= 0:
             return []
 
@@ -181,8 +182,11 @@ class RetrievalHelper:
         for item in lexical_items:
             candidates.setdefault(key(item), item)
 
-        vector_scores = {key(result.item): result.score for result in vector_results}
         vector_ranking = [key(result.item) for result in sorted(vector_results, key=lambda result: result.rank)]
+        vector_positions = {
+            item_key: position
+            for position, item_key in enumerate(vector_ranking, start=1)
+        }
         match_scores = {
             item_key: RetrievalHelper._match_scores(query, text_parts(item))
             for item_key, item in candidates.items()
@@ -213,11 +217,40 @@ class RetrievalHelper:
             )
         ]
 
+        best_exact_key = exact_ranking[0] if exact_ranking else None
+        best_fuzzy_key = fuzzy_ranking[0] if fuzzy_ranking else None
+        best_vector_key = vector_ranking[0] if vector_ranking else None
+        has_strong_current_match = any(
+            exact >= 0.9 or fuzzy >= 0.9
+            for exact, fuzzy in match_scores.values()
+        ) or (
+            best_vector_key is not None
+            and (
+                best_vector_key == best_exact_key
+                or (
+                    best_vector_key == best_fuzzy_key
+                    and match_scores[best_vector_key][1] >= 0.7
+                )
+            )
+        )
+
+        continuity_scores = {
+            item_key: continuity_score(item)
+            for item_key, item in candidates.items()
+        } if continuity_score and not has_strong_current_match else {}
+        continuity_ranking = [
+            item_key for item_key, score in sorted(
+                ((item_key, score) for item_key, score in continuity_scores.items() if score > 0),
+                key=lambda pair: pair[1],
+                reverse=True,
+            )
+        ]
+
         fused = RetrievalHelper.reciprocal_rank_fusion(
             (vector_ranking, exact_ranking, fuzzy_ranking, metadata_ranking)
         )
-        for item_key, vector_score in vector_scores.items():
-            fused[item_key] = fused.get(item_key, 0.0) + (0.01 * vector_score)
+        for rank, item_key in enumerate(continuity_ranking, start=1):
+            fused[item_key] = fused.get(item_key, 0.0) + 0.25 / (60 + rank)
         for item_key, (exact_score, fuzzy_score) in match_scores.items():
             fused[item_key] = fused.get(item_key, 0.0) + (0.01 * exact_score) + (0.01 * fuzzy_score)
         ordered_keys = sorted(
@@ -230,13 +263,15 @@ class RetrievalHelper:
         top_key = ordered_keys[0] if ordered_keys else None
         if top_key:
             top_exact, top_fuzzy = match_scores[top_key]
-            top_vector = vector_scores.get(top_key, 0.0)
-            if top_exact >= 0.9 or (top_fuzzy >= 0.85 and top_vector >= 0.55):
+            top_vector_rank = vector_positions.get(top_key)
+            if top_exact >= 0.9 or top_fuzzy >= 0.9 or (
+                top_vector_rank == 1 and (top_exact >= 0.5 or top_fuzzy >= 0.7)
+            ):
                 confident = [
                     item_key for item_key in ordered_keys[:limit]
                     if match_scores[item_key][0] >= 0.5
                     or match_scores[item_key][1] >= 0.7
-                    or vector_scores.get(item_key, 0.0) >= max(0.45, top_vector - 0.12)
+                    or vector_positions.get(item_key, limit + 1) <= 2
                 ]
                 if confident:
                     ordered_keys = confident

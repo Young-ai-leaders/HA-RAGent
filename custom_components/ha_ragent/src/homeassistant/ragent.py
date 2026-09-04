@@ -183,7 +183,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     query_embedding,
                     candidate_limit,
                 ),
-                self.entry.vector_db_backend.async_list_objects(
+                self.entry.vector_db_backend.async_get_lexical_objects(
                     DeviceEmbedding,
                     dict(self.subentry.data),
                     collection_name,
@@ -218,7 +218,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     device.device_class,
                     *(device.device_labels or []),
                 ),
-            ) + continuity.device_score(device),
+            ),
+            continuity_score=continuity.device_score,
         )
 
     async def _async_retrieve_tools(self, query_embedding: List[float], query: str, n_tools: int, continuity: ContinuityContext) -> List[LlmTool]:
@@ -236,7 +237,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     query_embedding,
                     candidate_limit,
                 ),
-                self.entry.vector_db_backend.async_list_objects(
+                self.entry.vector_db_backend.async_get_lexical_objects(
                     LlmToolEmbedding,
                     dict(self.subentry.data),
                     collection_name,
@@ -256,7 +257,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             metadata_score=lambda tool: RetrievalHelper.field_match_score(
                 query,
                 ((tool.parameters or {}).get("properties") or {}).keys(),
-            ) + continuity.tool_score(tool),
+            ),
+            continuity_score=continuity.tool_score,
         )
 
     async def _async_retrieve_memories(self, query_embedding: List[float], n_memories: int) -> List[Memory]:

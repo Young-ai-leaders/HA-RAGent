@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, List
 from abc import ABC, abstractmethod
 
@@ -18,6 +19,39 @@ class ABaseDbBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         self.hass = hass
         self.client_options = client_options
+        self._lexical_object_cache: dict[str, tuple[Device | LlmTool | Memory, ...]] = {}
+        self._lexical_cache_locks: dict[str, asyncio.Lock] = {}
+
+    def cache_collection_objects(self, collection_name: str, objects: List[Device | LlmTool | Memory]) -> None:
+        """Replace the in-memory metadata snapshot for a collection."""
+        self._lexical_object_cache[collection_name] = tuple(objects)
+
+    def invalidate_collection_cache(self, collection_name: str | None = None) -> None:
+        """Invalidate one metadata snapshot or all collection snapshots."""
+        if collection_name is None:
+            self._lexical_object_cache.clear()
+        else:
+            self._lexical_object_cache.pop(collection_name, None)
+
+    async def async_get_lexical_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
+        """Return cached lexical metadata, loading it once when necessary."""
+        cached = self._lexical_object_cache.get(collection_name)
+        if cached is None:
+            lock = self._lexical_cache_locks.setdefault(collection_name, asyncio.Lock())
+            async with lock:
+                cached = self._lexical_object_cache.get(collection_name)
+                if cached is None:
+                    objects = await self.async_list_objects(
+                        object_type,
+                        config_subentry,
+                        collection_name,
+                    )
+                    if objects:
+                        cached = tuple(objects)
+                        self._lexical_object_cache[collection_name] = cached
+                    else:
+                        return []
+        return list(cached)
 
     @staticmethod
     @abstractmethod

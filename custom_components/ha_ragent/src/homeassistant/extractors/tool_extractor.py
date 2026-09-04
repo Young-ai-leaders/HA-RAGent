@@ -221,7 +221,9 @@ class ToolExtractor:
                 exposed_tools = await self._async_get_embeddable_tools(subentry)
                 _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")
                 if not exposed_tools:
-                    await self._entry.vector_db_backend.async_cleanup_collection(dict(subentry.data), f"tools_{subentry_id}")
+                    collection_name = f"tools_{subentry_id}"
+                    await self._entry.vector_db_backend.async_cleanup_collection(dict(subentry.data), collection_name)
+                    self._entry.vector_db_backend.cache_collection_objects(collection_name, [])
                     _logger.info("Cleared tool embeddings for empty subentry %s", subentry_id)
                     return
 
@@ -230,9 +232,11 @@ class ToolExtractor:
 
                 if tool_embeddings:
                     embedding_len = len(tool_embeddings[0].vector_embedding)
+                    self._entry.vector_db_backend.invalidate_collection_cache(collection_name)
                     await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                     _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
                     await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, tool_embeddings)
+                    self._entry.vector_db_backend.cache_collection_objects(collection_name, exposed_tools)
                     total_embedded_tools += len(tool_embeddings)
                 else:
                     _logger.warning(f"No tools to embed for subentry {subentry_id}")

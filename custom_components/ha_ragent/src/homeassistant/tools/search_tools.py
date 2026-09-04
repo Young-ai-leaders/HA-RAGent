@@ -173,7 +173,7 @@ class RAGentSemanticSearchTool(llm.Tool):
                             query_embedding,
                             candidate_limit,
                         ),
-                        entry.vector_db_backend.async_list_objects(
+                        entry.vector_db_backend.async_get_lexical_objects(
                             DeviceEmbedding,
                             dict(subentry.data),
                             collection_name,
@@ -243,7 +243,7 @@ class RAGentSemanticSearchTool(llm.Tool):
                             query_embedding,
                             candidate_limit,
                         ),
-                        entry.vector_db_backend.async_list_objects(
+                        entry.vector_db_backend.async_get_lexical_objects(
                             LlmToolEmbedding,
                             dict(subentry.data),
                             collection_name,
