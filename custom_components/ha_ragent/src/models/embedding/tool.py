@@ -1,13 +1,15 @@
-from typing import Dict, Any
+from __future__ import annotations
+
+from typing import Any, Dict
 import json
-import re
 from dataclasses import dataclass
 
 from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
-from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
-
-REGEX_SPLIT_PATTERN = r"_|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import (
+    ToolMetadata,
+    split_canonical_name,
+)
 
 @dataclass
 class LlmTool(SerializableModel, EmbeddableModel):
@@ -31,7 +33,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
     @staticmethod
     def split_canonical_name(name: str) -> tuple[str, ...]:
         """Split on underscores and camel-case transitions."""
-        return tuple(part.casefold() for part in re.split(REGEX_SPLIT_PATTERN, str(name or "")) if part)
+        return split_canonical_name(name)
     
     def to_dict(self) -> dict[str, Any]:
         """Return a dictionary representation of the tool."""
@@ -45,18 +47,24 @@ class LlmTool(SerializableModel, EmbeddableModel):
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> 'LlmTool':
         """Create an LlmTool instance from a dictionary."""
+        metadata = json.loads(data["metadata"]) if data.get("metadata") else None
+        parameters = json.loads(data["parameters"]) if data.get("parameters") else None
         return cls(
             name=data.get("name", ""),
             description=data.get("description", ""),
-            metadata=ToolMetadata.from_dict(json.loads(data.get("metadata"))) if data.get("metadata") else None,
-            parameters=json.loads(data.get("parameters")) if data.get("parameters") else None
+            metadata=ToolMetadata.from_dict(metadata) if metadata else None,
+            parameters=parameters,
         )
 
     def to_embedding_text(self) -> str:
         """Return a string representation of the tool for embedding purposes."""
         parts = [ f"Tool name: {self.name}" ]
-        self.append_if_exists(parts, "Canonical parts", self.canonical_name_parts)
-        self.append_if_exists(parts, "Family", self.family)
+        self.append_if_exists(
+            parts,
+            "canonical parts",
+            " ".join(self.canonical_name_parts),
+        )
+        self.append_if_exists(parts, "family", self.family)
         self.append_if_exists(parts, "Description", self.description)
 
         return " | ".join(parts)

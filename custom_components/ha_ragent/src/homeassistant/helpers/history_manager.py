@@ -17,9 +17,11 @@ from custom_components.ha_ragent.src.const import (
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
     DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
 )
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
-from custom_components.ha_ragent.src.models.retrieval.turn_context import TargetGroup, TurnContext
+from custom_components.ha_ragent.src.models.retrieval.target_group import TargetGroup
+from custom_components.ha_ragent.src.models.retrieval.turn_context import TurnContext
 
 class HistoryManager:
     def __init__(self, runtime_options: dict[str, Any]) -> None:
@@ -33,8 +35,14 @@ class HistoryManager:
 
     def _select_retained_turns(self, chat_log: conversation.ChatLog) -> list[list[conversation.Content]]:
         """Select complete conversation turns within the configured retention limits."""
-        remember_time_minutes = self._runtime_options.get(CONF_REMEMBER_CONVERSATION_TIME_MINUTES, DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES)
-        remember_num_interactions = self._runtime_options.get(CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS, DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS)
+        remember_time_minutes = self._runtime_options.get(
+            CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
+            DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
+        )
+        remember_num_interactions = self._runtime_options.get(
+            CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
+            DEFAULT_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
+        )
 
         if not remember_time_minutes and not remember_num_interactions:
             return []
@@ -108,6 +116,60 @@ class HistoryManager:
                 if isinstance(tool, dict):
                     cls._add_values(tools, tool.get("name"))
 
+    @staticmethod
+    def _is_semantic_search(tool_name: str) -> bool:
+        return tool_name.rsplit("__", 1)[-1] == RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+
+    @classmethod
+    def _collect_search_candidates(cls, result: object, ambiguous_entities: set[str]) -> None:
+        """Collect search matches as weak evidence, not successful targets."""
+        if not isinstance(result, dict) or not isinstance(result.get("devices"), list):
+            return
+        cls._add_values(
+            ambiguous_entities,
+            [
+                device.get("name") or device.get("entity_id")
+                for device in result["devices"]
+                if isinstance(device, dict)
+            ],
+        )
+
+    @classmethod
+    def _successful_target_entities(cls, arguments: dict[str, object], result: object) -> set[str]:
+        """Return only entities confirmed by a successful call result."""
+        argument_entities: set[str] = set()
+        cls._add_values(argument_entities, arguments.get("name"))
+        if not isinstance(result, dict):
+            return argument_entities
+
+        reported_entities: set[str] = set()
+        success_value = result.get("success")
+        cls._add_values(reported_entities, success_value)
+        if isinstance(success_value, (str, list, tuple, set)):
+            return reported_entities
+        return argument_entities | reported_entities
+
+    @staticmethod
+    def _call_has_successful_result(call: object, successful_ids: set[str], successful_names: set[str]) -> bool:
+        """Match an assistant tool call to a retained successful result."""
+        call_id = str(getattr(call, "id", "") or "")
+        if call_id:
+            return call_id in successful_ids
+        return str(getattr(call, "tool_name", "") or "") in successful_names
+
+    @staticmethod
+    def _take_matching_tool_call(result_message: object, calls_by_id: dict[str, object], unmatched_calls: list[object]) -> object | None:
+        """Find and consume the assistant call matching a tool result."""
+        call_id = str(getattr(result_message, "tool_call_id", "") or "")
+        if call_id and call_id in calls_by_id:
+            return calls_by_id[call_id]
+
+        tool_name = str(getattr(result_message, "tool_name", "") or "")
+        for index, call in enumerate(unmatched_calls):
+            if str(getattr(call, "tool_name", "") or "") == tool_name:
+                return unmatched_calls.pop(index)
+        return None
+
     def structured_turn_contexts(self, chat_log: conversation.ChatLog) -> list[TurnContext]:
         """Extract language-independent context from retained completed turns."""
         contexts: list[TurnContext] = []
@@ -145,6 +207,9 @@ class HistoryManager:
                     if not MessageHelper.tool_result_succeeded(result):
                         continue
                     tool_name = str(getattr(message, "tool_name", "") or "")
+                    if self._is_semantic_search(tool_name):
+                        self._collect_search_candidates(result, ambiguous_entities)
+                        continue
                     if tool_name:
                         tools.add(tool_name)
                         actions.add(tool_name)
@@ -158,19 +223,11 @@ class HistoryManager:
                         ambiguous_entities,
                     )
 
-                    call_id = str(getattr(message, "tool_call_id", "") or "")
-                    tool_call = calls_by_id.get(call_id)
-                    if tool_call is None:
-                        match_index = next((
-                            index
-                            for index, call in enumerate(unmatched_calls)
-                            if str(getattr(call, "tool_name", "") or "") == tool_name
-                        ), None)
-                        tool_call = (
-                            unmatched_calls.pop(match_index)
-                            if match_index is not None
-                            else None
-                        )
+                    tool_call = self._take_matching_tool_call(
+                        message,
+                        calls_by_id,
+                        unmatched_calls,
+                    )
                     if tool_call is None:
                         continue
 
@@ -182,19 +239,15 @@ class HistoryManager:
                     if not isinstance(arguments, dict):
                         continue
 
-                    group_entities: set[str] = set()
+                    group_entities = self._successful_target_entities(arguments, result)
                     group_areas: set[str] = set()
                     group_floors: set[str] = set()
                     group_domains: set[str] = set()
                     group_classes: set[str] = set()
-                    self._add_values(group_entities, arguments.get("name"))
                     self._add_values(group_areas, arguments.get("area"))
                     self._add_values(group_floors, arguments.get("floor"))
                     self._add_values(group_domains, arguments.get("domain"))
                     self._add_values(group_classes, arguments.get("device_class"))
-                    if isinstance(result, dict):
-                        self._add_values(group_entities, result.get("success"))
-
                     entities.update(group_entities)
                     areas.update(group_areas)
                     areas.update(group_floors)
@@ -238,11 +291,19 @@ class HistoryManager:
             ))
         return contexts
 
-    def filter_prompt_history(self, chat_log: conversation.ChatLog) -> list[conversation.Content]:
-        """Return prompt history without prior failed tool-call pairs."""
+    def filter_prompt_history(self, chat_log: conversation.ChatLog, relevant_turn_keys: set[str] | None = None) -> list[conversation.Content]:
+        """Return relevant prompt history without failed tool-call pairs."""
         prompt_history: list[conversation.Content] = []
+        turns = self._select_retained_turns(chat_log)
+        if relevant_turn_keys is not None:
+            contexts = self.structured_turn_contexts(chat_log)
+            turns = [
+                turn
+                for turn, context in zip(turns, contexts)
+                if context.key in relevant_turn_keys
+            ]
 
-        for turn in self._select_retained_turns(chat_log):
+        for turn in turns:
             successful_results = [
                 message
                 for message in turn
@@ -266,12 +327,10 @@ class HistoryManager:
                     original_calls = list(getattr(message, "tool_calls", None) or [])
                     retained_calls = [
                         call for call in original_calls
-                        if (
-                            str(getattr(call, "id", "") or "") in successful_ids
-                            or (
-                                not getattr(call, "id", None)
-                                and str(getattr(call, "tool_name", "") or "") in successful_names
-                            )
+                        if self._call_has_successful_result(
+                            call,
+                            successful_ids,
+                            successful_names,
                         )
                     ]
                     content = str(getattr(message, "content", "") or "")
@@ -286,12 +345,20 @@ class HistoryManager:
 
         return prompt_history
 
-    def build_prompt_history(self, chat_log: conversation.ChatLog, user_input: ConversationInput, system_prompt_content: str) -> list[conversation.Content]:
+    def build_prompt_history(
+        self,
+        chat_log: conversation.ChatLog,
+        user_input: ConversationInput,
+        system_prompt_content: str,
+        relevant_turn_keys: set[str] | None = None,
+    ) -> list[conversation.Content]:
         """Build model history with system prompt first and current user last."""
         self._message_history = [
             conversation.SystemContent(content=system_prompt_content)
         ]
-        self._message_history.extend(self.filter_prompt_history(chat_log))
+        self._message_history.extend(
+            self.filter_prompt_history(chat_log, relevant_turn_keys)
+        )
         self._message_history.append(conversation.UserContent(content=user_input.text))
         return self._message_history
 

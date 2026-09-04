@@ -58,7 +58,29 @@ class RAGentSemanticSearchTool(llm.Tool):
         return " ".join(str(value or "").split())
 
     @classmethod
-    def _build_search_query(cls, latest_request: str = "", area: str = "", floor: str = "") -> str:
+    def _candidate_summary(cls, candidate: dict[str, object]) -> str:
+        """Return compact searchable text for a current device candidate."""
+        domains = candidate.get("domain") or []
+        if isinstance(domains, str):
+            domains = [domains]
+        values = (
+            candidate.get("name"),
+            candidate.get("friendly_name"),
+            candidate.get("area"),
+            candidate.get("floor"),
+            *domains,
+            candidate.get("device_class"),
+        )
+        return " | ".join(cls._clean(value) for value in values if cls._clean(value))
+
+    @classmethod
+    def _build_search_query(
+        cls,
+        latest_request: str = "",
+        area: str = "",
+        floor: str = "",
+        candidates: list[dict[str, object]] | None = None,
+    ) -> str:
         """Build a bounded fallback query from user requests and trusted location."""
         sections: list[str] = []
         latest = cls._clean(latest_request)
@@ -72,22 +94,29 @@ class RAGentSemanticSearchTool(llm.Tool):
         if current_floor:
             sections.append(f"Default floor when the request has no explicit location: {current_floor}")
 
+        for candidate in (candidates or [])[:8]:
+            summary = cls._candidate_summary(candidate)
+            if summary:
+                sections.append(f"Current candidate: {summary}")
+
         return "\n".join(sections)[:MAX_SEARCH_QUERY_CHARS].strip()
 
     def set_search_context(
         self,
-        latest_request: str,
-        area: str,
-        floor: str,
-        candidates: list[dict[str, object]]
+        *,
+        latest_request: str = "",
+        area: str = "",
+        floor: str = "",
+        candidates: list[dict[str, object]] | None = None,
     ) -> None:
         """Bind trusted context for the current conversation turn."""
         self._contextual_query = self._build_search_query(
             latest_request=latest_request,
             area=area,
             floor=floor,
+            candidates=candidates,
         )
-        self._candidate_context = candidates
+        self._candidate_context = list(candidates or [])
 
     @staticmethod
     def _get_effective_limits(entry: Any, subentry: Any) -> tuple[int, int]:
@@ -103,7 +132,10 @@ class RAGentSemanticSearchTool(llm.Tool):
         """Prefer the model's explicit search intent, with user context as fallback."""
         model_search_query = self._clean(tool_input.tool_args.get("search_query"))
         if model_search_query:
-            return model_search_query[:MAX_SEARCH_QUERY_CHARS]
+            sections = [f"Search intent: {model_search_query}"]
+            if self._contextual_query:
+                sections.append(self._contextual_query)
+            return "\n".join(sections)[:MAX_SEARCH_QUERY_CHARS].strip()
         return self._contextual_query or None
 
     def _iter_searchable_entries(self):

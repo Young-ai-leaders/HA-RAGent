@@ -128,7 +128,14 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 tool.entry_id = entry_id
                 tool.subentry_id = subentry_id
 
-    def set_search_context(self, latest_request: str, area: str, floor: str, candidates: list[dict[str, object]]) -> None:
+    def set_search_context(
+        self,
+        *,
+        latest_request: str = "",
+        area: str = "",
+        floor: str = "",
+        candidates: list[dict[str, object]] | None = None,
+    ) -> None:
         """Bind trusted request context to semantic-search tools."""
         for tool in self.tools:
             if isinstance(tool, RAGentSemanticSearchTool):

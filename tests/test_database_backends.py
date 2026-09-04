@@ -22,13 +22,13 @@ from custom_components.ha_ragent.src.backends.database.faiss_backend import Fais
 from custom_components.ha_ragent.src.backends.database.mongodb_backend import MongoDbBackend
 from custom_components.ha_ragent.src.const import CONF_VECTOR_DB_NAME
 from custom_components.ha_ragent.src.mock import MockHomeAssistant
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
 from tests.mocks import (
     MOCK_CHROMADB_CONNECTION_USER_INPUT,
     MOCK_CHROMADB_CONNECTION_USER_INPUT_INVALID,

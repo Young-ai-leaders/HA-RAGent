@@ -5,6 +5,7 @@ from custom_components.ha_ragent.src.models.retrieval.target_group import Target
 
 @dataclass
 class ContinuityContext:
+    selected_turn_keys: set[str] = field(default_factory=set)
     entities: dict[str, float] = field(default_factory=dict)
     tools: dict[str, float] = field(default_factory=dict)
     areas: dict[str, float] = field(default_factory=dict)

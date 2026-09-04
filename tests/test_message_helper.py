@@ -101,3 +101,12 @@ def test_repeated_list_and_search_results_remain_successful() -> None:
 
     assert list_result.tool_result["success"] is True
     assert search_result.tool_result["success"] is True
+
+
+def test_tool_result_success_rejects_failed_and_error_results() -> None:
+    assert MessageHelper.tool_result_succeeded({"success": ["light.kitchen"]})
+    assert MessageHelper.tool_result_succeeded({"devices": [], "error": []})
+    assert not MessageHelper.tool_result_succeeded({"success": False})
+    assert not MessageHelper.tool_result_succeeded({"success": []})
+    assert not MessageHelper.tool_result_succeeded({"failed": ["light.kitchen"]})
+    assert not MessageHelper.tool_result_succeeded({"error": "unavailable"})

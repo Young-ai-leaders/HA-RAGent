@@ -6,13 +6,23 @@ from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
 
 from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
-from custom_components.ha_ragent.src.models.retrieval.turn_context import ContinuityContext, TurnContext
+from custom_components.ha_ragent.src.models.retrieval.continuity_context import ContinuityContext
+from custom_components.ha_ragent.src.models.retrieval.turn_context import TurnContext
 
 T = TypeVar("T")
 
 
 class RetrievalHelper:
     """Stateless helpers for building and reranking retrieval queries."""
+
+    _ACTION_FAMILIES = {"power", "position", "lock", "light", "climate", "media"}
+    _FAMILY_DOMAINS = {
+        "position": {"cover"},
+        "lock": {"lock"},
+        "light": {"light"},
+        "climate": {"climate"},
+        "media": {"media_player"},
+    }
 
     @staticmethod
     def _normalize(text: object) -> str:
@@ -85,6 +95,7 @@ class RetrievalHelper:
         """Aggregate selected structured turns into weighted continuity maps."""
         continuity = ContinuityContext()
         for context, weight in selected_contexts:
+            continuity.selected_turn_keys.add(context.key)
             for attribute in (
                 "entities",
                 "tools",
@@ -169,6 +180,18 @@ class RetrievalHelper:
         return exact + (0.5 * fuzzy)
 
     @staticmethod
+    def trusted_location_score(device: Any, area: str = "", floor: str = "") -> float:
+        """Prefer the requesting device's location as a bounded ranking signal."""
+        device_area = str(getattr(device, "area_name", "") or "").casefold()
+        device_floor = str(getattr(device, "floor_name", "") or "").casefold()
+        score = 0.0
+        if area and device_area == area.casefold():
+            score += 1.0
+        if floor and device_floor == floor.casefold():
+            score += 0.5
+        return score
+
+    @staticmethod
     def reciprocal_rank_fusion(ranked_keys: Iterable[Iterable[str]], rank_constant: int = 60) -> dict[str, float]:
         """Fuse independent rankings using reciprocal rank fusion."""
         scores: dict[str, float] = {}
@@ -176,6 +199,78 @@ class RetrievalHelper:
             for rank, key in enumerate(ranking, start=1):
                 scores[key] = scores.get(key, 0.0) + 1.0 / (rank_constant + rank)
         return scores
+
+    @staticmethod
+    def _rank_positive_scores(scores: dict[str, float], minimum: float) -> list[str]:
+        ranked = sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
+        return [item_key for item_key, score in ranked if score >= minimum]
+
+    @staticmethod
+    def _has_strong_current_match(
+        match_scores: dict[str, tuple[float, float]],
+        vector_ranking: list[str],
+        exact_ranking: list[str],
+        fuzzy_ranking: list[str],
+    ) -> bool:
+        if any(
+            exact >= 0.9 or fuzzy >= 0.9
+            for exact, fuzzy in match_scores.values()
+        ):
+            return True
+        if not vector_ranking:
+            return False
+
+        best_vector = vector_ranking[0]
+        if exact_ranking and best_vector == exact_ranking[0]:
+            return True
+        return (
+            bool(fuzzy_ranking)
+            and best_vector == fuzzy_ranking[0]
+            and match_scores[best_vector][1] >= 0.7
+        )
+
+    @staticmethod
+    def _trim_to_confident_keys(
+        ordered_keys: list[str],
+        match_scores: dict[str, tuple[float, float]],
+        vector_positions: dict[str, int],
+        limit: int,
+    ) -> list[str]:
+        if not ordered_keys:
+            return ordered_keys
+
+        top_key = ordered_keys[0]
+        top_exact, top_fuzzy = match_scores[top_key]
+        top_vector_rank = vector_positions.get(top_key)
+        top_is_confident = (
+            top_exact >= 0.9
+            or top_fuzzy >= 0.9
+            or (
+                top_vector_rank == 1
+                and (top_exact >= 0.5 or top_fuzzy >= 0.7)
+            )
+        )
+        if not top_is_confident:
+            return ordered_keys
+
+        confident = [
+            item_key
+            for item_key in ordered_keys[:limit]
+            if match_scores[item_key][0] >= 0.5
+            or match_scores[item_key][1] >= 0.7
+            or vector_positions.get(item_key, limit + 1) <= 2
+        ]
+        return confident or ordered_keys
+
+    @staticmethod
+    def _merge_preserved_keys(selected_keys: list[str], preserved_keys: list[str], limit: int) -> list[str]:
+        missing = [key for key in preserved_keys if key not in selected_keys]
+        if not missing:
+            return selected_keys
+        retained = [
+            key for key in selected_keys if key not in preserved_keys
+        ][:max(0, limit - len(preserved_keys))]
+        return [*retained, *preserved_keys]
 
     @staticmethod
     def rank_scored_candidates(
@@ -194,11 +289,16 @@ class RetrievalHelper:
             return []
 
         vector_results = list(vector_results)
-        candidates: dict[str, T] = {key(result.item): result.item for result in vector_results}
+        candidates: dict[str, T] = {
+            key(result.item): result.item for result in vector_results
+        }
         for item in lexical_items:
             candidates.setdefault(key(item), item)
 
-        vector_ranking = [key(result.item) for result in sorted(vector_results, key=lambda result: result.rank)]
+        vector_ranking = [
+            key(result.item)
+            for result in sorted(vector_results, key=lambda result: result.rank)
+        ]
         vector_positions = {
             item_key: position
             for position, item_key in enumerate(vector_ranking, start=1)
@@ -207,60 +307,37 @@ class RetrievalHelper:
             item_key: RetrievalHelper._match_scores(query, text_parts(item))
             for item_key, item in candidates.items()
         }
-        exact_ranking = [
-            item_key for item_key, score in sorted(
-                ((item_key, scores[0]) for item_key, scores in match_scores.items() if scores[0] >= 0.75),
-                key=lambda pair: pair[1],
-                reverse=True,
-            )
-        ]
-        fuzzy_ranking = [
-            item_key for item_key, score in sorted(
-                ((item_key, scores[1]) for item_key, scores in match_scores.items() if scores[1] >= 0.2),
-                key=lambda pair: pair[1],
-                reverse=True,
-            )
-        ]
+        exact_ranking = RetrievalHelper._rank_positive_scores(
+            {item_key: scores[0] for item_key, scores in match_scores.items()},
+            0.75,
+        )
+        fuzzy_ranking = RetrievalHelper._rank_positive_scores(
+            {item_key: scores[1] for item_key, scores in match_scores.items()},
+            0.2,
+        )
         metadata_scores = {
             item_key: metadata_score(item)
             for item_key, item in candidates.items()
         } if metadata_score else {}
-        metadata_ranking = [
-            item_key for item_key, score in sorted(
-                ((item_key, score) for item_key, score in metadata_scores.items() if score > 0),
-                key=lambda pair: pair[1],
-                reverse=True,
-            )
-        ]
-
-        best_exact_key = exact_ranking[0] if exact_ranking else None
-        best_fuzzy_key = fuzzy_ranking[0] if fuzzy_ranking else None
-        best_vector_key = vector_ranking[0] if vector_ranking else None
-        has_strong_current_match = any(
-            exact >= 0.9 or fuzzy >= 0.9
-            for exact, fuzzy in match_scores.values()
-        ) or (
-            best_vector_key is not None
-            and (
-                best_vector_key == best_exact_key
-                or (
-                    best_vector_key == best_fuzzy_key
-                    and match_scores[best_vector_key][1] >= 0.7
-                )
-            )
+        metadata_ranking = RetrievalHelper._rank_positive_scores(
+            {key: score for key, score in metadata_scores.items() if score > 0},
+            0.0,
+        )
+        has_strong_current_match = RetrievalHelper._has_strong_current_match(
+            match_scores,
+            vector_ranking,
+            exact_ranking,
+            fuzzy_ranking,
         )
 
         continuity_scores = {
             item_key: continuity_score(item)
             for item_key, item in candidates.items()
         } if continuity_score and not has_strong_current_match else {}
-        continuity_ranking = [
-            item_key for item_key, score in sorted(
-                ((item_key, score) for item_key, score in continuity_scores.items() if score > 0),
-                key=lambda pair: pair[1],
-                reverse=True,
-            )
-        ]
+        continuity_ranking = RetrievalHelper._rank_positive_scores(
+            {key: score for key, score in continuity_scores.items() if score > 0},
+            0.0,
+        )
 
         fused = RetrievalHelper.reciprocal_rank_fusion(
             (vector_ranking, exact_ranking, fuzzy_ranking, metadata_ranking)
@@ -268,29 +345,29 @@ class RetrievalHelper:
         for rank, item_key in enumerate(continuity_ranking, start=1):
             fused[item_key] = fused.get(item_key, 0.0) + 0.25 / (60 + rank)
         for item_key, (exact_score, fuzzy_score) in match_scores.items():
-            fused[item_key] = fused.get(item_key, 0.0) + (0.01 * exact_score) + (0.01 * fuzzy_score)
+            fused[item_key] = (
+                fused.get(item_key, 0.0)
+                + (0.01 * exact_score)
+                + (0.01 * fuzzy_score)
+            )
         ordered_keys = sorted(
             candidates,
-            key=lambda item_key: (-fused.get(item_key, 0.0), vector_ranking.index(item_key) if item_key in vector_ranking else len(vector_ranking)),
+            key=lambda item_key: (
+                -fused.get(item_key, 0.0),
+                vector_ranking.index(item_key)
+                if item_key in vector_ranking
+                else len(vector_ranking),
+            ),
         )
 
         # Strong agreement permits a smaller, precise result. Weak confidence
         # retains the configured limit so downstream semantic search can recover.
-        top_key = ordered_keys[0] if ordered_keys else None
-        if top_key:
-            top_exact, top_fuzzy = match_scores[top_key]
-            top_vector_rank = vector_positions.get(top_key)
-            if top_exact >= 0.9 or top_fuzzy >= 0.9 or (
-                top_vector_rank == 1 and (top_exact >= 0.5 or top_fuzzy >= 0.7)
-            ):
-                confident = [
-                    item_key for item_key in ordered_keys[:limit]
-                    if match_scores[item_key][0] >= 0.5
-                    or match_scores[item_key][1] >= 0.7
-                    or vector_positions.get(item_key, limit + 1) <= 2
-                ]
-                if confident:
-                    ordered_keys = confident
+        ordered_keys = RetrievalHelper._trim_to_confident_keys(
+            ordered_keys,
+            match_scores,
+            vector_positions,
+            limit,
+        )
 
         selected_keys = ordered_keys[:limit]
         if preserve_score and not has_strong_current_match:
@@ -306,15 +383,11 @@ class RetrievalHelper:
                 )
                 if score > 0
             ][:limit]
-            missing_preserved = [
-                item_key for item_key in preserved_keys if item_key not in selected_keys
-            ]
-            if missing_preserved:
-                retained = [
-                    item_key for item_key in selected_keys
-                    if item_key not in preserved_keys
-                ][:max(0, limit - len(preserved_keys))]
-                selected_keys = [*retained, *preserved_keys]
+            selected_keys = RetrievalHelper._merge_preserved_keys(
+                selected_keys,
+                preserved_keys,
+                limit,
+            )
 
         return [candidates[item_key] for item_key in selected_keys]
 
@@ -355,25 +428,61 @@ class RetrievalHelper:
         return values
 
     @staticmethod
+    def _device_value(device: Any, name: str, default: Any = None) -> Any:
+        if isinstance(device, dict):
+            return device.get(name, default)
+        return getattr(device, name, default)
+
+    @staticmethod
+    def _device_domains(devices: Iterable[Any]) -> set[str]:
+        domains: set[str] = set()
+        for device in devices:
+            values = RetrievalHelper._device_value(device, "domain", []) or []
+            if isinstance(values, str):
+                values = [values]
+            domains.update(str(value).casefold() for value in values)
+        return domains
+
+    @staticmethod
+    def _device_classes(devices: Iterable[Any]) -> set[str]:
+        return {
+            str(value).casefold()
+            for device in devices
+            if (value := RetrievalHelper._device_value(device, "device_class"))
+        }
+
+    @staticmethod
+    def _metadata_value(tool: Any, name: str, default: Any = False) -> Any:
+        metadata = getattr(tool, "metadata", None)
+        if isinstance(metadata, dict):
+            return metadata.get(name, default)
+        return getattr(metadata, name, default)
+
+    @staticmethod
+    def _family_matches_domains(tool: Any, domains: set[str]) -> bool:
+        family = str(getattr(tool, "family", "") or "").casefold()
+        family_domains = RetrievalHelper._FAMILY_DOMAINS.get(family)
+        return not family_domains or not domains or bool(domains & family_domains)
+
+    @staticmethod
+    def _is_action_tool(tool: Any) -> bool:
+        family = str(getattr(tool, "family", "") or "").casefold()
+        if family in RetrievalHelper._ACTION_FAMILIES:
+            return True
+        return any(
+            RetrievalHelper._metadata_value(tool, name)
+            for name in ("is_domain_aware", "is_area_aware", "is_device_class_aware")
+        )
+
+    @staticmethod
     def tool_device_compatibility(tool: Any, devices: Iterable[Any]) -> float:
         """Score whether a tool schema can target the retrieved devices."""
         devices = list(devices)
         if not devices:
             return 0.0
         properties = (tool.parameters or {}).get("properties") or {}
-        def device_value(device: Any, name: str, default: Any = None) -> Any:
-            return device.get(name, default) if isinstance(device, dict) else getattr(device, name, default)
-
-        domains = {
-            str(domain).casefold()
-            for device in devices
-            for domain in (device_value(device, "domain", []) or [])
-        }
-        device_classes = {
-            str(device_value(device, "device_class")).casefold()
-            for device in devices
-            if device_value(device, "device_class")
-        }
+        domains = RetrievalHelper._device_domains(devices)
+        device_classes = RetrievalHelper._device_classes(devices)
         score = 0.0
         allowed_domains = RetrievalHelper._schema_values(properties.get("domain", {}))
         allowed_classes = RetrievalHelper._schema_values(properties.get("device_class", {}))
@@ -382,48 +491,46 @@ class RetrievalHelper:
         if allowed_classes:
             score += 2.0 if device_classes & allowed_classes else -2.0
 
-        metadata = tool.metadata
-        get_metadata = (
-            metadata.get
-            if isinstance(metadata, dict)
-            else lambda name, default=False: getattr(metadata, name, default)
+        if RetrievalHelper._metadata_value(tool, "is_domain_aware"):
+            score += 0.5
+        if RetrievalHelper._metadata_value(tool, "is_device_class_aware") and device_classes:
+            score += 0.5
+        has_area = any(
+            RetrievalHelper._device_value(device, "area_name")
+            or RetrievalHelper._device_value(device, "area")
+            for device in devices
         )
-        if get_metadata("is_domain_aware"):
-            score += 0.5
-        if get_metadata("is_device_class_aware") and device_classes:
-            score += 0.5
-        if get_metadata("is_area_aware") and any(device_value(device, "area_name") or device_value(device, "area") for device in devices):
+        if RetrievalHelper._metadata_value(tool, "is_area_aware") and has_area:
             score += 0.25
         return score
 
     @staticmethod
     def tool_is_compatible(tool: Any, devices: Iterable[Any]) -> bool:
-        """Reject explicit schema constraints that match no resolved device."""
+        """Reject schema or action-family constraints matching no device."""
         devices = list(devices)
         if not devices:
             return True
         properties = (tool.parameters or {}).get("properties") or {}
-
-        def device_value(device: Any, name: str, default: Any = None) -> Any:
-            return device.get(name, default) if isinstance(device, dict) else getattr(device, name, default)
-
-        domains = {
-            str(domain).casefold()
-            for device in devices
-            for domain in (device_value(device, "domain", []) or [])
-        }
-        device_classes = {
-            str(device_value(device, "device_class")).casefold()
-            for device in devices
-            if device_value(device, "device_class")
-        }
+        domains = RetrievalHelper._device_domains(devices)
+        device_classes = RetrievalHelper._device_classes(devices)
         allowed_domains = RetrievalHelper._schema_values(properties.get("domain", {}))
         allowed_classes = RetrievalHelper._schema_values(properties.get("device_class", {}))
         if allowed_domains and not domains.intersection(allowed_domains):
             return False
         if allowed_classes and not device_classes.intersection(allowed_classes):
             return False
-        return True
+        return RetrievalHelper._family_matches_domains(tool, domains)
+
+    @staticmethod
+    def has_compatible_action_tool(tools: Iterable[Any], devices: Iterable[Any]) -> bool:
+        """Return whether the shortlist contains an action for the target devices."""
+        devices = list(devices)
+        for tool in tools:
+            if not RetrievalHelper.tool_is_compatible(tool, devices):
+                continue
+            if RetrievalHelper._is_action_tool(tool):
+                return True
+        return False
 
     @staticmethod
     def rerank_tools_for_devices(tools: Iterable[T], devices: Iterable[Any], limit: int) -> list[T]:

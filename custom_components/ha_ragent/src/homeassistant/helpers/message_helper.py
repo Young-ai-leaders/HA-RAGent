@@ -26,8 +26,8 @@ class MessageHelper:
     def tool_result_succeeded(result: object) -> bool:
         """Return whether a tool result represents a success."""
         if isinstance(result, dict):
-            if result.get("success"):
-                return True
+            if "success" in result:
+                return bool(result["success"])
             if any(result.get(key) for key in ("error", "errors", "failed")):
                 return False
             return True
@@ -42,14 +42,14 @@ class MessageHelper:
         """Return the original result for a repeated tool call."""
         success_value = previous_result.get("success")
         if success_value is None:
-            success = not any(previous_result.get(key) for key in ("error", "errors"))
+            success = not any(previous_result.get(key) for key in ("error", "errors", "failed"))
         else:
             success = bool(success_value)
         result = {
             "success": success,
             "already_executed": True,
         }
-        for error_key in ("error", "errors"):
+        for error_key in ("error", "errors", "failed"):
             if result["success"] is False and error_key in previous_result:
                 result[error_key] = previous_result[error_key]
 

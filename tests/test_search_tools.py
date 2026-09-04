@@ -32,7 +32,10 @@ def test_model_search_query_can_search_outside_user_request() -> None:
         tool_args={"search_query": "find a ventilation control tool"},
     )))
 
-    assert query == "find a ventilation control tool"
+    assert query.startswith("Search intent: find a ventilation control tool")
+    assert "Default area when the request has no explicit location: Bedroom Jonas" in query
+    assert "Default floor when the request has no explicit location: 2nd Floor" in query
+    assert "Current candidate: light.strip | Light Strip" in query
 
 
 def test_user_context_is_fallback_without_model_search_query() -> None:
@@ -44,6 +47,15 @@ def test_user_context_is_fallback_without_model_search_query() -> None:
     )))
 
     assert query == "Current request: turn off a light"
+
+
+def test_search_context_signature_accepts_empty_keyword_context() -> None:
+    tool = RAGentSemanticSearchTool.__new__(RAGentSemanticSearchTool)
+
+    tool.set_search_context()
+
+    assert tool._contextual_query == ""
+    assert tool._candidate_context == []
 
 
 def test_contextual_fallback_includes_trusted_location() -> None:

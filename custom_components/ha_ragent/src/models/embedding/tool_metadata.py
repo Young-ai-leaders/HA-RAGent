@@ -1,9 +1,21 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
-from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
+
+CANONICAL_NAME_SPLIT_PATTERN = r"_|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
+
+
+def split_canonical_name(name: str) -> tuple[str, ...]:
+    """Split a canonical name on underscores and camel-case transitions."""
+    return tuple(
+        part.casefold()
+        for part in re.split(CANONICAL_NAME_SPLIT_PATTERN, str(name or ""))
+        if part
+    )
+
 
 @dataclass
 class ToolMetadata(SerializableModel):
@@ -18,7 +30,7 @@ class ToolMetadata(SerializableModel):
         if not name:
             return ""
         
-        parts = set(LlmTool.split_canonical_name(name))
+        parts = set(split_canonical_name(name))
         families = (
             ("power", {"on", "off", "toggle"}),
             ("position", {"open", "close", "position"}),

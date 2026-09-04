@@ -29,7 +29,8 @@ from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
 from custom_components.ha_ragent.src.models.embedding.memory import Memory
-from custom_components.ha_ragent.src.models.retrieval.turn_context import ContinuityContext, TurnContext
+from custom_components.ha_ragent.src.models.retrieval.continuity_context import ContinuityContext
+from custom_components.ha_ragent.src.models.retrieval.turn_context import TurnContext
 
 from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
@@ -168,7 +169,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         )
         return RetrievalHelper.build_continuity_context(selected)
 
-    async def _async_retrieve_devices(self, query_embedding: List[float], query: str, n_devices: int, continuity: ContinuityContext) -> List[Device]:
+    async def _async_retrieve_devices(
+        self,
+        query_embedding: List[float],
+        query: str,
+        n_devices: int,
+        continuity: ContinuityContext,
+        current_area: str = "",
+        current_floor: str = "",
+    ) -> List[Device]:
         """Retrieve relevant devices from vector database based on query embedding."""
         if n_devices <= 0:
             return []
@@ -218,6 +227,10 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     device.device_class,
                     *(device.device_labels or []),
                 ),
+            ) + RetrievalHelper.trusted_location_score(
+                device,
+                current_area,
+                current_floor,
             ),
             continuity_score=continuity.device_score,
             preserve_score=continuity.successful_target_score,
@@ -254,12 +267,44 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             query,
             lambda tool: tool.name,
             lambda tool: (tool.name, *tool.canonical_name_parts, tool.family, tool.description),
-            min(candidate_limit, n_tools * 2),
+            n_tools,
             metadata_score=lambda tool: RetrievalHelper.field_match_score(
                 query,
                 ((tool.parameters or {}).get("properties") or {}).keys(),
             ),
             continuity_score=continuity.tool_score,
+        )
+
+    async def _async_expand_tools_if_needed(
+        self,
+        query_embedding: list[float],
+        query: str,
+        tools: list[LlmTool],
+        devices: list[Device],
+        configured_limit: int,
+        continuity: ContinuityContext,
+    ) -> tuple[list[LlmTool], int]:
+        """Expand retrieval when the initial shortlist has no usable action."""
+        if not devices or RetrievalHelper.has_compatible_action_tool(tools, devices):
+            return tools, configured_limit
+
+        expanded_limit = RetrievalHelper.expanded_tool_limit(configured_limit)
+        if expanded_limit <= configured_limit:
+            return tools, configured_limit
+
+        expanded_tools = await self._async_retrieve_tools(
+            query_embedding,
+            query,
+            n_tools=expanded_limit,
+            continuity=continuity,
+        )
+        return (
+            RetrievalHelper.rerank_tools_for_devices(
+                expanded_tools,
+                devices,
+                expanded_limit,
+            ),
+            expanded_limit,
         )
 
     async def _async_retrieve_memories(self, query_embedding: List[float], n_memories: int) -> List[Memory]:
@@ -348,7 +393,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         prohibited = set(RAGENT_PREFIXED_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES)
         return [tool for tool in tool_list if tool.name not in prohibited]
 
-    def _get_current_device_location(self, llm_context: LLMContext) -> ar.AreaEntry | None:
+    def _get_current_device_location(self, llm_context: LLMContext) -> tuple[ar.AreaEntry | None, fr.FloorEntry | None]:
         area: ar.AreaEntry | None = None
         floor: fr.FloorEntry | None = None
         if llm_context.device_id:
@@ -575,6 +620,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         if scheduled_request:
             user_input.text = user_input.text.removeprefix(RAGENT_SCHEDULED_REQUEST_PREFIX)
         try:
+            llm_context = user_input.as_llm_context(DOMAIN)
             with (
                 chat_session.async_get_chat_session(self.hass, user_input.conversation_id) as session,
                 conversation.async_get_chat_log(self.hass, session, user_input) as chat_log,
@@ -586,7 +632,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                         llm_api = await llm.async_get_api(
                             self.hass,
                             resolve_llm_api_id(self.runtime_options[CONF_LLM_HASS_API]),
-                            llm_context=user_input.as_llm_context(DOMAIN),
+                            llm_context=llm_context,
                         )
                         if isinstance(llm_api, RAGentAugmentedAPIInstance):
                             llm_api.set_conversation_agent_id(user_input.agent_id)
@@ -602,6 +648,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     
                 # ensure this chat log has the LLM API instance
                 chat_log.llm_api = llm_api
+                area, floor = self._get_current_device_location(llm_context)
 
                 history_manager = HistoryManager(
                     runtime_options=self.runtime_options,
@@ -638,14 +685,14 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     user_input.text,
                     n_devices=effective_device_limit,
                     continuity=continuity,
+                    current_area=area.name if area else "",
+                    current_floor=floor.name if floor else "",
                 )
                 configured_tool_limit = self.runtime_options.get(
                     CONF_NUM_TOOLS_TO_EXTRACT,
                     DEFAULT_NUM_TOOLS_TO_EXTRACT,
                 )
                 effective_tool_limit = configured_tool_limit
-                if RetrievalHelper.target_is_confident(user_input.text, retrieved_devices, continuity):
-                    effective_tool_limit = RetrievalHelper.expanded_tool_limit(configured_tool_limit)
 
                 if llm_api:
                     retrieved_tools, retrieved_memories = await asyncio.gather(
@@ -660,12 +707,30 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 else:
                     retrieved_tools = []
                     retrieved_memories = await retrieve_memories_task
-                log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices, {len(retrieved_tools)} tools and {len(retrieved_memories)} memories")
 
                 retrieved_tools = RetrievalHelper.rerank_tools_for_devices(
                     retrieved_tools,
                     retrieved_devices,
                     effective_tool_limit,
+                )
+
+                if llm_api:
+                    (
+                        retrieved_tools,
+                        effective_tool_limit,
+                    ) = await self._async_expand_tools_if_needed(
+                        query_embedding,
+                        user_input.text,
+                        retrieved_tools,
+                        retrieved_devices,
+                        configured_tool_limit,
+                        continuity=continuity,
+                    )
+
+                log_timing(
+                    f"Step 2 retrieved {len(retrieved_devices)} devices, "
+                    f"{len(retrieved_tools)} tools and "
+                    f"{len(retrieved_memories)} memories"
                 )
 
                 retrieved_tools = self._ensure_required_tools_exposed(retrieved_tools, llm_api)
@@ -686,8 +751,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     device.attributes = clean_device_attributes(st.attributes)
                     device_list.append(device)
                 
-                area, floor = self._get_current_device_location(user_input.as_llm_context(DOMAIN))
-
                 if isinstance(llm_api, RAGentAugmentedAPIInstance):
                     llm_api.set_search_context(
                         latest_request=user_input.text,
@@ -723,6 +786,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     chat_log,
                     user_input,
                     system_prompt_content,
+                    relevant_turn_keys=continuity.selected_turn_keys,
                 )
 
                 result = await self._async_prompt_model(
