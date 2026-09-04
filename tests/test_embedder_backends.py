@@ -21,7 +21,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_SSL,
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 from custom_components.ha_ragent.src.mock import MockHomeAssistant
 

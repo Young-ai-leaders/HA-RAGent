@@ -23,8 +23,8 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.chat_message import ChatMessage
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.mock import MockHomeAssistant
 

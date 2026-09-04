@@ -23,7 +23,6 @@ def test_model_search_query_can_search_outside_user_request() -> None:
     tool = RAGentSemanticSearchTool.__new__(RAGentSemanticSearchTool)
     tool.set_search_context(
         latest_request="turn off the light strip",
-        recent_requests=["turn on the bedroom lamp"],
         area="Bedroom Jonas",
         floor="2nd Floor",
         candidates=[{"name": "light.strip", "friendly_name": "Light Strip"}],
@@ -51,7 +50,6 @@ def test_contextual_fallback_includes_trusted_location() -> None:
     tool = RAGentSemanticSearchTool.__new__(RAGentSemanticSearchTool)
     tool.set_search_context(
         latest_request="turn off the lights",
-        recent_requests=[],
         area="Kitchen",
         floor="Ground floor",
         candidates=[],

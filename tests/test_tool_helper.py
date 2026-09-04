@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
 
 def test_parse_tool_call_preserves_friendly_name() -> None:
     """A friendly-name target must survive nested argument parsing."""
@@ -151,6 +151,22 @@ def test_tool_call_signature_distinguishes_targets() -> None:
     assert helper.tool_call_signature(bedroom_one) != helper.tool_call_signature(
         bedroom_two
     )
+
+
+def test_identical_failed_retry_ignores_argument_order() -> None:
+    helper = ToolHelper(Mock())
+    first = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"domain": ["light"], "area": "Bedroom"},
+    )
+    retry = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"area": "Bedroom", "domain": ["light"]},
+    )
+
+    failed = {helper.tool_call_signature(first): {"success": False}}
+
+    assert helper.is_identical_failed_retry(retry, failed)
 
 def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
     """Domain-aware tools cannot target every entity in an area implicitly."""

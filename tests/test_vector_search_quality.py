@@ -7,9 +7,9 @@ from custom_components.ha_ragent.src.backends.database.faiss_backend import (
 )
 from custom_components.ha_ragent.src.const import CONF_VECTOR_DB_NAME, INSTRUCTION_PROMPT
 from custom_components.ha_ragent.src.mock import MockHomeAssistant
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.device import Device
 
 
 def _backend(tmp_path) -> FaissDbBackend:
