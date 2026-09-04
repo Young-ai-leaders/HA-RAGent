@@ -29,6 +29,7 @@ from custom_components.ha_ragent.src.models.tool import LlmTool
 from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.chat_message import ChatMessage
 from custom_components.ha_ragent.src.models.memory import Memory
+from custom_components.ha_ragent.src.models.turn_context import ContinuityContext, TurnContext
 
 from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
@@ -76,6 +77,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
     """RAG-based conversation agent for Home Assistant."""
     def __init__(self, hass: HomeAssistant, entry: RAGentConfigEntry, subentry: ConfigSubentry) -> None:
         super().__init__(hass, entry, subentry)
+        self._history_contexts: dict[str, dict[str, tuple[TurnContext, float]]] = {}
+        self._history_vectors: dict[tuple[str, str], list[float]] = {}
 
     async def async_added_to_hass(self) -> None:
         """When entity is added to Home Assistant."""
@@ -104,7 +107,68 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
 
         return embedding or None
 
-    async def _async_retrieve_devices(self, query_embedding: List[float], query: str, n_devices: int) -> List[Device]:
+    async def _async_build_continuity_context(self, history_manager: HistoryManager, chat_log: conversation.ChatLog, conversation_id: str | None, query_embedding: list[float]) -> ContinuityContext:
+        """Retrieve short-term structured and longer-term semantic history."""
+        extracted_contexts = history_manager.structured_turn_contexts(chat_log)
+        cache_scope = str(conversation_id or "")
+        now = time.time()
+
+        if cache_scope:
+            stored = self._history_contexts.setdefault(cache_scope, {})
+            for context in extracted_contexts:
+                stored[context.key] = (context, now)
+            stored = {
+                key: value
+                for key, value in stored.items()
+                if now - value[1] <= 300.0
+            }
+            stored = dict(list(stored.items())[-10:])
+            self._history_contexts[cache_scope] = stored
+            contexts = [context for context, _ in stored.values()]
+        else:
+            contexts = extracted_contexts
+
+        missing = [
+            context
+            for context in contexts
+            if (cache_scope, context.key) not in self._history_vectors
+        ]
+
+        async def embed_context(context: TurnContext) -> tuple[TurnContext, list[float] | None]:
+            try:
+                vector = await self.entry.embedder_backend.async_embed_text(
+                    dict(self.subentry.data),
+                    context.to_embedding_text(),
+                )
+                return context, vector or None
+            except Exception as err:
+                _logger.debug("Failed to embed semantic history turn: %s", err)
+                return context, None
+
+        if missing:
+            for context, vector in await asyncio.gather(*(embed_context(context) for context in missing)):
+                if vector:
+                    self._history_vectors[(cache_scope, context.key)] = vector
+
+        active_keys = {(cache_scope, context.key) for context in contexts}
+        self._history_vectors = {
+            key: vector
+            for key, vector in self._history_vectors.items()
+            if key[0] != cache_scope or key in active_keys
+        }
+        vectors = {
+            context.key: self._history_vectors.get((cache_scope, context.key), [])
+            for context in contexts
+        }
+        selected = RetrievalHelper.select_history_contexts(
+            contexts,
+            vectors,
+            query_embedding,
+            max_age_seconds=300.0,
+        )
+        return RetrievalHelper.build_continuity_context(selected)
+
+    async def _async_retrieve_devices(self, query_embedding: List[float], query: str, n_devices: int, continuity: ContinuityContext) -> List[Device]:
         """Retrieve relevant devices from vector database based on query embedding."""
         if n_devices <= 0:
             return []
@@ -154,10 +218,10 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     device.device_class,
                     *(device.device_labels or []),
                 ),
-            ),
+            ) + continuity.device_score(device),
         )
 
-    async def _async_retrieve_tools(self, query_embedding: List[float], query: str, n_tools: int) -> List[LlmTool]:
+    async def _async_retrieve_tools(self, query_embedding: List[float], query: str, n_tools: int, continuity: ContinuityContext) -> List[LlmTool]:
         """Retrieve relevant tools from vector database based on query embedding."""
         if n_tools <= 0:
             return []
@@ -192,7 +256,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             metadata_score=lambda tool: RetrievalHelper.field_match_score(
                 query,
                 ((tool.parameters or {}).get("properties") or {}).keys(),
-            ),
+            ) + continuity.tool_score(tool),
         )
 
     async def _async_retrieve_memories(self, query_embedding: List[float], n_memories: int) -> List[Memory]:
@@ -304,7 +368,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         tool_list: List[LlmTool],
         chat_log: conversation.ChatLog,
         history_manager: HistoryManager,
-        scheduled_request: bool = False,
+        scheduled_request: bool = False
     ) -> ConversationResult:
         """Process a prompt through the RAGent."""
         tool_helper = ToolHelper(self.hass)
@@ -515,8 +579,15 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     intent_response.async_set_error(intent.IntentResponseErrorCode.UNKNOWN, f"Failed to embed user input.")
                     return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
-                retrieve_devices_task = self._async_retrieve_devices(query_embedding, user_input.text, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT))
-                retrieve_tools_task = self._async_retrieve_tools(query_embedding, user_input.text, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT)) if llm_api else None
+                continuity = await self._async_build_continuity_context(
+                    history_manager,
+                    chat_log,
+                    user_input.conversation_id,
+                    query_embedding,
+                )
+
+                retrieve_devices_task = self._async_retrieve_devices(query_embedding, user_input.text, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT), continuity=continuity)
+                retrieve_tools_task = self._async_retrieve_tools(query_embedding, user_input.text, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT), continuity=continuity) if llm_api else None
                 retrieve_memories_task = self._async_retrieve_memories(query_embedding, n_memories=self.runtime_options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT))
 
                 if retrieve_tools_task:
@@ -562,7 +633,6 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 if isinstance(llm_api, RAGentAugmentedAPIInstance):
                     llm_api.set_search_context(
                         latest_request=user_input.text,
-                        recent_requests=history_manager.recent_user_requests(chat_log),
                         area=area.name if area else "",
                         floor=floor.name if floor else "",
                         candidates=[

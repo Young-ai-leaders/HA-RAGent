@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import math
+import time
 from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
 
 from custom_components.ha_ragent.src.models.scored_result import ScoredResult
+from custom_components.ha_ragent.src.models.turn_context import ContinuityContext, TurnContext
 
 T = TypeVar("T")
 
@@ -23,6 +26,80 @@ class RetrievalHelper:
     def build_retrieval_text(current_request: str) -> str:
         """Build a language-neutral query from only the current request."""
         return " ".join(current_request.split())
+
+    @staticmethod
+    def cosine_similarity(left: Iterable[float], right: Iterable[float]) -> float:
+        """Return cosine similarity for two embedding vectors."""
+        left = list(left)
+        right = list(right)
+        if len(left) != len(right) or not left:
+            return 0.0
+        dot_product = sum(a * b for a, b in zip(left, right))
+        left_norm = math.sqrt(sum(value * value for value in left))
+        right_norm = math.sqrt(sum(value * value for value in right))
+        if not left_norm or not right_norm:
+            return 0.0
+        return dot_product / (left_norm * right_norm)
+
+    @staticmethod
+    def select_history_contexts(
+        contexts: Iterable[TurnContext],
+        vectors: dict[str, list[float]],
+        current_vector: list[float],
+        max_age_seconds: float = 300.0,
+        limit: int = 3,
+        now: float | None = None,
+    ) -> list[tuple[TurnContext, float]]:
+        """Select semantic history with decay plus a small short-term signal."""
+        now = time.time() if now is None else now
+        contexts = list(contexts)
+        selected: dict[str, tuple[TurnContext, float]] = {}
+        for index, context in enumerate(contexts):
+            fallback_age = float((len(contexts) - index - 1) * 30)
+            age = max(0.0, now - context.created_at) if context.created_at is not None else fallback_age
+            if age > max_age_seconds:
+                continue
+            decay = 0.5 ** (age / 120.0)
+            similarity = max(0.0, RetrievalHelper.cosine_similarity(
+                current_vector,
+                vectors.get(context.key, []),
+            ))
+            relevance = similarity * decay
+            if context.has_canonical_context:
+                relevance += 0.1 * decay
+            if similarity >= 0.2:
+                selected[context.key] = (context, relevance)
+
+            # Keep canonical context from the last two very recent turns as a
+            # separate short-term continuity signal, without parsing language.
+            if context.has_canonical_context and index >= len(contexts) - 2 and age <= 90.0:
+                short_term_weight = 0.15 * decay
+                previous = selected.get(context.key)
+                if previous is None or short_term_weight > previous[1]:
+                    selected[context.key] = (context, short_term_weight)
+
+        return sorted(selected.values(), key=lambda item: item[1], reverse=True)[:limit]
+
+    @staticmethod
+    def build_continuity_context(selected_contexts: Iterable[tuple[TurnContext, float]]) -> ContinuityContext:
+        """Aggregate selected structured turns into weighted continuity maps."""
+        continuity = ContinuityContext()
+        for context, weight in selected_contexts:
+            for attribute in (
+                "entities",
+                "tools",
+                "areas",
+                "domains",
+                "device_classes",
+                "actions",
+                "ambiguous_entities",
+            ):
+                values = getattr(context, attribute)
+                target = getattr(continuity, attribute)
+                for value in values:
+                    normalized = str(value).casefold()
+                    target[normalized] = max(target.get(normalized, 0.0), weight)
+        return continuity
 
     @staticmethod
     def adaptive_candidate_limit(limit: int) -> int:

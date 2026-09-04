@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Iterable
 from typing import Any
 
 import voluptuous as vol
@@ -62,7 +61,6 @@ class RAGentSemanticSearchTool(llm.Tool):
     def _build_search_query(
         cls,
         latest_request: str = "",
-        recent_requests: Iterable[str] = (),
         area: str = "",
         floor: str = "",
     ) -> str:
@@ -71,16 +69,6 @@ class RAGentSemanticSearchTool(llm.Tool):
         latest = cls._clean(latest_request)
         if latest:
             sections.append(f"Current request: {latest}")
-
-        seen_requests = {latest.casefold()} if latest else set()
-        recent: list[str] = []
-        for request in recent_requests:
-            text = cls._clean(request)
-            if text and text.casefold() not in seen_requests:
-                seen_requests.add(text.casefold())
-                recent.append(text)
-        for text in recent[-3:]:
-            sections.append(f"Recent user request: {text}")
 
         current_area = cls._clean(area)
         current_floor = cls._clean(floor)
@@ -94,7 +82,6 @@ class RAGentSemanticSearchTool(llm.Tool):
     def set_search_context(
         self,
         latest_request: str,
-        recent_requests: list[str],
         area: str,
         floor: str,
         candidates: list[dict[str, object]]
@@ -102,7 +89,6 @@ class RAGentSemanticSearchTool(llm.Tool):
         """Bind trusted context for the current conversation turn."""
         self._contextual_query = self._build_search_query(
             latest_request=latest_request,
-            recent_requests=recent_requests,
             area=area,
             floor=floor,
         )
