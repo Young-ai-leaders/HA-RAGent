@@ -17,7 +17,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
     parameters: Dict[str, Any] = None
 
     @property
-    def name_parts(self) -> tuple[str, ...]:
+    def canonical_name_parts(self) -> tuple[str, ...]:
         """Get the canonical parts of the tool's name."""
         return self.split_canonical_name(self.name)
 
@@ -55,7 +55,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
     def to_embedding_text(self) -> str:
         """Return a string representation of the tool for embedding purposes."""
         parts = [ f"Tool name: {self.name}" ]
-        self.append_if_exists(parts, "Canonical parts", self.name_parts)
+        self.append_if_exists(parts, "Canonical parts", self.canonical_name_parts)
         self.append_if_exists(parts, "Family", self.family)
         self.append_if_exists(parts, "Description", self.description)
 

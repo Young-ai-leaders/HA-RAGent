@@ -19,7 +19,7 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_REMEMBER_CONVERSATION_TIME_MINUTES,
 )
 from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import MessageHelper
-from custom_components.ha_ragent.src.models.turn_context import TurnContext
+from custom_components.ha_ragent.src.models.retrieval.turn_context import TargetGroup, TurnContext
 
 class HistoryManager:
     def __init__(self, runtime_options: dict[str, Any]) -> None:
@@ -125,29 +125,31 @@ class HistoryManager:
             device_classes: set[str] = set()
             actions: set[str] = set()
             ambiguous_entities: set[str] = set()
+            target_groups: list[TargetGroup] = []
+
+            calls_by_id: dict[str, object] = {}
+            unmatched_calls: list[object] = []
+            for message in turn:
+                if not isinstance(message, conversation.AssistantContent):
+                    continue
+                for tool_call in getattr(message, "tool_calls", None) or []:
+                    call_id = str(getattr(tool_call, "id", "") or "")
+                    if call_id:
+                        calls_by_id[call_id] = tool_call
+                    else:
+                        unmatched_calls.append(tool_call)
 
             for message in turn:
-                if isinstance(message, conversation.AssistantContent):
-                    for tool_call in getattr(message, "tool_calls", None) or []:
-                        tool_name = str(getattr(tool_call, "tool_name", "") or "")
-                        if tool_name:
-                            tools.add(tool_name)
-                            actions.add(tool_name)
-                        arguments = getattr(tool_call, "tool_args", None) or {}
-                        if isinstance(arguments, dict):
-                            self._add_values(entities, arguments.get("name"))
-                            self._add_values(areas, arguments.get("area"))
-                            self._add_values(areas, arguments.get("floor"))
-                            self._add_values(domains, arguments.get("domain"))
-                            self._add_values(device_classes, arguments.get("device_class"))
-                            self._add_values(actions, arguments.get("action"))
-                elif isinstance(message, conversation.ToolResultContent):
+                if isinstance(message, conversation.ToolResultContent):
+                    result = getattr(message, "tool_result", None)
+                    if not MessageHelper.tool_result_succeeded(result):
+                        continue
                     tool_name = str(getattr(message, "tool_name", "") or "")
                     if tool_name:
                         tools.add(tool_name)
                         actions.add(tool_name)
                     self._collect_tool_result(
-                        getattr(message, "tool_result", None),
+                        result,
                         entities,
                         tools,
                         areas,
@@ -156,10 +158,71 @@ class HistoryManager:
                         ambiguous_entities,
                     )
 
+                    call_id = str(getattr(message, "tool_call_id", "") or "")
+                    tool_call = calls_by_id.get(call_id)
+                    if tool_call is None:
+                        match_index = next((
+                            index
+                            for index, call in enumerate(unmatched_calls)
+                            if str(getattr(call, "tool_name", "") or "") == tool_name
+                        ), None)
+                        tool_call = (
+                            unmatched_calls.pop(match_index)
+                            if match_index is not None
+                            else None
+                        )
+                    if tool_call is None:
+                        continue
+
+                    call_tool_name = str(getattr(tool_call, "tool_name", "") or "")
+                    arguments = getattr(tool_call, "tool_args", None) or {}
+                    if call_tool_name:
+                        tools.add(call_tool_name)
+                        actions.add(call_tool_name)
+                    if not isinstance(arguments, dict):
+                        continue
+
+                    group_entities: set[str] = set()
+                    group_areas: set[str] = set()
+                    group_floors: set[str] = set()
+                    group_domains: set[str] = set()
+                    group_classes: set[str] = set()
+                    self._add_values(group_entities, arguments.get("name"))
+                    self._add_values(group_areas, arguments.get("area"))
+                    self._add_values(group_floors, arguments.get("floor"))
+                    self._add_values(group_domains, arguments.get("domain"))
+                    self._add_values(group_classes, arguments.get("device_class"))
+                    if isinstance(result, dict):
+                        self._add_values(group_entities, result.get("success"))
+
+                    entities.update(group_entities)
+                    areas.update(group_areas)
+                    areas.update(group_floors)
+                    domains.update(group_domains)
+                    device_classes.update(group_classes)
+                    self._add_values(actions, arguments.get("action"))
+                    if group_entities or group_areas or group_floors or group_domains or group_classes:
+                        target_groups.append(TargetGroup(
+                            entities=tuple(sorted(group_entities)),
+                            areas=tuple(sorted(group_areas)),
+                            floors=tuple(sorted(group_floors)),
+                            domains=tuple(sorted(group_domains)),
+                            device_classes=tuple(sorted(group_classes)),
+                            tool=call_tool_name,
+                            action=str(arguments.get("action", "") or call_tool_name),
+                        ))
+
             created_at = getattr(user_message, "created_at", None)
             timestamp = created_at.timestamp() if hasattr(created_at, "timestamp") else None
             text = str(getattr(user_message, "content", "") or "").strip()
-            key = "\x1f".join((text, *sorted(entities), *sorted(tools)))
+            key = "\x1f".join((
+                text,
+                *sorted(entities),
+                *sorted(tools),
+                *sorted(areas),
+                *sorted(domains),
+                *sorted(device_classes),
+            ))
             contexts.append(TurnContext(
                 key=key,
                 text=text,
@@ -170,19 +233,56 @@ class HistoryManager:
                 device_classes=tuple(sorted(device_classes)),
                 actions=tuple(sorted(actions)),
                 ambiguous_entities=tuple(sorted(ambiguous_entities)),
+                target_groups=tuple(target_groups),
                 created_at=timestamp,
             ))
         return contexts
 
     def filter_prompt_history(self, chat_log: conversation.ChatLog) -> list[conversation.Content]:
-        """Return prompt history while compacting semantic-search results."""
+        """Return prompt history without prior failed tool-call pairs."""
         prompt_history: list[conversation.Content] = []
 
-        for message in self.select_retained_history(chat_log):
-            if isinstance(message, (conversation.UserContent, conversation.AssistantContent)):
-                prompt_history.append(message)
-            elif isinstance(message, conversation.ToolResultContent):
-                prompt_history.append(MessageHelper.compact_tool_result(message))
+        for turn in self._select_retained_turns(chat_log):
+            successful_results = [
+                message
+                for message in turn
+                if isinstance(message, conversation.ToolResultContent)
+                and MessageHelper.tool_result_succeeded(getattr(message, "tool_result", None))
+            ]
+            successful_ids = {
+                str(getattr(message, "tool_call_id", "") or "")
+                for message in successful_results
+                if getattr(message, "tool_call_id", None)
+            }
+            successful_names = {
+                str(getattr(message, "tool_name", "") or "")
+                for message in successful_results
+            }
+
+            for message in turn:
+                if isinstance(message, conversation.UserContent):
+                    prompt_history.append(message)
+                elif isinstance(message, conversation.AssistantContent):
+                    original_calls = list(getattr(message, "tool_calls", None) or [])
+                    retained_calls = [
+                        call for call in original_calls
+                        if (
+                            str(getattr(call, "id", "") or "") in successful_ids
+                            or (
+                                not getattr(call, "id", None)
+                                and str(getattr(call, "tool_name", "") or "") in successful_names
+                            )
+                        )
+                    ]
+                    content = str(getattr(message, "content", "") or "")
+                    if not original_calls or retained_calls or content:
+                        prompt_history.append(conversation.AssistantContent(
+                            agent_id=getattr(message, "agent_id", None),
+                            content=content,
+                            tool_calls=retained_calls,
+                        ))
+                elif message in successful_results:
+                    prompt_history.append(MessageHelper.compact_tool_result(message))
 
         return prompt_history
 

@@ -24,12 +24,12 @@ from custom_components.ha_ragent.src.homeassistant.helpers.message_helper import
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
 from custom_components.ha_ragent.src.homeassistant.helpers.memory_manager import MemoryManager
 from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper import RetrievalHelper
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.chat_message import ChatMessage
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.turn_context import ContinuityContext, TurnContext
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.retrieval.turn_context import ContinuityContext, TurnContext
 
 from custom_components.ha_ragent.src.homeassistant.ragent_entity import RAGentEntity
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
@@ -37,7 +37,7 @@ from custom_components.ha_ragent.src.homeassistant.ragent_api import (
     RAGentAugmentedAPIInstance,
     resolve_llm_api_id,
 )
-from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.embedding.device import Device
 
 from custom_components.ha_ragent.src.const import (
     CONF_NUM_DEVICES_TO_EXTRACT,
@@ -220,6 +220,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 ),
             ),
             continuity_score=continuity.device_score,
+            preserve_score=continuity.successful_target_score,
         )
 
     async def _async_retrieve_tools(self, query_embedding: List[float], query: str, n_tools: int, continuity: ContinuityContext) -> List[LlmTool]:
@@ -252,7 +253,7 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
             all_tools,
             query,
             lambda tool: tool.name,
-            lambda tool: (tool.name, tool.description),
+            lambda tool: (tool.name, *tool.canonical_name_parts, tool.family, tool.description),
             min(candidate_limit, n_tools * 2),
             metadata_score=lambda tool: RetrievalHelper.field_match_score(
                 query,
@@ -379,6 +380,8 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
         tool_calls_overall: List[Tuple[llm.ToolInput, Any]] = []
         executed_tool_calls: set[str] = set()
         tool_call_results: dict[str, Any] = {}
+        failed_tool_calls: dict[str, dict[str, Any]] = {}
+        repeated_failed_tool: str | None = None
         tool_metadata_dict: dict[str, dict[str, Any]] = {tool.name: tool.metadata for tool in tool_list if tool.metadata}
         formatted_messages: list[ChatMessage] = []
         formatted_index = 0
@@ -425,16 +428,29 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     for tool_call in tool_calls_in_iteration:
                         tool_name = tool_call.tool_name
                         tool_args = tool_call.tool_args
+                        tool_call_signature = tool_helper.tool_call_signature(tool_call)
+
+                        if tool_helper.is_identical_failed_retry(tool_call, failed_tool_calls):
+                            _logger.warning(
+                                "Aborting identical retry of failed tool call: %s",
+                                tool_name,
+                            )
+                            history_manager.append_message(
+                                MessageHelper.create_repeated_tool_result_message(
+                                    agent_id=user_input.agent_id,
+                                    tool_call_id=tool_call.id,
+                                    tool_name=tool_name,
+                                    previous_result=failed_tool_calls[tool_call_signature],
+                                )
+                            )
+                            repeated_failed_tool = tool_name
+                            break
 
                         try:
                             if llm_api:
                                 helper_start = time.perf_counter()
                                 tool_helper.block_broad_tool_calls(tool_call, tool_metadata_dict.get(tool_name))
                                 _logger.debug(f"RAGent timing: block_broad_tool_calls ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
-
-                                helper_start = time.perf_counter()
-                                tool_call_signature = tool_helper.tool_call_signature(tool_call)
-                                _logger.debug(f"RAGent timing: tool_call_signature ({tool_name}): {time.perf_counter() - helper_start:.3f}s")
 
                                 if tool_call_signature in executed_tool_calls:
                                     _logger.debug(f"Returning already-executed result for repeated tool call: {tool_name} with arguments {tool_args}")
@@ -451,9 +467,11 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 tool_start = time.perf_counter()
                                 execution_call = tool_helper.to_home_assistant_tool_call(tool_call)
                                 tool_result = await llm_api.async_call_tool(execution_call)
-                                tool_call_results[tool_call_signature] = tool_result
                                 tool_calls_overall.append((tool_call, tool_result))                                
                                 parsed_tool_result = tool_helper.parse_tool_results(tool_result)
+                                tool_call_results[tool_call_signature] = parsed_tool_result
+                                if not MessageHelper.tool_result_succeeded(parsed_tool_result):
+                                    failed_tool_calls[tool_call_signature] = parsed_tool_result
                                 tool_result_msg = conversation.ToolResultContent(
                                     agent_id=user_input.agent_id,
                                     tool_call_id=tool_call.id,
@@ -481,6 +499,10 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                                 error=tool_err,
                             )
                             history_manager.append_message(tool_result_msg)
+                            failed_tool_calls[tool_call_signature] = {
+                                "success": False,
+                                "error": str(tool_err),
+                            }
 
             except Exception as err:
                 _logger.error(f"There was a problem talking to the backend: {err}")
@@ -489,6 +511,17 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                 return ConversationResult(response=intent_response, conversation_id=user_input.conversation_id)
 
             history_manager.persist_chat_history(chat_log)
+
+            if repeated_failed_tool:
+                intent_response = intent.IntentResponse(language=user_input.language)
+                intent_response.async_set_error(
+                    intent.IntentResponseErrorCode.FAILED_TO_HANDLE,
+                    f"Stopped after an identical failed retry of {repeated_failed_tool}.",
+                )
+                return ConversationResult(
+                    response=intent_response,
+                    conversation_id=user_input.conversation_id,
+                )
 
             if not tool_calls_in_iteration:
                 break
@@ -588,28 +621,51 @@ class RAGent(ConversationEntity, AbstractConversationAgent, RAGentEntity):
                     query_embedding,
                 )
 
-                retrieve_devices_task = self._async_retrieve_devices(query_embedding, user_input.text, n_devices=self.runtime_options.get(CONF_NUM_DEVICES_TO_EXTRACT, DEFAULT_NUM_DEVICES_TO_EXTRACT), continuity=continuity)
-                retrieve_tools_task = self._async_retrieve_tools(query_embedding, user_input.text, n_tools=self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT), continuity=continuity) if llm_api else None
-                retrieve_memories_task = self._async_retrieve_memories(query_embedding, n_memories=self.runtime_options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT))
+                retrieve_memories_task = asyncio.create_task(self._async_retrieve_memories(
+                    query_embedding,
+                    n_memories=self.runtime_options.get(CONF_NUM_MEMORIES_TO_EXTRACT, DEFAULT_NUM_MEMORIES_TO_EXTRACT),
+                ))
+                configured_device_limit = self.runtime_options.get(
+                    CONF_NUM_DEVICES_TO_EXTRACT,
+                    DEFAULT_NUM_DEVICES_TO_EXTRACT,
+                )
+                effective_device_limit = RetrievalHelper.expanded_device_limit(
+                    configured_device_limit,
+                    continuity,
+                )
+                retrieved_devices = await self._async_retrieve_devices(
+                    query_embedding,
+                    user_input.text,
+                    n_devices=effective_device_limit,
+                    continuity=continuity,
+                )
+                configured_tool_limit = self.runtime_options.get(
+                    CONF_NUM_TOOLS_TO_EXTRACT,
+                    DEFAULT_NUM_TOOLS_TO_EXTRACT,
+                )
+                effective_tool_limit = configured_tool_limit
+                if RetrievalHelper.target_is_confident(user_input.text, retrieved_devices, continuity):
+                    effective_tool_limit = RetrievalHelper.expanded_tool_limit(configured_tool_limit)
 
-                if retrieve_tools_task:
-                    retrieved_devices, retrieved_tools, retrieved_memories = await asyncio.gather(
-                        retrieve_devices_task,
-                        retrieve_tools_task,
+                if llm_api:
+                    retrieved_tools, retrieved_memories = await asyncio.gather(
+                        self._async_retrieve_tools(
+                            query_embedding,
+                            user_input.text,
+                            n_tools=effective_tool_limit,
+                            continuity=continuity,
+                        ),
                         retrieve_memories_task,
                     )
                 else:
-                    retrieved_devices, retrieved_memories = await asyncio.gather(
-                        retrieve_devices_task,
-                        retrieve_memories_task,
-                    )
                     retrieved_tools = []
+                    retrieved_memories = await retrieve_memories_task
                 log_timing(f"Step 2 retrieved {len(retrieved_devices)} devices, {len(retrieved_tools)} tools and {len(retrieved_memories)} memories")
 
                 retrieved_tools = RetrievalHelper.rerank_tools_for_devices(
                     retrieved_tools,
                     retrieved_devices,
-                    self.runtime_options.get(CONF_NUM_TOOLS_TO_EXTRACT, DEFAULT_NUM_TOOLS_TO_EXTRACT),
+                    effective_tool_limit,
                 )
 
                 retrieved_tools = self._ensure_required_tools_exposed(retrieved_tools, llm_api)

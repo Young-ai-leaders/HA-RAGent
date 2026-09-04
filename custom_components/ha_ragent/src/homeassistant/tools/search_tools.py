@@ -25,10 +25,10 @@ from custom_components.ha_ragent.src.const import (
     DOMAIN,
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
 )
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper import RetrievalHelper
 from custom_components.ha_ragent.src.utils import get_tool_description
 
@@ -58,12 +58,7 @@ class RAGentSemanticSearchTool(llm.Tool):
         return " ".join(str(value or "").split())
 
     @classmethod
-    def _build_search_query(
-        cls,
-        latest_request: str = "",
-        area: str = "",
-        floor: str = "",
-    ) -> str:
+    def _build_search_query(cls, latest_request: str = "", area: str = "", floor: str = "") -> str:
         """Build a bounded fallback query from user requests and trusted location."""
         sections: list[str] = []
         latest = cls._clean(latest_request)
@@ -254,7 +249,7 @@ class RAGentSemanticSearchTool(llm.Tool):
                         all_tools,
                         query,
                         lambda tool: tool.name,
-                        lambda tool: (tool.name, tool.description),
+                        lambda tool: (tool.name, *tool.canonical_name_parts, tool.family, tool.description),
                         min(candidate_limit, tool_limit * 2),
                         metadata_score=lambda tool: RetrievalHelper.field_match_score(
                             query,

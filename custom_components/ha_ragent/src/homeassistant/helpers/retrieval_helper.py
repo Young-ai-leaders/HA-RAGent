@@ -5,8 +5,8 @@ import time
 from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
 
-from custom_components.ha_ragent.src.models.scored_result import ScoredResult
-from custom_components.ha_ragent.src.models.turn_context import ContinuityContext, TurnContext
+from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
+from custom_components.ha_ragent.src.models.retrieval.turn_context import ContinuityContext, TurnContext
 
 T = TypeVar("T")
 
@@ -99,12 +99,30 @@ class RetrievalHelper:
                 for value in values:
                     normalized = str(value).casefold()
                     target[normalized] = max(target.get(normalized, 0.0), weight)
+            continuity.target_groups.extend(
+                (group, weight) for group in context.target_groups
+            )
         return continuity
 
     @staticmethod
     def adaptive_candidate_limit(limit: int) -> int:
         """Return a bounded internal pool size for hybrid retrieval."""
         return min(40, max(limit * 4, limit + 8)) if limit > 0 else 0
+
+    @staticmethod
+    def expanded_tool_limit(limit: int) -> int:
+        """Expand the exposed tool set for a confidently resolved target."""
+        return min(12, limit * 2) if limit > 0 else 0
+
+    @staticmethod
+    def expanded_device_limit(limit: int, continuity: ContinuityContext) -> int:
+        """Keep all recent successful entity targets within a bounded shortlist."""
+        successful_entities = {
+            entity.casefold()
+            for group, _ in continuity.target_groups
+            for entity in group.entities
+        }
+        return min(12, max(limit, len(successful_entities))) if limit > 0 else 0
 
     @staticmethod
     def _character_ngrams(text: str, size: int = 3) -> set[str]:
@@ -151,10 +169,7 @@ class RetrievalHelper:
         return exact + (0.5 * fuzzy)
 
     @staticmethod
-    def reciprocal_rank_fusion(
-        ranked_keys: Iterable[Iterable[str]],
-        rank_constant: int = 60,
-    ) -> dict[str, float]:
+    def reciprocal_rank_fusion(ranked_keys: Iterable[Iterable[str]], rank_constant: int = 60) -> dict[str, float]:
         """Fuse independent rankings using reciprocal rank fusion."""
         scores: dict[str, float] = {}
         for ranking in ranked_keys:
@@ -172,6 +187,7 @@ class RetrievalHelper:
         limit: int,
         metadata_score: Callable[[T], float] | None = None,
         continuity_score: Callable[[T], float] | None = None,
+        preserve_score: Callable[[T], float] | None = None,
     ) -> list[T]:
         """Fuse rank-based signals and suppress stale continuity on strong matches."""
         if limit <= 0:
@@ -276,7 +292,51 @@ class RetrievalHelper:
                 if confident:
                     ordered_keys = confident
 
-        return [candidates[item_key] for item_key in ordered_keys[:limit]]
+        selected_keys = ordered_keys[:limit]
+        if preserve_score and not has_strong_current_match:
+            preserved_keys = [
+                item_key
+                for item_key, score in sorted(
+                    (
+                        (item_key, preserve_score(item))
+                        for item_key, item in candidates.items()
+                    ),
+                    key=lambda pair: pair[1],
+                    reverse=True,
+                )
+                if score > 0
+            ][:limit]
+            missing_preserved = [
+                item_key for item_key in preserved_keys if item_key not in selected_keys
+            ]
+            if missing_preserved:
+                retained = [
+                    item_key for item_key in selected_keys
+                    if item_key not in preserved_keys
+                ][:max(0, limit - len(preserved_keys))]
+                selected_keys = [*retained, *preserved_keys]
+
+        return [candidates[item_key] for item_key in selected_keys]
+
+    @staticmethod
+    def target_is_confident(query: str, devices: Iterable[Any], continuity: ContinuityContext) -> bool:
+        """Return whether the current or successful prior target is resolved."""
+        devices = list(devices)
+        for device in devices:
+            exact, fuzzy = RetrievalHelper._match_scores(
+                query,
+                (
+                    getattr(device, "id", ""),
+                    getattr(device, "friendly_name", ""),
+                    *(getattr(device, "aliases", None) or []),
+                ),
+            )
+            if exact >= 0.9 or fuzzy >= 0.9:
+                return True
+        return any(
+            continuity.successful_target_score(device) > 0
+            for device in devices
+        )
 
     @staticmethod
     def _schema_values(schema: object) -> set[str]:
@@ -337,10 +397,43 @@ class RetrievalHelper:
         return score
 
     @staticmethod
-    def rerank_tools_for_devices(tools: Iterable[T], devices: Iterable[Any], limit: int) -> list[T]:
-        """Fuse existing tool rank with device compatibility rank."""
-        tools = list(tools)
+    def tool_is_compatible(tool: Any, devices: Iterable[Any]) -> bool:
+        """Reject explicit schema constraints that match no resolved device."""
         devices = list(devices)
+        if not devices:
+            return True
+        properties = (tool.parameters or {}).get("properties") or {}
+
+        def device_value(device: Any, name: str, default: Any = None) -> Any:
+            return device.get(name, default) if isinstance(device, dict) else getattr(device, name, default)
+
+        domains = {
+            str(domain).casefold()
+            for device in devices
+            for domain in (device_value(device, "domain", []) or [])
+        }
+        device_classes = {
+            str(device_value(device, "device_class")).casefold()
+            for device in devices
+            if device_value(device, "device_class")
+        }
+        allowed_domains = RetrievalHelper._schema_values(properties.get("domain", {}))
+        allowed_classes = RetrievalHelper._schema_values(properties.get("device_class", {}))
+        if allowed_domains and not domains.intersection(allowed_domains):
+            return False
+        if allowed_classes and not device_classes.intersection(allowed_classes):
+            return False
+        return True
+
+    @staticmethod
+    def rerank_tools_for_devices(tools: Iterable[T], devices: Iterable[Any], limit: int) -> list[T]:
+        """Hard-filter incompatible tools, then fuse compatible tool ranks."""
+        devices = list(devices)
+        tools = [
+            tool
+            for tool in tools
+            if RetrievalHelper.tool_is_compatible(tool, devices)
+        ]
         original = [str(index) for index in range(len(tools))]
         compatible = sorted(
             (

@@ -22,12 +22,12 @@ from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_SSL,
     CONF_VECTOR_DB_USERNAME,
 )
-from custom_components.ha_ragent.src.models.chat_message import (
+from custom_components.ha_ragent.src.models.chat.chat_message import (
     ChatFunction,
     ChatMessage,
     ChatToolCall,
 )
-from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 
 
 MOCK_LLM_DEFAULT_OPTIONS = {
