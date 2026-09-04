@@ -4,7 +4,6 @@ import logging
 from collections.abc import Iterable
 from typing import Any, List, Tuple
 
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 import voluptuous as vol
 from probatio import to_openapi
 
@@ -24,10 +23,11 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_TIMER_DEVICE_ID,
 )
-from custom_components.ha_ragent.src.models.tool import LlmTool
+
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.homeassistant.ragent_api import resolve_llm_api_id
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
-from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
 
 _logger = logging.getLogger(__name__)
 
@@ -83,8 +83,8 @@ class ToolExtractor:
 
         return list(values), universal, has_field
 
-    def _extract_tool_metadata(self, parameters: Any) -> ToolMetadata:
-        metadata = ToolMetadata()
+    def _extract_tool_metadata(self, tool_name: str, parameters: Any) -> ToolMetadata:
+        metadata = ToolMetadata(family=ToolMetadata.family_from_name(tool_name))
 
         if not isinstance(parameters, dict):
             return metadata
@@ -184,7 +184,7 @@ class ToolExtractor:
                         name=tool_name,
                         description=getattr(tool, "description", ""),
                         parameters=parameters,
-                        metadata=self._extract_tool_metadata(parameters),
+                        metadata=self._extract_tool_metadata(tool_name, parameters),
                     )
                 )
                 seen_tool_names.add(tool_name)

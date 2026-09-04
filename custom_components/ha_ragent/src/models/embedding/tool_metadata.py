@@ -15,6 +15,9 @@ class ToolMetadata(SerializableModel):
     @staticmethod
     def family_from_name(name: str) -> str:
         """Map canonical Home Assistant tool-name parts to an action family."""
+        if not name:
+            return ""
+        
         parts = set(LlmTool.split_canonical_name(name))
         families = (
             ("power", {"on", "off", "toggle"}),
