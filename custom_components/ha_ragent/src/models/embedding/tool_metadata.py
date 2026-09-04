@@ -3,10 +3,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
-from custom_components.ha_ragent.src.models.base.database_model import DatabaseModel
+from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
 
 @dataclass
-class ToolMetadata(DatabaseModel):
+class ToolMetadata(SerializableModel):
     family: str = None
     is_domain_aware: bool = False
     is_area_aware: bool = False

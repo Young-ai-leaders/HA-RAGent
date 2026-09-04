@@ -1,11 +1,11 @@
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
-from custom_components.ha_ragent.src.models.base.database_model import DatabaseModel
+from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
 
 @dataclass
-class Device(DatabaseModel, EmbeddableModel):
+class Device(SerializableModel, EmbeddableModel):
     id: str
     friendly_name: str
     area_name: str

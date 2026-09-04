@@ -3,12 +3,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
-from custom_components.ha_ragent.src.models.base.database_model import DatabaseModel
+from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
 
 T = TypeVar("T", bound=EmbeddableModel)
 
-class EmbeddingRecord(DatabaseModel, Generic[T], ABC):
+class EmbeddingRecord(SerializableModel, Generic[T], ABC):
     def __init__(self, embedded_object: T, vector_embedding: list[float]) -> None:
         self.embedded_object = embedded_object
         self.vector_embedding = vector_embedding

@@ -8,8 +8,10 @@ class DeviceEmbedding(EmbeddingRecord[Device]):
         super().__init__(device, vector_embedding)
 
     def object_to_dict(self) -> dict[str, Any]:
+        """Return the persisted fields for the embedded device."""
         return self.embedded_object.to_dict()
 
     @staticmethod
     def parse_object(doc: dict[str, Any]) -> Device:
+        """Restore the device object from a persisted vector record."""
         return Device.from_dict(doc)

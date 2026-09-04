@@ -3,14 +3,14 @@ import json
 import re
 from dataclasses import dataclass
 
-from custom_components.ha_ragent.src.models.base.database_model import DatabaseModel
+from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
 from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
 
 REGEX_SPLIT_PATTERN = r"_|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
 
 @dataclass
-class LlmTool(DatabaseModel, EmbeddableModel):
+class LlmTool(SerializableModel, EmbeddableModel):
     name: str
     description: str
     metadata: ToolMetadata = None
@@ -62,6 +62,7 @@ class LlmTool(DatabaseModel, EmbeddableModel):
         return " | ".join(parts)
 
     def to_tool_dict(self) -> Dict[str, Any]:
+        """Return a dictionary representation of the tool suitable for use in an LLM context."""
         tool_def = {
             "type": "function",
             "function": {
