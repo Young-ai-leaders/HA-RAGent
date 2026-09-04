@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry, floor_registry, label_registry, llm
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
-from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.embedding.device import Device
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
 from custom_components.ha_ragent.src.const import HOME_ASSISTANT_SCRIPT_DOMAIN as SCRIPT_DOMAIN
 

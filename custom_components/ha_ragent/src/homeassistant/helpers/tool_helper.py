@@ -18,7 +18,7 @@ except ImportError:
     EntityEntry = Any
 
 from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
 
 _logger = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Any, Dict, List
 import logging
-from pymongo import AsyncMongoClient, WriteConcern
+from pymongo import AsyncMongoClient
 from pymongo.errors import OperationFailure
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.collection import AsyncCollection
@@ -13,13 +13,13 @@ except ImportError:
     from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
-from custom_components.ha_ragent.src.models.scored_result import ScoredResult
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 
 from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_NAME,

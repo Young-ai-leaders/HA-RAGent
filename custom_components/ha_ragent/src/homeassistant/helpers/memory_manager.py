@@ -20,8 +20,8 @@ from custom_components.ha_ragent.src.const import (
     DOMAIN,
     RAGENT_MEMORY_LOCKS,
 )
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
 
 _logger = logging.getLogger(__name__)
 

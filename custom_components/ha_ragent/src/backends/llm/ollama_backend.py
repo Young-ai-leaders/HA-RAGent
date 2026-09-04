@@ -23,9 +23,9 @@ from custom_components.ha_ragent.src.const import (
     CONF_MAX_TOKENS,
     CONF_TEMPERATURE
 )
-from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
-from custom_components.ha_ragent.src.models.chat_message import ChatMessage
+from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
 from custom_components.ha_ragent.src.const import RAGENT_CHAT_TRUNCATE_MAX_CHARS, RAGENT_CHAT_TRUNCATE_RETRIES
 
 _logger = logging.getLogger(__name__)

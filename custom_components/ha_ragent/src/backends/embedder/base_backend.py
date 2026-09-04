@@ -3,8 +3,8 @@ import aiohttp
 from typing import Any, Dict, List
 
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
-from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
-from custom_components.ha_ragent.src.models.embedding_record import EmbeddingRecord
+from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
+from custom_components.ha_ragent.src.models.base.embedding_record import EmbeddingRecord
 
 try:
     from homeassistant.core import HomeAssistant
@@ -17,12 +17,12 @@ from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_PORT,
     CONF_EMBEDDING_SSL
 )
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
 
 
 class ABaseEmbedder(ABC):

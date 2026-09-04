@@ -13,7 +13,7 @@ from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
 from custom_components.ha_ragent.src.models.embedding.memory import Memory
 from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
-from custom_components.ha_ragent.src.models.scored_result import ScoredResult
+from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 
 class ABaseDbBackend(ABC):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
