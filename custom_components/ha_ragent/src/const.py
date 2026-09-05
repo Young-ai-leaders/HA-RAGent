@@ -1,5 +1,44 @@
 import re
 
+PLATFORMS = ("conversation",)
+CONFIG_FLOW_VERSION = 1
+CONF_LLM_HASS_API = "llm_hass_api"
+
+#-----------------------------------------------
+# Retrieval constants
+#-----------------------------------------------
+CANONICAL_NAME_SPLIT_PATTERN = r"_|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
+RETRIEVAL_FAMILY_DOMAINS = {
+    "position": {"cover"},
+    "lock": {"lock"},
+    "light": {"light"},
+    "climate": {"climate"},
+    "media": {"media_player"},
+}
+RETRIEVAL_DOMAIN_ALIASES = {
+    "light": {"light", "lights", "lamp", "lamps"},
+    "switch": {"switch", "switches", "plug", "plugs"},
+    "fan": {"fan", "fans"},
+    "cover": {"cover", "covers", "blind", "blinds", "shade", "shades"},
+    "lock": {"lock", "locks", "door", "doors"},
+    "climate": {"climate", "thermostat", "thermostats", "heating"},
+    "media_player": {"media", "player", "players", "speaker", "speakers"},
+    "timer": {"timer", "timers"},
+}
+RETRIEVAL_SEARCH_STOP_WORDS = {"a", "an", "all", "device", "devices", "it", "please", "the", "them"}
+RETRIEVAL_FOLLOWUP_REFERENCES = ("it", "them", "same room", "there", "again", "the ones")
+RETRIEVAL_LOCATION_FOLLOWUP_PREFIXES = ("at ", "at the ", "in ", "in the ")
+RETRIEVAL_TOOL_SIGNAL_WEIGHTS = {
+    "semantic_rank": 0.75,
+    "semantic_similarity": 1.0,
+    "lexical_exact": 2.0,
+    "lexical_fuzzy": 0.75,
+    "action_intent": 3.0,
+    "domain": 1.5,
+    "device_metadata": 0.5,
+    "continuity": 0.5,
+}
+
 #-----------------------------------------------
 # General constants
 #-----------------------------------------------
@@ -25,22 +64,11 @@ RAGENT_TOOL_NAMES = [
     RAGENT_REMEMBER_TOOL_NAME,
     RAGENT_FORGET_TOOL_NAME,
 ]
-
-RAGENT_PREFIXED_TOOL_NAMES = [
-    f"{DOMAIN}__{tool_name}" for tool_name in RAGENT_TOOL_NAMES
-]
+RAGENT_PREFIXED_TOOL_NAMES = [ f"{DOMAIN}__{tool_name}" for tool_name in RAGENT_TOOL_NAMES ]
 RAGENT_PREFIXED_TOOL_NAMES_BY_NAME = dict(zip(RAGENT_TOOL_NAMES, RAGENT_PREFIXED_TOOL_NAMES))
-RAGENT_TOOL_NAMES_BY_PREFIXED_NAME = {
-    prefixed_name: tool_name
-    for tool_name, prefixed_name in RAGENT_PREFIXED_TOOL_NAMES_BY_NAME.items()
-}
-
-RAGENT_REQUIRED_TOOL_NAMES = [
-    RAGENT_SEMANTIC_SEARCH_TOOL_NAME
-]
-RAGENT_PREFIXED_REQUIRED_TOOL_NAMES = [
-    RAGENT_PREFIXED_TOOL_NAMES_BY_NAME[name] for name in RAGENT_REQUIRED_TOOL_NAMES
-]
+RAGENT_TOOL_NAMES_BY_PREFIXED_NAME = { prefixed_name: tool_name for tool_name, prefixed_name in RAGENT_PREFIXED_TOOL_NAMES_BY_NAME.items() }
+RAGENT_REQUIRED_TOOL_NAMES = [ RAGENT_SEMANTIC_SEARCH_TOOL_NAME ]
+RAGENT_PREFIXED_REQUIRED_TOOL_NAMES = [ RAGENT_PREFIXED_TOOL_NAMES_BY_NAME[name] for name in RAGENT_REQUIRED_TOOL_NAMES ]
 
 RAGENT_SCHEDULED_REQUEST_PROHIBITED_TOOL_NAMES = [
     RAGENT_PLANNED_ACTION_TOOL_NAME,
@@ -127,6 +155,33 @@ DEFAULT_EMBEDDING_BACKEND_TYPE = BACKEND_EMBEDDING_TYPE_OLLAMA
 #-----------------------------------------------
 RAGENT_CHAT_TRUNCATE_MAX_CHARS = 12000
 RAGENT_CHAT_TRUNCATE_RETRIES = 3
+RAGENT_MAX_SEARCH_QUERY_CHARS = 4000
+CONF_RETRIEVAL_METHOD = "rag_retrieval_method"
+RETRIEVAL_METHOD_AUTOMATIC = "automatic"
+RETRIEVAL_METHOD_VECTOR = "vector"
+RETRIEVAL_METHOD_LEXICAL = "lexical"
+RETRIEVAL_METHOD_OPTIONS = (
+    RETRIEVAL_METHOD_AUTOMATIC,
+    RETRIEVAL_METHOD_VECTOR,
+    RETRIEVAL_METHOD_LEXICAL,
+)
+
+CANONICAL_ACTION_ALIASES: dict[str, tuple[str, ...]] = {
+    "off": ("turn off", "switch off", "power off", "shut off", "disable"),
+    "on": ("turn on", "switch on", "power on", "enable"),
+    "toggle": ("toggle",),
+    "unlock": ("unlock",),
+    "lock": ("lock",),
+    "open": ("open",),
+    "close": ("close",),
+    "brightness": ("set brightness", "dim"),
+    "temperature": ("set temperature",),
+    "pause": ("pause",),
+    "play": ("play", "resume"),
+    "volume": ("set volume", "mute", "unmute"),
+    "position": ("set position", "position"),
+    "cancel": ("cancel",),
+}
 
 CONF_LLM_BACKEND_TYPE = "rag_llm_backend"
 CONF_LLM_MODEL = "rag_llm_model"
@@ -305,6 +360,7 @@ DEFAULT_P_TYPICAL = 1.0
 #-----------------------------------------------
 DEFAULT_OPTIONS = {
     CONF_PROMPT: DEFAULT_PROMPT,
+    CONF_RETRIEVAL_METHOD: RETRIEVAL_METHOD_AUTOMATIC,
     CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
     CONF_K_TOP: DEFAULT_K_TOP,
     CONF_P_TOP: DEFAULT_P_TOP,

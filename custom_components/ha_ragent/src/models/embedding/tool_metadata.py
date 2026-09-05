@@ -3,25 +3,8 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from custom_components.ha_ragent.src.const import CANONICAL_ACTION_ALIASES, CANONICAL_NAME_SPLIT_PATTERN
 from custom_components.ha_ragent.src.models.base.serializeable_model import SerializableModel
-
-CANONICAL_NAME_SPLIT_PATTERN = r"_|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
-CANONICAL_ACTION_ALIASES: dict[str, tuple[str, ...]] = {
-    "off": ("turn off", "switch off", "power off", "shut off", "disable"),
-    "on": ("turn on", "switch on", "power on", "enable"),
-    "toggle": ("toggle",),
-    "unlock": ("unlock",),
-    "lock": ("lock",),
-    "open": ("open",),
-    "close": ("close",),
-    "brightness": ("set brightness", "dim"),
-    "temperature": ("set temperature",),
-    "pause": ("pause",),
-    "play": ("play", "resume"),
-    "volume": ("set volume", "mute", "unmute"),
-    "position": ("set position", "position"),
-    "cancel": ("cancel",),
-}
 
 
 def split_canonical_name(name: str) -> tuple[str, ...]:

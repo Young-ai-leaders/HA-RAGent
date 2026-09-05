@@ -5,6 +5,14 @@ import time
 from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
 
+from custom_components.ha_ragent.src.const import (
+    RETRIEVAL_DOMAIN_ALIASES,
+    RETRIEVAL_FAMILY_DOMAINS,
+    RETRIEVAL_FOLLOWUP_REFERENCES,
+    RETRIEVAL_LOCATION_FOLLOWUP_PREFIXES,
+    RETRIEVAL_SEARCH_STOP_WORDS,
+    RETRIEVAL_TOOL_SIGNAL_WEIGHTS,
+)
 from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 from custom_components.ha_ragent.src.models.retrieval.continuity_context import ContinuityContext
 from custom_components.ha_ragent.src.models.retrieval.turn_context import TurnContext
@@ -18,50 +26,8 @@ from custom_components.ha_ragent.src.models.embedding.tool_metadata import (
 
 T = TypeVar("T")
 
-
 class RetrievalHelper:
     """Stateless helpers for building and reranking retrieval queries."""
-
-    _FAMILY_DOMAINS = {
-        "position": {"cover"},
-        "lock": {"lock"},
-        "light": {"light"},
-        "climate": {"climate"},
-        "media": {"media_player"},
-    }
-    _DOMAIN_ALIASES = {
-        "light": {"light", "lights", "lamp", "lamps"},
-        "switch": {"switch", "switches", "plug", "plugs"},
-        "fan": {"fan", "fans"},
-        "cover": {"cover", "covers", "blind", "blinds", "shade", "shades"},
-        "lock": {"lock", "locks", "door", "doors"},
-        "climate": {"climate", "thermostat", "thermostats", "heating"},
-        "media_player": {"media", "player", "players", "speaker", "speakers"},
-        "timer": {"timer", "timers"},
-    }
-    _SEARCH_STOP_WORDS = {
-        "a",
-        "an",
-        "all",
-        "device",
-        "devices",
-        "it",
-        "please",
-        "the",
-        "them",
-    }
-    _FOLLOWUP_REFERENCES = ("it", "them", "same room", "there", "again", "the ones")
-    _LOCATION_FOLLOWUP_PREFIXES = ("at ", "at the ", "in ", "in the ")
-    _TOOL_SIGNAL_WEIGHTS = {
-        "semantic_rank": 0.75,
-        "semantic_similarity": 1.0,
-        "lexical_exact": 2.0,
-        "lexical_fuzzy": 0.75,
-        "action_intent": 3.0,
-        "domain": 1.5,
-        "device_metadata": 0.5,
-        "continuity": 0.5,
-    }
 
     @staticmethod
     def _normalize(text: object) -> str:
@@ -97,7 +63,7 @@ class RetrievalHelper:
         tokens = set(target_text.split())
         return {
             domain
-            for domain, aliases in RetrievalHelper._DOMAIN_ALIASES.items()
+            for domain, aliases in RETRIEVAL_DOMAIN_ALIASES.items()
             if tokens & aliases
         }
 
@@ -116,8 +82,8 @@ class RetrievalHelper:
         signature_action = "power" if weak_power_search else action
         if weak_power_search:
             domains = set()
-        ignored = set(RetrievalHelper._SEARCH_STOP_WORDS)
-        ignored.update(alias for aliases in RetrievalHelper._DOMAIN_ALIASES.values() for alias in aliases)
+        ignored = set(RETRIEVAL_SEARCH_STOP_WORDS)
+        ignored.update(alias for aliases in RETRIEVAL_DOMAIN_ALIASES.values() for alias in aliases)
         if weak_power_search:
             ignored.update(
                 word
@@ -183,13 +149,13 @@ class RetrievalHelper:
         normalized_query = normalized.strip()
         is_reference = any(
             f" {phrase} " in normalized
-            for phrase in RetrievalHelper._FOLLOWUP_REFERENCES
+            for phrase in RETRIEVAL_FOLLOWUP_REFERENCES
         )
         is_location_followup = (
             not RetrievalHelper.requested_action(query)
             and any(
                 normalized_query.startswith(prefix)
-                for prefix in RetrievalHelper._LOCATION_FOLLOWUP_PREFIXES
+                for prefix in RETRIEVAL_LOCATION_FOLLOWUP_PREFIXES
             )
         )
         if not is_reference and not is_location_followup:
@@ -252,7 +218,7 @@ class RetrievalHelper:
         return any(
             plural in tokens
             for domain in domains
-            for plural in RetrievalHelper._DOMAIN_ALIASES.get(domain, set())
+            for plural in RETRIEVAL_DOMAIN_ALIASES.get(domain, set())
             if plural.endswith("s")
         )
 
@@ -372,13 +338,13 @@ class RetrievalHelper:
     def is_clarification(query: str, pending: str = "") -> bool:
         """Return whether a short turn refines an unresolved request."""
         normalized = RetrievalHelper._normalize(query)
-        query_tokens = set(normalized.split()) - RetrievalHelper._SEARCH_STOP_WORDS
-        pending_tokens = set(RetrievalHelper._normalize(pending).split()) - RetrievalHelper._SEARCH_STOP_WORDS
+        query_tokens = set(normalized.split()) - RETRIEVAL_SEARCH_STOP_WORDS
+        pending_tokens = set(RetrievalHelper._normalize(pending).split()) - RETRIEVAL_SEARCH_STOP_WORDS
         return (
             not RetrievalHelper.requested_action(query)
             and (
-                any(normalized.startswith(prefix) for prefix in RetrievalHelper._LOCATION_FOLLOWUP_PREFIXES)
-                or any(f" {phrase} " in f" {normalized} " for phrase in RetrievalHelper._FOLLOWUP_REFERENCES)
+                any(normalized.startswith(prefix) for prefix in RETRIEVAL_LOCATION_FOLLOWUP_PREFIXES)
+                or any(f" {phrase} " in f" {normalized} " for phrase in RETRIEVAL_FOLLOWUP_REFERENCES)
                 or bool(query_tokens & pending_tokens)
                 or len(query_tokens) == 1
             )
@@ -857,7 +823,7 @@ class RetrievalHelper:
         name_tokens = set(split_canonical_name(getattr(tool, "name", "")))
         domains.update(
             domain
-            for domain, aliases in RetrievalHelper._DOMAIN_ALIASES.items()
+            for domain, aliases in RETRIEVAL_DOMAIN_ALIASES.items()
             if name_tokens & aliases
         )
         return domains
@@ -891,7 +857,7 @@ class RetrievalHelper:
         if declared_domains:
             return 1.0 if declared_domains & requested_domains else -0.35
         family = str(getattr(tool, "family", "") or "").casefold()
-        family_domains = RetrievalHelper._FAMILY_DOMAINS.get(family)
+        family_domains = RETRIEVAL_FAMILY_DOMAINS.get(family)
         if family_domains:
             return 0.8 if family_domains & requested_domains else -0.3
         return 0.35
@@ -937,7 +903,7 @@ class RetrievalHelper:
     def tool_signal_score(signals: dict[str, float]) -> float:
         """Combine named tool-ranking signals using centralized weights."""
         return sum(
-            RetrievalHelper._TOOL_SIGNAL_WEIGHTS.get(name, 0.0) * value
+            RETRIEVAL_TOOL_SIGNAL_WEIGHTS.get(name, 0.0) * value
             for name, value in signals.items()
         )
 

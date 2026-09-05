@@ -23,7 +23,12 @@ from custom_components.ha_ragent.src.const import (
     DEFAULT_NUM_DEVICES_TO_EXTRACT,
     DEFAULT_NUM_TOOLS_TO_EXTRACT,
     DOMAIN,
+    RAGENT_MAX_SEARCH_QUERY_CHARS,
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+    CONF_RETRIEVAL_METHOD,
+    RETRIEVAL_METHOD_AUTOMATIC,
+    RETRIEVAL_METHOD_VECTOR,
+    RETRIEVAL_METHOD_LEXICAL,
 )
 from custom_components.ha_ragent.src.models.embedding.device import Device
 from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
@@ -33,7 +38,6 @@ from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper impo
 from custom_components.ha_ragent.src.utils import get_tool_description
 
 _logger = logging.getLogger(__name__)
-MAX_SEARCH_QUERY_CHARS = 4000
 
 
 class RAGentSemanticSearchTool(llm.Tool):
@@ -102,7 +106,7 @@ class RAGentSemanticSearchTool(llm.Tool):
             if summary:
                 sections.append(f"Current candidate: {summary}")
 
-        return "\n".join(sections)[:MAX_SEARCH_QUERY_CHARS].strip()
+        return "\n".join(sections)[:RAGENT_MAX_SEARCH_QUERY_CHARS].strip()
 
     def set_search_context(
         self,
@@ -159,7 +163,7 @@ class RAGentSemanticSearchTool(llm.Tool):
             sections = [f"Search intent: {model_search_query}"]
             if self._contextual_query:
                 sections.append(self._contextual_query)
-            return "\n".join(sections)[:MAX_SEARCH_QUERY_CHARS].strip()
+            return "\n".join(sections)[:RAGENT_MAX_SEARCH_QUERY_CHARS].strip()
         return self._contextual_query or None
 
     def _iter_searchable_entries(self):
@@ -269,6 +273,9 @@ class RAGentSemanticSearchTool(llm.Tool):
 
         for entry, subentry_id, subentry, device_limit, tool_limit in self._iter_searchable_entries():
             try:
+                retrieval_method = str(getattr(subentry, "data", {}).get(CONF_RETRIEVAL_METHOD, RETRIEVAL_METHOD_AUTOMATIC)).strip().lower()
+                if retrieval_method not in {RETRIEVAL_METHOD_AUTOMATIC, RETRIEVAL_METHOD_VECTOR, RETRIEVAL_METHOD_LEXICAL}:
+                    retrieval_method = RETRIEVAL_METHOD_AUTOMATIC
                 compatible_devices: list[Device | dict[str, object]] = list(self._candidate_context)
                 if search_devices and len(devices) < device_limit:
                     device_embedding = await self._embed_query_for_subentry(
@@ -314,6 +321,10 @@ class RAGentSemanticSearchTool(llm.Tool):
                         ),
                         trim_confident=False,
                     )
+                    if retrieval_method == RETRIEVAL_METHOD_VECTOR:
+                        all_devices = []
+                    elif retrieval_method == RETRIEVAL_METHOD_LEXICAL:
+                        scored_devices = []
                     retrieved_devices = RetrievalHelper.select_device_candidates(
                         device_query,
                         retrieved_devices,
@@ -358,6 +369,10 @@ class RAGentSemanticSearchTool(llm.Tool):
                             collection_name,
                         ),
                     )
+                    if retrieval_method == RETRIEVAL_METHOD_VECTOR:
+                        all_tools = []
+                    elif retrieval_method == RETRIEVAL_METHOD_LEXICAL:
+                        scored_tools = []
                     scored_tools, candidate_tools = RetrievalHelper.build_tool_candidate_pool(
                         scored_tools,
                         all_tools,

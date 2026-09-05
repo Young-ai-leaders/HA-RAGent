@@ -93,6 +93,7 @@
                     "data": {
                         "llm_hass_api": "LLM Home Assistant API",
                         "rag_prompt": "System Prompt",
+                        "rag_retrieval_method": "Retrieval Method",
                         "rag_allow_auto_embedding": "Allow Auto Embedding",
                         "rag_allow_questions": "Allow Follow-up Questions",
                         "rag_enable_model_thinking": "Enable Model Thinking",
@@ -111,6 +112,7 @@
                     },
                     "data_description": {
                         "rag_prompt": "The system prompt that defines the behavior and personality of the assistant",
+                        "rag_retrieval_method": "How devices and tools are retrieved. Automatic combines vector, lexical and metadata matching; Vector search uses embeddings only; Lexical search uses names, aliases and metadata.",
                         "rag_allow_auto_embedding": "Automatically embed exposed devices and tools for this AI RAGent during startup and after configuration changes.",
                         "rag_allow_questions": "Allow the assistant to ask clarification questions and continue the conversation.",
                         "rag_enable_model_thinking": "Disables thinking of the model in order to speed up response times.",

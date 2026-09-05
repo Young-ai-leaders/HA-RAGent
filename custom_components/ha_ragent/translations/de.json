@@ -93,6 +93,7 @@
                     "data": {
                         "llm_hass_api": "LLM-Home-Assistant-API",
                         "rag_prompt": "System-Prompt",
+                        "rag_retrieval_method": "Abrufmethode",
                         "rag_allow_auto_embedding": "Automatisches Embedding erlauben",
                         "rag_allow_questions": "Rückfragen erlauben",
                         "rag_enable_model_thinking": "Modelldenken aktivieren",
@@ -110,6 +111,7 @@
                     },
                     "data_description": {
                         "rag_prompt": "Der System-Prompt, der das Verhalten und die Persönlichkeit des Assistenten definiert",
+                        "rag_retrieval_method": "Legt fest, wie Geräte und Tools gefunden werden. Automatisch kombiniert Vektor-, Text- und Metadatenabgleich; Vektorsuche verwendet nur Embeddings; Textsuche verwendet Namen, Aliase und Metadaten.",
                         "rag_allow_auto_embedding": "Bindet exponierte Geräte und Tools für diesen KI-RAGent automatisch beim Start und nach Konfigurationsänderungen ein.",
                         "rag_allow_questions": "Erlaubt dem Assistenten, Rückfragen zu stellen und das Gespräch fortzusetzen.",
                         "rag_enable_model_thinking": "Deaktiviert das Denken des Modells, um die Antwortzeiten zu verkürzen.",

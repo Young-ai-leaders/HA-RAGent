@@ -10,9 +10,7 @@ from types import SimpleNamespace
 
 import aiohttp
 
-
-CONF_LLM_HASS_API = "llm_hass_api"
-
+from custom_components.ha_ragent.src.const import CONF_LLM_HASS_API
 
 class MockLlmTool:
     """Minimal substitute for Home Assistant's LLM tool base class."""
