@@ -139,7 +139,7 @@ class ToolHelper:
         area_id = entity_entry.area_id if entity_entry else None
 
         if not area_id and entity_entry and entity_entry.device_id and device_registry:
-            device = device_registry.async_get(self._hass).async_get_device(entity_entry.device_id)
+            device = device_registry.async_get(self._hass).async_get(entity_entry.device_id)
             area_id = device.area_id if device else None
 
         if area_id and area_registry:
@@ -247,113 +247,14 @@ class ToolHelper:
         """Return whether a name identifies the semantic-search tool."""
         return str(tool_name or "").rsplit("__", 1)[-1] == RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 
-    @staticmethod
-    def requested_action_for_tool(tool_name: str, tools: list[LlmTool], outstanding: list[str]) -> str | None:
-        """Match a tool to an explicitly outstanding action."""
-        if not outstanding:
-            return None
-        if outstanding == ["request"]:
-            return "request"
-        tool = next((candidate for candidate in tools if candidate.name == tool_name), None)
-        action = tool.canonical_action if tool else RetrievalHelper.requested_action(tool_name)
-        return action if action in outstanding else None
 
     @staticmethod
-    def _argument_values(arguments: dict[str, Any], *names: str) -> set[str]:
-        values: set[str] = set()
-        for name in names:
-            value = arguments.get(name)
-            if isinstance(value, str) and value:
-                values.add(RetrievalHelper._normalize(value))
-            elif isinstance(value, (list, tuple, set)):
-                values.update(RetrievalHelper._normalize(item) for item in value if item)
-        return values
+    def merge_candidates(existing: list[dict[str, object]], discovered: list[dict[str, object]]) -> list[dict[str, object]]:
+        """Retain earlier targets while refreshing newly retrieved candidates."""
+        merged = {str(item.get("name")): item for item in existing}
+        merged.update({str(item.get("name")): item for item in discovered})
+        return list(merged.values())
 
-    @staticmethod
-    def _candidate_matches_target(candidate: dict[str, object], targets: set[str]) -> bool:
-        values = {
-            RetrievalHelper._normalize(value)
-            for value in RetrievalHelper._candidate_identity_values(candidate)
-            if value
-        }
-        return bool(values & targets)
-
-    @staticmethod
-    def _candidate_values(candidates: list[dict[str, object]], *names: str) -> set[str]:
-        values: set[str] = set()
-        for candidate in candidates:
-            values.update(ToolHelper._argument_values(candidate, *names))
-        return values
-
-    @staticmethod
-    def authorize_requested_target(
-        tool_call: ToolInput,
-        metadata: ToolMetadata | None,
-        request_query: str,
-        candidates: list[dict[str, object]],
-        requested_action: str,
-    ) -> tuple[bool, str]:
-        """Authorize a target from full request intent, independently of rank."""
-        target_aware = bool(metadata and any((
-            metadata.is_domain_aware,
-            metadata.is_area_aware,
-            metadata.is_device_class_aware,
-        )))
-        if requested_action == "request" and not target_aware:
-            return True, ""
-
-        status, authorized_names = RetrievalHelper.device_resolution(request_query, candidates)
-        if status == "ambiguous":
-            return False, "The requested target is ambiguous; ask the user to choose before acting."
-        if status == "weak" or not authorized_names:
-            return False, "The requested target could not be resolved confidently; do not act."
-
-        arguments = tool_call.tool_args if isinstance(tool_call.tool_args, dict) else {}
-        targets = ToolHelper._argument_values(arguments, "original_name", "name", "entity_id")
-        authorized = [
-            candidate
-            for candidate in candidates
-            if str(candidate.get("name", "") or "") in authorized_names
-        ]
-        if status == "group":
-            if targets:
-                return False, "The request targets a group; use its domain and location instead of one candidate."
-            domains = ToolHelper._argument_values(arguments, "domain")
-            locations = ToolHelper._argument_values(arguments, "area", "floor")
-            if not domains or not locations:
-                return False, "The requested group requires both domain and location arguments."
-            candidate_domains = ToolHelper._candidate_values(authorized, "domain")
-            candidate_locations = ToolHelper._candidate_values(
-                authorized,
-                "area",
-                "area_name",
-                "floor",
-                "floor_name",
-            )
-            if not domains & candidate_domains or not locations & candidate_locations:
-                return False, "The tool domain or location does not match the resolved target group."
-            return True, ""
-
-        if not targets or not any(
-            ToolHelper._candidate_matches_target(candidate, targets)
-            for candidate in authorized
-        ):
-            return False, "The tool target does not match the resolved action, target, and location."
-
-        requested_locations = ToolHelper._argument_values(arguments, "area", "floor")
-        if requested_locations and not any(
-            requested_locations & {
-                RetrievalHelper._normalize(value)
-                for value in RetrievalHelper._candidate_location_values(candidate)
-                if value
-            }
-            for candidate in authorized
-        ):
-            return False, "The tool location does not match the resolved target."
-        requested_domains = ToolHelper._argument_values(arguments, "domain")
-        if requested_domains and not requested_domains & ToolHelper._candidate_values(authorized, "domain"):
-            return False, "The tool domain does not match the resolved target."
-        return True, ""
 
     @staticmethod
     def resolve_exposed_tool_name(tool_name: str, exposed_names: set[str]) -> str | None:
@@ -443,24 +344,6 @@ class ToolHelper:
         """Return whether the same canonical call has already failed."""
         return ToolHelper.tool_call_signature(tool_call) in failed_signatures
 
-    @staticmethod
-    def block_broad_tool_calls(tool_call: ToolInput, metadata: ToolMetadata) -> None:
-        """Reject broad calls using the tool's target metadata."""
-        if not metadata or not metadata.is_domain_aware:
-            return
-
-        arguments = tool_call.tool_args
-        if not isinstance(arguments, dict):
-            raise ValueError(f"Invalid tool arguments for {tool_call.tool_name} follow the expected tool signature.")
-
-        name = arguments.get("name")
-        domain = arguments.get("domain")
-        area = arguments.get("floor") or arguments.get("area")
-        
-        if (name or domain) and area:
-            return
-
-        raise ValueError(f"Device tool {tool_call.tool_name} requires a combination: name plus area/floor for one device, or domain plus area/floor without name for an all/plural/category target. Never enumerate a whole category.")
 
     @staticmethod
     def parse_tool_results(tool_result: JsonObjectType) -> Dict[str, Any]:
@@ -469,15 +352,19 @@ class ToolHelper:
             return {"result": tool_result}
 
         data = tool_result.get("data", {})
+        if not isinstance(data, dict):
+            return tool_result
         success = data.get("success", [])
         failed = data.get("failed", [])
+        if not isinstance(success, list) or not isinstance(failed, list):
+            return tool_result
         parsed_result: Dict[str, Any] = {}
         
-        success_ids = [x["id"] for x in success if x.get("type") == "entity"]
+        success_ids = [x["id"] for x in success if isinstance(x, dict) and x.get("type") == "entity" and "id" in x]
         if success_ids:
             parsed_result["success"] = success_ids
 
-        failed_ids = [x["id"] for x in failed if x.get("type") == "entity"]
+        failed_ids = [x["id"] for x in failed if isinstance(x, dict) and x.get("type") == "entity" and "id" in x]
         if failed_ids:
             parsed_result["failed"] = failed_ids
 

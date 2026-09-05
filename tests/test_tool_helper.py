@@ -1,14 +1,10 @@
 import json
 from unittest.mock import Mock
 
-import pytest
 
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
-from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper import RetrievalHelper
 from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
-from custom_components.ha_ragent.src.models.retrieval.continuity_context import ContinuityContext
-from custom_components.ha_ragent.src.models.retrieval.target_group import TargetGroup
 
 def test_parse_tool_call_preserves_friendly_name() -> None:
     """A friendly-name target must survive nested argument parsing."""
@@ -58,112 +54,6 @@ def test_unknown_tool_arguments_are_preserved_exactly_from_live_schema() -> None
 
     assert execution_call.tool_args == arguments
 
-
-def test_completed_request_rejects_unintended_extra_action() -> None:
-    tools = [
-        LlmTool(name="HassTurnOn", description="Turn a device on"),
-        LlmTool(name="HassTurnOff", description="Turn a device off"),
-    ]
-    outstanding = ["on"]
-
-    completed = ToolHelper.requested_action_for_tool("HassTurnOn", tools, outstanding)
-    outstanding.remove(completed)
-
-    assert ToolHelper.requested_action_for_tool("HassTurnOff", tools, outstanding) is None
-
-
-def test_explicit_full_intent_authorizes_matching_target() -> None:
-    call = Mock(
-        tool_args={
-            "original_name": "light.bathroom_ceiling",
-            "friendly_name": "Bathroom ceiling light",
-            "area": "Bathroom",
-            "domain": ["light"],
-        },
-    )
-    candidates = [{
-        "name": "light.bathroom_ceiling",
-        "friendly_name": "Bathroom ceiling light",
-        "area": "Bathroom",
-        "domain": ["light"],
-    }]
-
-    allowed, error = ToolHelper.authorize_requested_target(
-        call,
-        ToolMetadata(is_domain_aware=True, is_area_aware=True),
-        "turn on the bathroom ceiling light",
-        candidates,
-        "on",
-    )
-
-    assert allowed
-    assert error == ""
-
-
-def test_ambiguous_target_is_not_authorized_by_retrieval_order() -> None:
-    call = Mock(tool_args={"name": "Bathroom ceiling light", "area": "Bathroom"})
-    candidates = [
-        {
-            "name": "light.bathroom_ceiling",
-            "friendly_name": "Bathroom ceiling light",
-            "area": "Bathroom",
-            "domain": ["light"],
-        },
-        {
-            "name": "light.bathroom_mirror",
-            "friendly_name": "Bathroom mirror light",
-            "area": "Bathroom",
-            "domain": ["light"],
-        },
-    ]
-
-    allowed, error = ToolHelper.authorize_requested_target(
-        call,
-        ToolMetadata(is_domain_aware=True, is_area_aware=True),
-        "turn on the bathroom light",
-        candidates,
-        "on",
-    )
-
-    assert not allowed
-    assert "ambiguous" in error
-
-
-def test_elliptical_request_exposes_and_authorizes_prior_action_in_new_location() -> None:
-    group = TargetGroup(
-        entities=("light.kitchen",),
-        areas=("Kitchen",),
-        domains=("light",),
-        action="HassTurnOn",
-    )
-    resolved = RetrievalHelper.resolve_followup_query(
-        "in the bathroom",
-        ContinuityContext(target_groups=[(group, 0.9)]),
-    )
-    tools = [
-        LlmTool(name="HassTurnOff", description="Turn a device off"),
-        LlmTool(name="HassTurnOn", description="Turn a device on"),
-    ]
-    candidates = [{
-        "name": "light.bathroom_ceiling",
-        "friendly_name": "Bathroom ceiling light",
-        "area": "Bathroom",
-        "domain": ["light"],
-    }]
-    call = Mock(tool_args={"name": "Bathroom ceiling light", "area": "Bathroom"})
-
-    action = ToolHelper.requested_action_for_tool("HassTurnOn", tools, ["on"])
-    allowed, _ = ToolHelper.authorize_requested_target(
-        call,
-        ToolMetadata(is_domain_aware=True, is_area_aware=True),
-        resolved,
-        candidates,
-        action,
-    )
-
-    assert action == "on"
-    assert RetrievalHelper.rank_tools_for_query(tools, resolved, candidates)[0].name == "HassTurnOn"
-    assert allowed
 
 def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     """A device class supplies the domain when the model omitted it."""
@@ -382,54 +272,14 @@ def test_discovered_unknown_tool_keeps_live_schema_and_generic_metadata() -> Non
     assert discovered[0].parameters is parameters
     assert discovered[0].metadata == ToolMetadata()
 
-def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
-    """Domain-aware tools cannot target every entity in an area implicitly."""
-    call = Mock(
-        tool_name="HassTurnOn",
-        tool_args={"area": "Bedroom 1"},
-    )
 
-    with pytest.raises(ValueError, match="requires a combination"):
-        ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
+def test_device_registry_lookup_uses_device_id(monkeypatch) -> None:
+    from custom_components.ha_ragent.src.homeassistant.helpers import tool_helper
+    registry = Mock()
+    registry.async_get.return_value = Mock(area_id=None)
+    monkeypatch.setattr(tool_helper, "device_registry", Mock(async_get=Mock(return_value=registry)))
+    ToolHelper(Mock())._parse_area_and_floor(Mock(area_id=None, device_id="device-1"), None, None)
+    registry.async_get.assert_called_once_with("device-1")
+    registry.async_get_device.assert_not_called()
 
-@pytest.mark.parametrize(
-    "tool_args",
-    [
-        {"name": "Bedroom 1 Ceiling Light"},
-        {"domain": ["light"]},
-        {},
-    ],
-)
-def test_validate_tool_call_target_rejects_unscoped_device_call(
-    tool_args: dict,
-) -> None:
-    """Domain-aware tools require both a target and a location scope."""
-    call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
 
-    with pytest.raises(ValueError, match="requires a combination"):
-        ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
-
-@pytest.mark.parametrize(
-    "tool_args",
-    [
-        {"name": "Bedroom 1 Ceiling Light", "area": "Bedroom 1"},
-        {"area": "Bedroom 1", "domain": ["light"]},
-        {"name": "Bedroom 1 Ceiling Light", "floor": "Ground Floor"},
-    ],
-)
-def test_validate_tool_call_target_accepts_scoped_device_call(
-    tool_args: dict,
-) -> None:
-    """A name or domain provides the required device scope."""
-    call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
-
-    ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
-
-def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
-    """Tools without device-domain targeting may validly use an area alone."""
-    call = Mock(
-        tool_name="HassBroadcast",
-        tool_args={"area": "Bedroom 1"},
-    )
-
-    ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=False))
