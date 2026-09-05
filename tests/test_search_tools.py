@@ -3,6 +3,8 @@ import sys
 import types
 from types import SimpleNamespace
 
+import pytest
+
 from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 
@@ -189,13 +191,13 @@ def test_tool_search_uses_trusted_action_and_resolved_switch_domain() -> None:
 
     candidate_names = [candidate["name"] for candidate in result["candidate_tools"]]
     assert candidate_names[0] == "HassTurnOn"
-    assert candidate_names == ["HassTurnOn"]
+    assert set(candidate_names) == {"HassTurnOn", "HassLightSet", "HassBroadcast"}
     assert result["candidate_tools"][0]["canonical_action"] == "on"
     assert result["candidate_tools"][0]["ranking_signals"]["action_intent"] == 1.0
-    assert result["tool_search_confidence"] == "high"
+    assert result["tool_search_confidence"] == "low"  # No toggle capability was found.
     assert "canonical action: on" in result["tool_search_query"]
     assert "supported domains: switch" in result["tool_search_query"]
-    assert "lights bathroom area" not in result["tool_search_query"]
+    assert "Search intent: lights bathroom area switch toggle" in result["tool_search_query"]
     assert embedder.queries == [result["tool_search_query"]]
 
 
@@ -256,3 +258,55 @@ def test_empty_tool_index_returns_no_tools_fallback() -> None:
     assert result["tool_search_status"] == "no_tools_found"
     assert result["tool_search_confidence"] == "none"
     assert result["fallback_required"] is True
+
+
+@pytest.mark.parametrize("search_query", ["", "set light color brightness sleep mode"])
+def test_compound_search_exposes_light_settings_and_custom_mode(search_query: str) -> None:
+    request = (
+        "turn on light strip and set the color to red and brightness to 40% "
+        "and also enable sleep mode"
+    )
+    powers = [LlmTool(f"Power{index}TurnOn", "Turn on a light") for index in range(5)]
+    light_set = LlmTool("HassLightSet", "Set light brightness and color")
+    custom = LlmTool("VendorExecute", "Run a user program", parameters={
+        "properties": {"mode": {"oneOf": [{"const": "sleep"}, {"const": "turbo"}]}}
+    })
+    vector_database = _FakeToolVectorDatabase([*powers, light_set, custom])
+    entry = SimpleNamespace(embedder_backend=_FakeEmbedder(), vector_db_backend=vector_database)
+    subentry = SimpleNamespace(data={}, title="Test")
+    tool = RAGentSemanticSearchTool.__new__(RAGentSemanticSearchTool)
+    tool._iter_searchable_entries = lambda: iter([(entry, "subentry", subentry, 3, 3)])
+    tool.set_search_context(latest_request=request, candidates=[{"domain": ["light"]}])
+
+    result = asyncio.run(tool.async_call(SimpleNamespace(
+        tool_args={"search_query": search_query, "scope": "tools"},
+    )))
+
+    candidates = result["candidate_tools"]
+    assert len(candidates) == 3
+    assert {light_set.name, custom.name}.issubset({candidate["name"] for candidate in candidates})
+    assert next(candidate for candidate in candidates if candidate["name"] == custom.name)[
+        "parameters"
+    ] is custom.parameters
+    assert entry.embedder_backend.queries[0].startswith(request)
+    assert result["error"] == []
+
+
+def test_corrective_search_can_retrieve_a_custom_capability_after_power_action() -> None:
+    custom = LlmTool("VendorExecute", "Apply a user profile", parameters={
+        "properties": {"profile": {"enum": ["moonlight", "daylight"]}}
+    })
+    powers = [LlmTool(f"Power{index}TurnOn", "Turn on a light") for index in range(5)]
+    entry = SimpleNamespace(embedder_backend=_FakeEmbedder(),
+                            vector_db_backend=_FakeToolVectorDatabase([*powers, custom]))
+    subentry = SimpleNamespace(data={}, title="Test")
+    tool = RAGentSemanticSearchTool.__new__(RAGentSemanticSearchTool)
+    tool._iter_searchable_entries = lambda: iter([(entry, "subentry", subentry, 3, 2)])
+    tool.set_search_context(latest_request="turn on the light", candidates=[{"domain": ["light"]}])
+
+    result = asyncio.run(tool.async_call(SimpleNamespace(
+        tool_args={"search_query": "moonlight profile", "scope": "tools"},
+    )))
+
+    assert custom.name in {candidate["name"] for candidate in result["candidate_tools"]}
+    assert "moonlight profile" in entry.embedder_backend.queries[0]

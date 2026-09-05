@@ -191,7 +191,7 @@ class RAGentSemanticSearchTool(llm.Tool):
         model_search_query: str,
         devices: list[Device | dict[str, object]],
     ) -> str:
-        """Use only canonical action and resolved domains for tool retrieval."""
+        """Keep the full request and corrective search intent for any tool schema."""
         return RetrievalHelper.build_tool_search_query(
             self._latest_request,
             model_search_query,

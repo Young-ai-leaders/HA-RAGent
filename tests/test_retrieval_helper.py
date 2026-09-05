@@ -181,7 +181,8 @@ def test_tool_search_query_uses_action_and_resolved_device_domain() -> None:
     assert "canonical action: on" in query
     assert "switch on" in query
     assert "supported domains: switch" in query
-    assert "lights bathroom area" not in query
+    assert query.startswith("turn on the bathroom heater\n")
+    assert "Search intent: lights bathroom area switch" in query
 
 
 def test_action_aliases_do_not_add_false_switch_domain() -> None:
@@ -796,3 +797,65 @@ def test_unknown_tool_schema_is_searchable_and_remains_live() -> None:
     assert "required mode" in tool.to_embedding_text()
     assert "choices quiet turbo" in tool.to_embedding_text()
     assert tool.to_tool_dict()["function"]["parameters"] is parameters
+
+
+def test_compound_request_preserves_custom_capabilities_in_embedding_query() -> None:
+    request = (
+        "turn on light strip and set the color to red and brightness to 40% "
+        "and also enable sleep mode"
+    )
+    query = RetrievalHelper.build_tool_search_query(request, "", [{"domain": ["light"]}])
+
+    assert query.startswith(request)
+    assert "supported domains: light" in query
+
+
+def test_compound_retrieval_covers_schema_capabilities_among_power_tools() -> None:
+    powers = [
+        LlmTool(f"Vendor{index}TurnOn", "Turn on a light",
+                parameters={"properties": {"domain": {"enum": ["light"]}}})
+        for index in range(5)
+    ]
+    light_set = LlmTool("HassLightSet", "Set light brightness and color",
+                        parameters={"properties": {
+                            "brightness": {"type": "integer"},
+                            "color": {"type": "string"},
+                        }})
+    custom = LlmTool("VendorExecute", "Run a user-defined program",
+                     parameters={"properties": {"mode": {"enum": ["sleep", "turbo"]}}})
+    query = RetrievalHelper.build_tool_search_query(
+        "turn on light strip and set the color to red and brightness to 40% "
+        "and also enable sleep mode", "", [{"domain": ["light"]}],
+    )
+    result = RetrievalHelper.rank_tool_candidates(
+        [ScoredResult(tool, 0.99, index + 1) for index, tool in enumerate(powers)],
+        [*powers, light_set, custom], query, [{"domain": ["light"]}], 3,
+    )
+
+    assert len(result) == 3
+    assert any(tool in powers for tool in result)
+    assert light_set in result
+    assert custom in result
+
+
+def test_secondary_action_is_not_penalized_and_missing_action_expands_search() -> None:
+    turn_on = LlmTool("HassTurnOn", "Turn on a device")
+    turn_off = LlmTool("HassTurnOff", "Turn off a device")
+    query = RetrievalHelper.build_tool_search_query(
+        "turn on the light and turn off the fan", "", [],
+    )
+
+    assert RetrievalHelper.tool_ranking_signals(turn_off, query)["action_intent"] == 1.0
+    assert RetrievalHelper.tool_search_confidence([turn_on], query, []) == "low"
+    assert RetrievalHelper.tool_search_confidence([turn_on, turn_off], query, []) == "high"
+
+
+def test_high_scoring_power_tool_does_not_hide_other_candidates() -> None:
+    turn_on = LlmTool("HassTurnOn", "Turn on a light")
+    custom = LlmTool("BedtimeRoutine", "Start a user-defined routine")
+    result = RetrievalHelper.rank_tool_candidates(
+        [ScoredResult(turn_on, 1.0, 1)], [turn_on, custom],
+        "turn on the light and start bedtime routine", [], 4,
+    )
+
+    assert result == [turn_on, custom]

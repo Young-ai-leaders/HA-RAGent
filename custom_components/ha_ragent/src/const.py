@@ -7,7 +7,35 @@ CONF_LLM_HASS_API = "llm_hass_api"
 #-----------------------------------------------
 # Retrieval constants
 #-----------------------------------------------
+CONF_RETRIEVAL_METHOD = "rag_retrieval_method"
+RETRIEVAL_METHOD_AUTOMATIC = "automatic"
+RETRIEVAL_METHOD_VECTOR = "vector"
+RETRIEVAL_METHOD_LEXICAL = "lexical"
+RETRIEVAL_METHOD_OPTIONS = (
+    RETRIEVAL_METHOD_AUTOMATIC,
+    RETRIEVAL_METHOD_VECTOR,
+    RETRIEVAL_METHOD_LEXICAL,
+)
+
+CANONICAL_ACTION_ALIASES: dict[str, tuple[str, ...]] = {
+    "off": ("turn off", "switch off", "power off", "shut off", "disable"),
+    "on": ("turn on", "switch on", "power on", "enable"),
+    "toggle": ("toggle",),
+    "unlock": ("unlock",),
+    "lock": ("lock",),
+    "open": ("open",),
+    "close": ("close",),
+    "brightness": ("set brightness", "dim"),
+    "temperature": ("set temperature",),
+    "pause": ("pause",),
+    "play": ("play", "resume"),
+    "volume": ("set volume", "mute", "unmute"),
+    "position": ("set position", "position"),
+    "cancel": ("cancel",),
+}
+
 CANONICAL_NAME_SPLIT_PATTERN = r"_|(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])"
+
 RETRIEVAL_FAMILY_DOMAINS = {
     "position": {"cover"},
     "lock": {"lock"},
@@ -156,32 +184,6 @@ DEFAULT_EMBEDDING_BACKEND_TYPE = BACKEND_EMBEDDING_TYPE_OLLAMA
 RAGENT_CHAT_TRUNCATE_MAX_CHARS = 12000
 RAGENT_CHAT_TRUNCATE_RETRIES = 3
 RAGENT_MAX_SEARCH_QUERY_CHARS = 4000
-CONF_RETRIEVAL_METHOD = "rag_retrieval_method"
-RETRIEVAL_METHOD_AUTOMATIC = "automatic"
-RETRIEVAL_METHOD_VECTOR = "vector"
-RETRIEVAL_METHOD_LEXICAL = "lexical"
-RETRIEVAL_METHOD_OPTIONS = (
-    RETRIEVAL_METHOD_AUTOMATIC,
-    RETRIEVAL_METHOD_VECTOR,
-    RETRIEVAL_METHOD_LEXICAL,
-)
-
-CANONICAL_ACTION_ALIASES: dict[str, tuple[str, ...]] = {
-    "off": ("turn off", "switch off", "power off", "shut off", "disable"),
-    "on": ("turn on", "switch on", "power on", "enable"),
-    "toggle": ("toggle",),
-    "unlock": ("unlock",),
-    "lock": ("lock",),
-    "open": ("open",),
-    "close": ("close",),
-    "brightness": ("set brightness", "dim"),
-    "temperature": ("set temperature",),
-    "pause": ("pause",),
-    "play": ("play", "resume"),
-    "volume": ("set volume", "mute", "unmute"),
-    "position": ("set position", "position"),
-    "cancel": ("cancel",),
-}
 
 CONF_LLM_BACKEND_TYPE = "rag_llm_backend"
 CONF_LLM_MODEL = "rag_llm_model"
@@ -354,6 +356,9 @@ DEFAULT_K_TOP = 40
 DEFAULT_P_MIN = 0.1
 DEFAULT_P_TOP = 0.9
 DEFAULT_P_TYPICAL = 1.0
+
+CONNECTION_RETRIES = 2
+STREAM_READ_TIMEOUT = 300
 
 #-----------------------------------------------
 # Default override options for new entries

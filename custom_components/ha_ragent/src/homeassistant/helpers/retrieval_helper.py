@@ -106,23 +106,28 @@ class RetrievalHelper:
         fallback_query: str,
         devices: Iterable[Any],
     ) -> str:
-        """Build a compact capability query from action and resolved device domains."""
-        action = RetrievalHelper.requested_action(trusted_query)
-        if not action:
-            action = RetrievalHelper.requested_action(fallback_query)
+        """Preserve arbitrary capabilities, adding canonical hints only as context."""
+        query = trusted_query or fallback_query
+        if trusted_query and fallback_query and fallback_query != trusted_query:
+            query += f"\nSearch intent: {fallback_query}"
+        actions = tuple(dict.fromkeys(RetrievalHelper.requested_actions(query)))
         domains = RetrievalHelper._device_domains(devices)
         if not domains:
             domains = RetrievalHelper.requested_domains(trusted_query)
-        if not action:
-            return trusted_query or fallback_query
-
-        aliases = CANONICAL_ACTION_ALIASES.get(action, ())
-        sections = [f"canonical action: {action}"]
-        if aliases:
-            sections.append(f"action aliases: {' | '.join(aliases)}")
+        sections = []
+        for action in actions:
+            sections.append(f"canonical action: {action}")
+            aliases = CANONICAL_ACTION_ALIASES.get(action, ())
+            if aliases:
+                sections.append(f"action aliases: {' | '.join(aliases)}")
         if domains:
             sections.append(f"supported domains: {' | '.join(sorted(domains))}")
-        return " | ".join(sections)
+        return query + ("\nRetrieval hints: " + " | ".join(sections) if sections else "")
+
+    @staticmethod
+    def _tool_query_text(query: str) -> str:
+        """Keep generated aliases from counting as additional user intent."""
+        return query.partition("\nRetrieval hints:")[0]
 
     @staticmethod
     def _followup_target_terms(group: Any) -> tuple[str, ...]:
@@ -873,6 +878,7 @@ class RetrievalHelper:
     ) -> dict[str, float]:
         """Return independent, extensible signals used to rank a tool."""
         devices = list(devices)
+        query = RetrievalHelper._tool_query_text(query)
         requested_domains = RetrievalHelper._device_domains(devices)
         if not requested_domains:
             requested_domains = RetrievalHelper.requested_domains(query)
@@ -889,10 +895,9 @@ class RetrievalHelper:
             "semantic_similarity": max(0.0, min(1.0, semantic_score or 0.0)),
             "lexical_exact": exact,
             "lexical_fuzzy": fuzzy,
-            "action_intent": RetrievalHelper._tool_action_signal(
-                tool,
-                RetrievalHelper.requested_action(query),
-                query,
+            "action_intent": max(
+                RetrievalHelper._tool_action_signal(tool, action, query)
+                for action in (RetrievalHelper.requested_actions(query) or ("",))
             ),
             "domain": RetrievalHelper._tool_domain_signal(tool, requested_domains),
             "device_metadata": max(-1.0, min(1.0, compatibility / 2.0)),
@@ -919,6 +924,7 @@ class RetrievalHelper:
         """Rank a broad tool pool without discarding uncertain candidates."""
         if limit <= 0:
             return []
+        devices = list(devices)
         vector_results = list(vector_results)
         candidate_by_name = {
             str(getattr(tool, "name", "")): tool
@@ -952,11 +958,51 @@ class RetrievalHelper:
                 )
             )
         scored.sort(key=lambda item: (-item[0], item[1], item[2]))
-        if len(scored) > 1:
-            top_signals = RetrievalHelper.tool_ranking_signals(scored[0][3], query, devices)
-            if top_signals["action_intent"] >= 1.0 and scored[0][0] - scored[1][0] >= 1.5:
-                return [scored[0][3]]
-        return [tool for _, _, _, tool in scored[:limit]]
+        # Reward coverage of distinct request terms so several power tools do
+        # not crowd out a color setter or a user-defined mode tool. Derive this
+        # from live names, descriptions and schemas, never a tool-name allowlist.
+        query_tokens = set(RetrievalHelper._normalize(
+            RetrievalHelper._tool_query_text(query)
+        ).split()) - RETRIEVAL_SEARCH_STOP_WORDS - {"and", "also", "to", "set"}
+        matched_terms = {}
+        for _, _, name, tool in scored:
+            text = " ".join((
+                name,
+                str(getattr(tool, "description", "") or ""),
+                *getattr(tool, "canonical_schema_parts", ()),
+            ))
+            matched_terms[name] = query_tokens & set(RetrievalHelper._normalize(text).split())
+        term_weights = {
+            term: math.log(1.0 + len(scored) / sum(
+                term in terms for terms in matched_terms.values()
+            ))
+            for term in set().union(*matched_terms.values())
+        }
+        tool_weights = {
+            name: sum(term_weights[term] for term in terms)
+            for name, terms in matched_terms.items()
+        }
+        covered: set[str] = set()
+        selected: list[T] = []
+        while scored and len(selected) < limit:
+            def marginal_score(index: int) -> float:
+                score, _, name, _ = scored[index]
+                weight = tool_weights[name]
+                if not weight:
+                    return score
+                uncovered = sum(
+                    term_weights[term]
+                    for term in matched_terms[name] - covered
+                ) / weight
+                # Keep a residual relevance score for alternatives, but spend
+                # the limited slots on capabilities not represented yet.
+                return score - 0.8 * abs(score) * (1.0 - uncovered)
+
+            best = max(range(len(scored)), key=marginal_score)
+            _, _, name, tool = scored.pop(best)
+            selected.append(tool)
+            covered.update(matched_terms[name])
+        return selected
 
     @staticmethod
     def tool_search_confidence(tools: Iterable[Any], query: str, devices: Iterable[Any]) -> str:
@@ -964,6 +1010,12 @@ class RetrievalHelper:
         tools = list(tools)
         if not tools:
             return "none"
+        query = RetrievalHelper._tool_query_text(query)
+        actions = set(RetrievalHelper.requested_actions(query))
+        if len(actions) > 1 and not actions.issubset(
+            {RetrievalHelper._tool_action(tool) for tool in tools}
+        ):
+            return "low"
         top_signals = RetrievalHelper.tool_ranking_signals(tools[0], query, devices)
         if top_signals["action_intent"] >= 1.0 and top_signals["domain"] >= 0.35:
             return "high"

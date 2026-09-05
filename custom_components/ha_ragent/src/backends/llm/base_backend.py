@@ -14,6 +14,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_PORT,
     CONF_LLM_SSL,
     RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
+    STREAM_READ_TIMEOUT,
 )
 from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -21,7 +22,7 @@ from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
 
 class ALlmBaseBackend(ABC):
     _default_timeout = aiohttp.ClientTimeout(total=5)
-    _chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=30)
+    _chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=STREAM_READ_TIMEOUT)
 
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         self._hass = hass

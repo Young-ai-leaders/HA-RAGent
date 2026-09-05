@@ -1,6 +1,9 @@
 import asyncio
+from contextlib import aclosing
 import json
 import logging
+from functools import wraps
+import aiohttp
 from typing import Any, Dict, List, AsyncGenerator
 
 try:
@@ -21,7 +24,8 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_PORT,
     CONF_LLM_SSL,
     CONF_MAX_TOKENS,
-    CONF_TEMPERATURE
+    CONF_TEMPERATURE,
+    CONNECTION_RETRIES,
 )
 from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -29,6 +33,41 @@ from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
 from custom_components.ha_ragent.src.const import RAGENT_CHAT_TRUNCATE_MAX_CHARS, RAGENT_CHAT_TRUNCATE_RETRIES
 
 _logger = logging.getLogger(__name__)
+
+def _is_retryable_error(error: Exception) -> bool:
+    if isinstance(error, (aiohttp.ClientSSLError, aiohttp.ServerFingerprintMismatch)):
+        return False
+    if isinstance(error, aiohttp.ClientResponseError):
+        return error.status in {408, 429, 500, 502, 503, 504}
+    return isinstance(error, (aiohttp.ClientConnectionError, aiohttp.ClientPayloadError, ConnectionError, TimeoutError))
+
+async def async_request_json(session: aiohttp.ClientSession, method: str, url: str, **kwargs: Any) -> Any:
+    for attempt in range(CONNECTION_RETRIES + 1):
+        try:
+            async with session.request(method, url, **kwargs) as response:
+                response.raise_for_status()
+                return await response.json()
+        except Exception as error:
+            if attempt == CONNECTION_RETRIES or not _is_retryable_error(error):
+                raise
+            await asyncio.sleep(0.5 * (2 ** attempt))
+
+def retry_stream_connection_errors(operation):
+    @wraps(operation)
+    async def wrapped(*args, **kwargs):
+        emitted = False
+        for attempt in range(CONNECTION_RETRIES + 1):
+            try:
+                async with aclosing(operation(*args, **kwargs)) as stream:
+                    async for chunk in stream:
+                        emitted = True
+                        yield chunk
+                return
+            except Exception as error:
+                if emitted or attempt == CONNECTION_RETRIES or not _is_retryable_error(error):
+                    raise
+                await asyncio.sleep(0.5 * (2 ** attempt))
+    return wrapped
 
 class OllamaLlmBackend(ALlmBaseBackend):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
@@ -46,7 +85,8 @@ class OllamaLlmBackend(ALlmBaseBackend):
         try:
             session = async_get_clientsession(hass)
             
-            async with session.get(
+            await async_request_json(
+                session, "GET",
                 ALlmBaseBackend.format_url(
                     hostname=user_input.get(CONF_LLM_HOST),
                     port=user_input.get(CONF_LLM_PORT),
@@ -54,20 +94,18 @@ class OllamaLlmBackend(ALlmBaseBackend):
                     path="/api/tags"
                 ),
                 timeout=ALlmBaseBackend._default_timeout
-            ) as response:
-                return None if response.ok else f"HTTP Status {response.status}"
+            )
+            return None
         except Exception as ex:
             return str(ex)
         
     async def async_get_model_info(self, model_name: str) -> ModelInfo:
         session = async_get_clientsession(self._hass)
-        async with session.post(
-            self._info_url,
+        model_result = await async_request_json(
+            session, "POST", self._info_url,
             json={"model": model_name},
             timeout=ALlmBaseBackend._default_timeout
-        ) as response:
-            response.raise_for_status()
-            model_result = await response.json()
+        )
 
         capabilities = model_result.get("capabilities", [])
         is_tool_model = "tools" in capabilities
@@ -90,9 +128,9 @@ class OllamaLlmBackend(ALlmBaseBackend):
     
     async def async_get_available_models(self) -> List[str]:
         session = async_get_clientsession(self._hass)
-        async with session.get(self._tags_url, timeout=ALlmBaseBackend._default_timeout) as response:
-            response.raise_for_status()
-            models_result = await response.json()
+        models_result = await async_request_json(
+            session, "GET", self._tags_url, timeout=ALlmBaseBackend._default_timeout,
+        )
 
         names = [x["name"] for x in models_result.get("models", [])]
         infos = await asyncio.gather(*(self.async_get_model_info(name) for name in names), return_exceptions=True)
@@ -128,6 +166,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
             prepared.append(item)
         return prepared
     
+    @retry_stream_connection_errors
     async def _async_send_chat_request_once(self, config_subentry: dict, messages: List[ChatMessage], tools: List[LlmTool], **kwargs) -> AsyncGenerator[str, None]:
         """Send one Ollama request while preserving streaming output."""
         session = async_get_clientsession(self._hass)
@@ -197,7 +236,7 @@ class OllamaLlmBackend(ALlmBaseBackend):
                         _logger.debug(f"Failed to parse Ollama response: {line}")
                         continue
         except Exception as err:
-            _logger.error("Error calling Ollama API: %s", err, exc_info=True)
+            _logger.debug("Ollama request attempt failed: %s", type(err).__name__, exc_info=True)
             raise
         return
 
@@ -208,8 +247,11 @@ class OllamaLlmBackend(ALlmBaseBackend):
 
         for attempt in range(RAGENT_CHAT_TRUNCATE_RETRIES + 1):
             emitted = {"value": False}
-            async for chunk in self._async_send_chat_request_once(config_subentry, current_messages, tools, _emitted=emitted, **kwargs):
-                yield chunk
+            async with aclosing(self._async_send_chat_request_once(
+                config_subentry, current_messages, tools, _emitted=emitted, **kwargs,
+            )) as stream:
+                async for chunk in stream:
+                    yield chunk
 
             if emitted["value"] or not messages:
                 return

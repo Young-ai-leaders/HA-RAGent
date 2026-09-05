@@ -78,6 +78,11 @@ class LlmTool(SerializableModel, EmbeddableModel):
             parts.append("required " + " ".join(str(name) for name in required))
         if isinstance(enum, list) and enum:
             parts.append("choices " + " ".join(str(value) for value in enum))
+        if "const" in schema:
+            parts.append(f"constant {schema['const']}")
+        for keyword in ("anyOf", "oneOf", "allOf"):
+            for variant in schema.get(keyword, []):
+                parts.extend(LlmTool._schema_search_parts(variant, path, depth + 1))
         for name, value in (schema.get("properties") or {}).items():
             child_path = f"{path}.{name}" if path else str(name)
             parts.extend(LlmTool._schema_search_parts(value, child_path, depth + 1))
