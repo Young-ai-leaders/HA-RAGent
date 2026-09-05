@@ -17,8 +17,13 @@ except ImportError:
     JsonObjectType = dict[str, Any]
     EntityEntry = Any
 
-from custom_components.ha_ragent.src.const import TOOL_REGEX_PATTERN
+from custom_components.ha_ragent.src.const import (
+    RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
+    TOOL_REGEX_PATTERN,
+)
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.homeassistant.helpers.retrieval_helper import RetrievalHelper
 
 _logger = logging.getLogger(__name__)
 
@@ -65,7 +70,12 @@ class ToolHelper:
 
         return original_name
 
-    def _parse_domain(self, original_name: str | None, is_domain_aware: bool, parameters: dict[str, Any]) -> List[str] | None:
+    def _parse_domain(
+        self,
+        original_name: str | None,
+        is_domain_aware: bool,
+        parameters: dict[str, Any],
+    ) -> List[str] | None:
         """Parse the domain from the parameters and set it in the parameters dictionary."""
         domain = parameters.get("domain", None)
 
@@ -81,7 +91,11 @@ class ToolHelper:
 
         return None
 
-    def _parse_friendly_name_and_entity_entry(self, original_name: str | None, domain: List[str] | None) -> Tuple[str | None, EntityEntry | None]:
+    def _parse_friendly_name_and_entity_entry(
+        self,
+        original_name: str | None,
+        domain: List[str] | None,
+    ) -> Tuple[str | None, EntityEntry | None]:
         """Parse the friendly name from the parameters and set it in the parameters dictionary."""
         friendly_name = original_name
 
@@ -106,7 +120,12 @@ class ToolHelper:
 
         return friendly_name, entity_entry
 
-    def _parse_area_and_floor(self, entity_entry: EntityEntry | None, original_area: str | None, original_floor: str | None) -> Tuple[str | None, str | None]:
+    def _parse_area_and_floor(
+        self,
+        entity_entry: EntityEntry | None,
+        original_area: str | None,
+        original_floor: str | None,
+    ) -> Tuple[str | None, str | None]:
         """Parse area and floor from the parameters and set them in the parameters dictionary."""
         area = None
         floor = None
@@ -153,7 +172,11 @@ class ToolHelper:
             if floor_name:
                 parameters["floor"] = floor_name
 
-    def parse_tool_calls(self, llm_response: str, tool_metadata_dic: Dict[str, ToolMetadata] | None = None) -> List[ToolInput]:
+    def parse_tool_calls(
+        self,
+        llm_response: str,
+        tool_metadata_dic: Dict[str, ToolMetadata] | None = None,
+    ) -> List[ToolInput]:
         """Parse tool calls from LLM response."""
         parsed_calls = []
         tool_metadata_dic = tool_metadata_dic or {}
@@ -187,13 +210,116 @@ class ToolHelper:
     @staticmethod
     def tool_call_signature(tool_call: ToolInput) -> str:
         """Return a stable signature for a tool name and its arguments."""
+        arguments = tool_call.tool_args
+        if ToolHelper.is_semantic_search_tool(tool_call.tool_name):
+            arguments = {
+                "search_query": ToolHelper._normalize_search_query(arguments.get("search_query", "")),
+                "scope": str(arguments.get("scope", "devices_and_tools")).strip().casefold(),
+            }
         return json.dumps(
             {
                 "tool": tool_call.tool_name,
-                "arguments": tool_call.tool_args,
+                "arguments": arguments,
             },
             sort_keys=True
         )
+
+    @staticmethod
+    def _normalize_search_query(query: object) -> str:
+        """Normalize semantically identical search text for turn-local reuse."""
+        return RetrievalHelper.canonical_search_signature(query)
+
+    @staticmethod
+    def is_semantic_search_tool(tool_name: str) -> bool:
+        """Return whether a name identifies the semantic-search tool."""
+        return str(tool_name or "").rsplit("__", 1)[-1] == RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+
+    @staticmethod
+    def resolve_exposed_tool_name(tool_name: str, exposed_names: set[str]) -> str | None:
+        """Resolve harmless namespace variants without accepting invented tools."""
+        requested = str(tool_name or "").casefold()
+        requested_suffix = requested.rsplit("__", 1)[-1]
+        matches = [
+            exposed_name
+            for exposed_name in exposed_names
+            if exposed_name.casefold() == requested
+            or exposed_name.casefold().rsplit("__", 1)[-1] == requested_suffix
+        ]
+        return matches[0] if len(matches) == 1 else None
+
+    def normalize_exposed_tool_call(
+        self,
+        tool_call: ToolInput,
+        exposed_names: set[str],
+        metadata_by_name: dict[str, ToolMetadata] | None = None,
+    ) -> ToolInput | None:
+        """Return a call using an exposed name, or reject an invented name."""
+        tool_name = ToolHelper.resolve_exposed_tool_name(tool_call.tool_name, exposed_names)
+        if tool_name is None:
+            return None
+        if tool_name == tool_call.tool_name:
+            return tool_call
+        arguments = dict(tool_call.tool_args)
+        self._parse_parameters(arguments, (metadata_by_name or {}).get(tool_name))
+        return ToolInput(
+            id=tool_call.id,
+            tool_name=tool_name,
+            tool_args=arguments,
+        )
+
+    @staticmethod
+    def candidate_devices(result: object) -> list[dict[str, object]]:
+        """Return candidate devices from a semantic-search result."""
+        if not isinstance(result, dict):
+            return []
+        candidates = result.get("candidate_devices", result.get("devices", []))
+        if not isinstance(candidates, list):
+            return []
+        return [candidate for candidate in candidates if isinstance(candidate, dict)]
+
+    @staticmethod
+    def discovered_tools(result: object, existing_names: set[str]) -> list[LlmTool]:
+        """Convert newly discovered candidate tools for the next iteration."""
+        if not isinstance(result, dict):
+            return []
+        candidates = result.get("candidate_tools", result.get("tools", []))
+        if not isinstance(candidates, list):
+            return []
+
+        discovered: list[LlmTool] = []
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            name = str(candidate.get("name", "") or "")
+            if not name or name in existing_names:
+                continue
+            metadata = candidate.get("metadata")
+            discovered.append(
+                LlmTool(
+                    name=name,
+                    description=str(candidate.get("description", "") or ""),
+                    parameters=candidate.get("parameters") or {},
+                    metadata=ToolMetadata.from_dict(metadata) if isinstance(metadata, dict) else None,
+                )
+            )
+            existing_names.add(name)
+        return discovered
+
+    @staticmethod
+    def successful_target_names(tool_call: ToolInput, result: object) -> list[str]:
+        """Return target names confirmed by a successful tool result."""
+        success = result.get("success") if isinstance(result, dict) else None
+        if isinstance(success, str):
+            return [success]
+        if isinstance(success, (list, tuple, set)):
+            return [str(value) for value in success if value]
+
+        names = tool_call.tool_args.get("name") if isinstance(tool_call.tool_args, dict) else None
+        if isinstance(names, str):
+            return [names]
+        if isinstance(names, (list, tuple, set)):
+            return [str(value) for value in names if value]
+        return []
 
     @staticmethod
     def is_identical_failed_retry(tool_call: ToolInput, failed_signatures: set[str] | dict[str, Any]) -> bool:

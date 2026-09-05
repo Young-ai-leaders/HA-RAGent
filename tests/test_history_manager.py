@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from datetime import datetime, timezone
 
 from custom_components.ha_ragent.src.const import (
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
@@ -10,25 +11,132 @@ from custom_components.ha_ragent.src.homeassistant.helpers.history_manager impor
 )
 
 
-def test_retrieval_texts_include_only_user_queries() -> None:
+def test_structured_context_prefers_canonical_tool_calls_and_results() -> None:
     manager = HistoryManager({
-        CONF_REMEMBER_CONVERSATION_TIME_MINUTES: 0,
+        CONF_REMEMBER_CONVERSATION_TIME_MINUTES: 10,
         CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS: 10,
     })
     chat_log = SimpleNamespace(content=[
-        conversation.UserContent(content="  turn off the light strip  "),
+        conversation.UserContent(
+            content="first request",
+            created_at=datetime.now(timezone.utc),
+        ),
         conversation.AssistantContent(
             agent_id="agent",
-            content="I'll turn it off.",
-            tool_calls=[],
+            content="",
+            tool_calls=[SimpleNamespace(
+                tool_name="HassTurnOn",
+                tool_args={
+                    "name": "light.kitchen",
+                    "area": "Kitchen",
+                    "domain": ["light"],
+                    "device_class": ["light"],
+                },
+            )],
         ),
         conversation.ToolResultContent(
             agent_id="agent",
             tool_call_id="call",
-            tool_name="HassCancelAllPlannedActions",
-            tool_result={"success": True},
+            tool_name="HassTurnOn",
+            tool_result={"success": ["light.kitchen"]},
         ),
-        conversation.UserContent(content="turn on the light strip"),
+        conversation.ToolResultContent(
+            agent_id="agent",
+            tool_call_id="search",
+            tool_name="ha_ragent__HassSemanticSearch",
+            tool_result={
+                "devices": [
+                    {"name": "light.kitchen", "area": "Kitchen", "domain": ["light"]},
+                    {"name": "light.dining", "area": "Dining", "domain": ["light"]},
+                ],
+                "tools": [{"name": "HassTurnOn"}],
+            },
+        ),
+        conversation.UserContent(content="current request"),
     ])
 
-    assert manager.retrieval_texts(chat_log) == ["turn off the light strip"]
+    context = manager.structured_turn_contexts(chat_log)[0]
+
+    assert context.entities == ("light.kitchen",)
+    assert context.tools == ("HassTurnOn",)
+    assert context.actions == ("HassTurnOn",)
+    assert context.areas == ("Kitchen",)
+    assert context.domains == ("light",)
+    assert context.device_classes == ("light",)
+    assert context.ambiguous_entities == ("light.dining", "light.kitchen")
+    assert context.target_groups[0].entities == ("light.kitchen",)
+
+
+def test_prompt_history_uses_selected_semantic_turns() -> None:
+    manager = HistoryManager({
+        CONF_REMEMBER_CONVERSATION_TIME_MINUTES: 10,
+        CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS: 10,
+    })
+    chat_log = SimpleNamespace(content=[
+        conversation.UserContent(
+            content="turn on the kitchen light",
+            created_at=datetime.now(timezone.utc),
+        ),
+        conversation.AssistantContent(
+            agent_id="agent",
+            content="Done",
+            tool_calls=[],
+        ),
+        conversation.UserContent(
+            content="what is the weather",
+            created_at=datetime.now(timezone.utc),
+        ),
+        conversation.AssistantContent(
+            agent_id="agent",
+            content="Sunny",
+            tool_calls=[],
+        ),
+        conversation.UserContent(content="current request"),
+    ])
+    contexts = manager.structured_turn_contexts(chat_log)
+
+    retained = manager.filter_prompt_history(chat_log, {contexts[0].key})
+
+    assert [message.content for message in retained] == [
+        "turn on the kitchen light",
+        "Done",
+    ]
+
+
+def test_failed_tool_calls_are_excluded_from_structured_history() -> None:
+    manager = HistoryManager({
+        CONF_REMEMBER_CONVERSATION_TIME_MINUTES: 10,
+        CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS: 10,
+    })
+    chat_log = SimpleNamespace(content=[
+        conversation.UserContent(
+            content="turn on the bedroom lamp",
+            created_at=datetime.now(timezone.utc),
+        ),
+        conversation.AssistantContent(
+            agent_id="agent",
+            content="",
+            tool_calls=[SimpleNamespace(
+                id="failed-call",
+                tool_name="HassTurnOn",
+                tool_args={"name": "light.bedroom", "area": "Bedroom"},
+            )],
+        ),
+        conversation.ToolResultContent(
+            agent_id="agent",
+            tool_call_id="failed-call",
+            tool_name="HassTurnOn",
+            tool_result={"success": False, "error": "not available"},
+        ),
+        conversation.UserContent(content="current request"),
+    ])
+
+    context = manager.structured_turn_contexts(chat_log)[0]
+
+    assert context.entities == ()
+    assert context.tools == ()
+    assert context.areas == ()
+    assert context.target_groups == ()
+    retained = manager.filter_prompt_history(chat_log)
+    assert len(retained) == 1
+    assert isinstance(retained[0], conversation.UserContent)

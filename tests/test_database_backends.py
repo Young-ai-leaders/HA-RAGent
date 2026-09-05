@@ -211,6 +211,27 @@ async def _async_test_object_round_trips(
         LlmToolEmbedding, config, tool_collection
     ) == [tool]
 
+    backend.invalidate_collection_cache(device_collection)
+    original_list_objects = backend.async_list_objects
+    list_calls = 0
+
+    async def count_list_objects(*args: Any, **kwargs: Any) -> list[Any]:
+        nonlocal list_calls
+        list_calls += 1
+        return await original_list_objects(*args, **kwargs)
+
+    backend.async_list_objects = count_list_objects  # type: ignore[method-assign]
+    try:
+        assert await backend.async_get_lexical_objects(
+            DeviceEmbedding, config, device_collection
+        ) == [device]
+        assert await backend.async_get_lexical_objects(
+            DeviceEmbedding, config, device_collection
+        ) == [device]
+    finally:
+        backend.async_list_objects = original_list_objects  # type: ignore[method-assign]
+    assert list_calls == 1
+
     retrieved_devices = await _async_wait_for_retrieval(
         backend,
         DeviceEmbedding,

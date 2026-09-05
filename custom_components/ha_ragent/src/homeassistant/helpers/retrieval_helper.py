@@ -8,6 +8,12 @@ from typing import Any, TypeVar
 from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 from custom_components.ha_ragent.src.models.retrieval.continuity_context import ContinuityContext
 from custom_components.ha_ragent.src.models.retrieval.turn_context import TurnContext
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import (
+    CANONICAL_ACTION_ALIASES,
+    canonical_action_from_text,
+    normalize_canonical_text,
+    split_canonical_name,
+)
 
 T = TypeVar("T")
 
@@ -15,7 +21,6 @@ T = TypeVar("T")
 class RetrievalHelper:
     """Stateless helpers for building and reranking retrieval queries."""
 
-    _ACTION_FAMILIES = {"power", "position", "lock", "light", "climate", "media"}
     _FAMILY_DOMAINS = {
         "position": {"cover"},
         "lock": {"lock"},
@@ -23,14 +28,152 @@ class RetrievalHelper:
         "climate": {"climate"},
         "media": {"media_player"},
     }
+    _DOMAIN_ALIASES = {
+        "light": {"light", "lights", "lamp", "lamps"},
+        "switch": {"switch", "switches", "plug", "plugs"},
+        "fan": {"fan", "fans"},
+        "cover": {"cover", "covers", "blind", "blinds", "shade", "shades"},
+        "lock": {"lock", "locks", "door", "doors"},
+        "climate": {"climate", "thermostat", "thermostats", "heating"},
+        "media_player": {"media", "player", "players", "speaker", "speakers"},
+        "timer": {"timer", "timers"},
+    }
+    _SEARCH_STOP_WORDS = {
+        "a",
+        "an",
+        "all",
+        "device",
+        "devices",
+        "it",
+        "please",
+        "the",
+        "them",
+    }
+    _FOLLOWUP_REFERENCES = ("same room", "there", "again", "the ones")
+    _TOOL_SIGNAL_WEIGHTS = {
+        "semantic_rank": 0.75,
+        "semantic_similarity": 1.0,
+        "lexical_exact": 2.0,
+        "lexical_fuzzy": 0.75,
+        "action_intent": 3.0,
+        "domain": 1.5,
+        "device_metadata": 0.5,
+        "continuity": 0.5,
+    }
 
     @staticmethod
     def _normalize(text: object) -> str:
-        value = str(text or "").casefold()
-        return " ".join("".join(
-            character if character.isalnum() else " "
-            for character in value
-        ).split())
+        return normalize_canonical_text(text)
+
+    @staticmethod
+    def requested_action(query: str) -> str:
+        """Return the explicit canonical action requested by the user."""
+        return canonical_action_from_text(query)
+
+    @staticmethod
+    def _remove_action_phrases(query: str, action: str) -> str:
+        """Remove action aliases before extracting target metadata."""
+        if not action:
+            return query
+        padded = f" {query} "
+        for alias in CANONICAL_ACTION_ALIASES[action]:
+            marker = f" {alias} "
+            padded = padded.replace(marker, " ")
+        return padded.strip()
+
+    @staticmethod
+    def requested_domains(query: str) -> set[str]:
+        """Return canonical Home Assistant domains explicitly named in a query."""
+        normalized = RetrievalHelper._normalize(query)
+        action = RetrievalHelper.requested_action(normalized)
+        target_text = RetrievalHelper._remove_action_phrases(normalized, action)
+        tokens = set(target_text.split())
+        return {
+            domain
+            for domain, aliases in RetrievalHelper._DOMAIN_ALIASES.items()
+            if tokens & aliases
+        }
+
+    @staticmethod
+    def canonical_search_signature(query: object) -> str:
+        """Collapse near-equivalent action searches into a stable cache key."""
+        normalized = RetrievalHelper._normalize(query)
+        action = RetrievalHelper.requested_action(normalized)
+        domains = RetrievalHelper.requested_domains(normalized)
+        explicit_action = any(
+            f" {alias} " in f" {normalized} "
+            for alias in CANONICAL_ACTION_ALIASES.get(action, ())
+            if " " in alias
+        )
+        weak_power_search = action in {"on", "off", "toggle"} and not explicit_action
+        signature_action = "power" if weak_power_search else action
+        if weak_power_search:
+            domains = set()
+        ignored = set(RetrievalHelper._SEARCH_STOP_WORDS)
+        ignored.update(alias for aliases in RetrievalHelper._DOMAIN_ALIASES.values() for alias in aliases)
+        if weak_power_search:
+            ignored.update(
+                word
+                for power_action in ("on", "off", "toggle")
+                for alias in CANONICAL_ACTION_ALIASES[power_action]
+                for word in alias.split()
+            )
+        elif action:
+            ignored.update(
+                word
+                for alias in CANONICAL_ACTION_ALIASES[action]
+                for word in alias.split()
+            )
+        remaining = sorted(token for token in normalized.split() if token not in ignored)
+        return "|".join((signature_action, ",".join(sorted(domains)), " ".join(remaining)))
+
+    @staticmethod
+    def build_tool_search_query(
+        trusted_query: str,
+        fallback_query: str,
+        devices: Iterable[Any],
+    ) -> str:
+        """Build a compact capability query from action and resolved device domains."""
+        action = RetrievalHelper.requested_action(trusted_query)
+        if not action:
+            action = RetrievalHelper.requested_action(fallback_query)
+        domains = RetrievalHelper._device_domains(devices)
+        if not domains:
+            domains = RetrievalHelper.requested_domains(trusted_query)
+        if not action:
+            return trusted_query or fallback_query
+
+        aliases = CANONICAL_ACTION_ALIASES.get(action, ())
+        sections = [f"canonical action: {action}"]
+        if aliases:
+            sections.append(f"action aliases: {' | '.join(aliases)}")
+        if domains:
+            sections.append(f"supported domains: {' | '.join(sorted(domains))}")
+        return " | ".join(sections)
+
+    @staticmethod
+    def resolve_followup_query(query: str, continuity: ContinuityContext) -> str:
+        """Add compact successful target context for explicit follow-up references."""
+        normalized = f" {RetrievalHelper._normalize(query)} "
+        if not any(f" {phrase} " in normalized for phrase in RetrievalHelper._FOLLOWUP_REFERENCES):
+            return query
+        if not continuity.target_groups:
+            return query
+
+        group, _ = max(continuity.target_groups, key=lambda item: item[1])
+        context_parts = [
+            *(f"entity={value}" for value in group.entities),
+            *(f"area={value}" for value in group.areas),
+            *(f"floor={value}" for value in group.floors),
+            *(f"domain={value}" for value in group.domains),
+            *(f"device_class={value}" for value in group.device_classes),
+        ]
+        inherit_action = " again " in normalized and not RetrievalHelper.requested_action(query)
+        if group.action and inherit_action:
+            context_parts.append(f"previous_action={group.action}")
+        if not context_parts:
+            return query
+        return f"{query}\nRecent successful context: {' | '.join(context_parts)}"
 
     @staticmethod
     def build_retrieval_text(current_request: str) -> str:
@@ -118,12 +261,12 @@ class RetrievalHelper:
     @staticmethod
     def adaptive_candidate_limit(limit: int) -> int:
         """Return a bounded internal pool size for hybrid retrieval."""
-        return min(40, max(limit * 4, limit + 8)) if limit > 0 else 0
+        return min(64, max(limit * 6, limit + 12)) if limit > 0 else 0
 
     @staticmethod
     def expanded_tool_limit(limit: int) -> int:
         """Expand the exposed tool set for a confidently resolved target."""
-        return min(12, limit * 2) if limit > 0 else 0
+        return min(20, limit * 3) if limit > 0 else 0
 
     @staticmethod
     def expanded_device_limit(limit: int, continuity: ContinuityContext) -> int:
@@ -283,6 +426,7 @@ class RetrievalHelper:
         metadata_score: Callable[[T], float] | None = None,
         continuity_score: Callable[[T], float] | None = None,
         preserve_score: Callable[[T], float] | None = None,
+        trim_confident: bool = True,
     ) -> list[T]:
         """Fuse rank-based signals and suppress stale continuity on strong matches."""
         if limit <= 0:
@@ -362,12 +506,13 @@ class RetrievalHelper:
 
         # Strong agreement permits a smaller, precise result. Weak confidence
         # retains the configured limit so downstream semantic search can recover.
-        ordered_keys = RetrievalHelper._trim_to_confident_keys(
-            ordered_keys,
-            match_scores,
-            vector_positions,
-            limit,
-        )
+        if trim_confident:
+            ordered_keys = RetrievalHelper._trim_to_confident_keys(
+                ordered_keys,
+                match_scores,
+                vector_positions,
+                limit,
+            )
 
         selected_keys = ordered_keys[:limit]
         if preserve_score and not has_strong_current_match:
@@ -459,20 +604,206 @@ class RetrievalHelper:
         return getattr(metadata, name, default)
 
     @staticmethod
-    def _family_matches_domains(tool: Any, domains: set[str]) -> bool:
-        family = str(getattr(tool, "family", "") or "").casefold()
-        family_domains = RetrievalHelper._FAMILY_DOMAINS.get(family)
-        return not family_domains or not domains or bool(domains & family_domains)
+    def _tool_action(tool: Any) -> str:
+        action = str(getattr(tool, "canonical_action", "") or "")
+        if action:
+            return action
+        searchable = " ".join(
+            (
+                str(getattr(tool, "name", "") or ""),
+                str(getattr(tool, "description", "") or ""),
+            )
+        )
+        return canonical_action_from_text(searchable)
 
     @staticmethod
-    def _is_action_tool(tool: Any) -> bool:
-        family = str(getattr(tool, "family", "") or "").casefold()
-        if family in RetrievalHelper._ACTION_FAMILIES:
-            return True
-        return any(
-            RetrievalHelper._metadata_value(tool, name)
-            for name in ("is_domain_aware", "is_area_aware", "is_device_class_aware")
+    def _tool_declared_domains(tool: Any) -> set[str]:
+        properties = (getattr(tool, "parameters", None) or {}).get("properties") or {}
+        domains = RetrievalHelper._schema_values(properties.get("domain", {}))
+        name_tokens = set(split_canonical_name(getattr(tool, "name", "")))
+        domains.update(
+            domain
+            for domain, aliases in RetrievalHelper._DOMAIN_ALIASES.items()
+            if name_tokens & aliases
         )
+        return domains
+
+    @staticmethod
+    def _tool_action_signal(tool: Any, requested_action: str, query: str) -> float:
+        tool_action = RetrievalHelper._tool_action(tool)
+        if not requested_action:
+            if not tool_action:
+                return 0.0
+            exact, fuzzy = RetrievalHelper._match_scores(
+                query,
+                CANONICAL_ACTION_ALIASES.get(tool_action, ()),
+            )
+            if exact < 0.25 and fuzzy < 0.35:
+                return 0.0
+            return min(0.8, exact + (0.5 * fuzzy))
+        if tool_action == requested_action:
+            return 1.0
+        if not tool_action:
+            return 0.15
+        if tool_action in {"on", "off", "toggle"} and requested_action in {"on", "off", "toggle"}:
+            return -0.35
+        return -0.2
+
+    @staticmethod
+    def _tool_domain_signal(tool: Any, requested_domains: set[str]) -> float:
+        if not requested_domains:
+            return 0.0
+        declared_domains = RetrievalHelper._tool_declared_domains(tool)
+        if declared_domains:
+            return 1.0 if declared_domains & requested_domains else -0.35
+        family = str(getattr(tool, "family", "") or "").casefold()
+        family_domains = RetrievalHelper._FAMILY_DOMAINS.get(family)
+        if family_domains:
+            return 0.8 if family_domains & requested_domains else -0.3
+        return 0.35
+
+    @staticmethod
+    def tool_ranking_signals(
+        tool: Any,
+        query: str,
+        devices: Iterable[Any] = (),
+        semantic_rank: int | None = None,
+        semantic_score: float | None = None,
+        continuity: float = 0.0,
+    ) -> dict[str, float]:
+        """Return independent, extensible signals used to rank a tool."""
+        devices = list(devices)
+        requested_domains = RetrievalHelper._device_domains(devices)
+        if not requested_domains:
+            requested_domains = RetrievalHelper.requested_domains(query)
+        exact, fuzzy = RetrievalHelper._match_scores(
+            query,
+            getattr(tool, "canonical_search_parts", ()) or (
+                getattr(tool, "name", ""),
+                getattr(tool, "description", ""),
+            ),
+        )
+        compatibility = RetrievalHelper.tool_device_compatibility(tool, devices)
+        return {
+            "semantic_rank": 1.0 / semantic_rank if semantic_rank else 0.0,
+            "semantic_similarity": max(0.0, min(1.0, semantic_score or 0.0)),
+            "lexical_exact": exact,
+            "lexical_fuzzy": fuzzy,
+            "action_intent": RetrievalHelper._tool_action_signal(
+                tool,
+                RetrievalHelper.requested_action(query),
+                query,
+            ),
+            "domain": RetrievalHelper._tool_domain_signal(tool, requested_domains),
+            "device_metadata": max(-1.0, min(1.0, compatibility / 2.0)),
+            "continuity": max(0.0, continuity),
+        }
+
+    @staticmethod
+    def tool_signal_score(signals: dict[str, float]) -> float:
+        """Combine named tool-ranking signals using centralized weights."""
+        return sum(
+            RetrievalHelper._TOOL_SIGNAL_WEIGHTS.get(name, 0.0) * value
+            for name, value in signals.items()
+        )
+
+    @staticmethod
+    def rank_tool_candidates(
+        vector_results: Iterable[ScoredResult[T]],
+        lexical_tools: Iterable[T],
+        query: str,
+        devices: Iterable[Any],
+        limit: int,
+        continuity_score: Callable[[T], float] | None = None,
+    ) -> list[T]:
+        """Rank a broad tool pool without discarding uncertain candidates."""
+        if limit <= 0:
+            return []
+        vector_results = list(vector_results)
+        candidate_by_name = {
+            str(getattr(tool, "name", "")): tool
+            for tool in lexical_tools
+        }
+        semantic_ranks: dict[str, int] = {}
+        semantic_scores: dict[str, float] = {}
+        for result in vector_results:
+            name = str(getattr(result.item, "name", ""))
+            candidate_by_name.setdefault(name, result.item)
+            semantic_ranks[name] = result.rank
+            semantic_scores[name] = result.score
+
+        scored: list[tuple[float, int, str, T]] = []
+        for name, tool in candidate_by_name.items():
+            continuity = continuity_score(tool) if continuity_score else 0.0
+            signals = RetrievalHelper.tool_ranking_signals(
+                tool,
+                query,
+                devices,
+                semantic_rank=semantic_ranks.get(name),
+                semantic_score=semantic_scores.get(name),
+                continuity=continuity,
+            )
+            scored.append(
+                (
+                    RetrievalHelper.tool_signal_score(signals),
+                    semantic_ranks.get(name, len(semantic_ranks) + 1),
+                    name,
+                    tool,
+                )
+            )
+        scored.sort(key=lambda item: (-item[0], item[1], item[2]))
+        return [tool for _, _, _, tool in scored[:limit]]
+
+    @staticmethod
+    def tool_search_confidence(tools: Iterable[Any], query: str, devices: Iterable[Any]) -> str:
+        """Classify the top result without turning uncertainty into a hard failure."""
+        tools = list(tools)
+        if not tools:
+            return "none"
+        top_signals = RetrievalHelper.tool_ranking_signals(tools[0], query, devices)
+        if top_signals["action_intent"] >= 1.0 and top_signals["domain"] >= 0.35:
+            return "high"
+        if (
+            top_signals["action_intent"] >= 1.0
+            or top_signals["domain"] >= 0.8
+            or top_signals["lexical_exact"] >= 0.5
+        ):
+            return "medium"
+        return "low"
+
+    @staticmethod
+    def rank_tools_for_query(tools: Iterable[T], query: str, devices: Iterable[Any] = ()) -> list[T]:
+        """Order tools by soft intent signals while retaining uncertain candidates."""
+        devices = list(devices)
+        return sorted(
+            tools,
+            key=lambda tool: RetrievalHelper.tool_signal_score(
+                RetrievalHelper.tool_ranking_signals(tool, query, devices)
+            ),
+            reverse=True,
+        )
+
+    @staticmethod
+    def build_tool_candidate_pool(
+        vector_results: Iterable[ScoredResult[T]],
+        lexical_tools: Iterable[T],
+        query: str,
+        devices: Iterable[Any] = (),
+    ) -> tuple[list[ScoredResult[T]], list[T]]:
+        """Build a complete tool pool while preserving vector-rank metadata."""
+        vector_results = list(vector_results)
+        candidate_by_name = {
+            str(getattr(tool, "name", "")): tool
+            for tool in lexical_tools
+        }
+        for result in vector_results:
+            candidate_by_name.setdefault(str(getattr(result.item, "name", "")), result.item)
+        candidate_tools = RetrievalHelper.rank_tools_for_query(
+            candidate_by_name.values(),
+            query,
+            devices,
+        )
+        return vector_results, candidate_tools
 
     @staticmethod
     def tool_device_compatibility(tool: Any, devices: Iterable[Any]) -> float:
@@ -505,57 +836,15 @@ class RetrievalHelper:
         return score
 
     @staticmethod
-    def tool_is_compatible(tool: Any, devices: Iterable[Any]) -> bool:
-        """Reject schema or action-family constraints matching no device."""
-        devices = list(devices)
-        if not devices:
-            return True
-        properties = (tool.parameters or {}).get("properties") or {}
-        domains = RetrievalHelper._device_domains(devices)
-        device_classes = RetrievalHelper._device_classes(devices)
-        allowed_domains = RetrievalHelper._schema_values(properties.get("domain", {}))
-        allowed_classes = RetrievalHelper._schema_values(properties.get("device_class", {}))
-        if allowed_domains and not domains.intersection(allowed_domains):
-            return False
-        if allowed_classes and not device_classes.intersection(allowed_classes):
-            return False
-        return RetrievalHelper._family_matches_domains(tool, domains)
-
-    @staticmethod
-    def has_compatible_action_tool(tools: Iterable[Any], devices: Iterable[Any]) -> bool:
-        """Return whether the shortlist contains an action for the target devices."""
-        devices = list(devices)
-        for tool in tools:
-            if not RetrievalHelper.tool_is_compatible(tool, devices):
-                continue
-            if RetrievalHelper._is_action_tool(tool):
-                return True
-        return False
-
-    @staticmethod
     def rerank_tools_for_devices(tools: Iterable[T], devices: Iterable[Any], limit: int) -> list[T]:
-        """Hard-filter incompatible tools, then fuse compatible tool ranks."""
+        """Softly prefer device-compatible tools without erasing alternatives."""
         devices = list(devices)
-        tools = [
-            tool
-            for tool in tools
-            if RetrievalHelper.tool_is_compatible(tool, devices)
-        ]
-        original = [str(index) for index in range(len(tools))]
-        compatible = sorted(
-            (
-                (index, tool)
-                for index, tool in enumerate(tools)
-                if RetrievalHelper.tool_device_compatibility(tool, devices) > 0
+        tools = list(tools)
+        ranked = sorted(
+            enumerate(tools),
+            key=lambda pair: (
+                -RetrievalHelper.tool_device_compatibility(pair[1], devices),
+                pair[0],
             ),
-            key=lambda pair: RetrievalHelper.tool_device_compatibility(pair[1], devices),
-            reverse=True,
         )
-        compatibility = [str(index) for index, _ in compatible]
-        fused = RetrievalHelper.reciprocal_rank_fusion((original, compatibility))
-        return [
-            tool for index, tool in sorted(
-                enumerate(tools),
-                key=lambda pair: (-fused[str(pair[0])], pair[0]),
-            )[:limit]
-        ]
+        return [tool for _, tool in ranked[:limit]]

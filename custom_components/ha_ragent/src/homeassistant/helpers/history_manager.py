@@ -123,14 +123,18 @@ class HistoryManager:
     @classmethod
     def _collect_search_candidates(cls, result: object, ambiguous_entities: set[str]) -> None:
         """Collect search matches as weak evidence, not successful targets."""
-        if not isinstance(result, dict) or not isinstance(result.get("devices"), list):
+        if not isinstance(result, dict):
+            return
+        candidates = result.get("candidate_devices", result.get("devices", []))
+        if not isinstance(candidates, list):
             return
         cls._add_values(
             ambiguous_entities,
             [
                 device.get("name") or device.get("entity_id")
-                for device in result["devices"]
                 if isinstance(device, dict)
+                else device
+                for device in candidates
             ],
         )
 

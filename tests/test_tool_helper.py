@@ -168,6 +168,75 @@ def test_identical_failed_retry_ignores_argument_order() -> None:
 
     assert helper.is_identical_failed_retry(retry, failed)
 
+
+def test_semantic_search_signature_normalizes_query_and_scope() -> None:
+    first = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "  TURN   ON lights ", "scope": "TOOLS"},
+    )
+    second = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"scope": "tools", "search_query": "turn on LIGHTS"},
+    )
+
+    assert ToolHelper.tool_call_signature(first) == ToolHelper.tool_call_signature(second)
+
+
+def test_semantic_search_signature_reuses_action_aliases() -> None:
+    first = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "switch off kitchen lights", "scope": "tools"},
+    )
+    second = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "power off the kitchen light", "scope": "tools"},
+    )
+
+    assert ToolHelper.tool_call_signature(first) == ToolHelper.tool_call_signature(second)
+
+
+def test_semantic_search_signature_reuses_weak_power_rewrites() -> None:
+    first = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "heater bathroom switch toggle", "scope": "tools"},
+    )
+    second = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "heater bathroom on/off", "scope": "tools"},
+    )
+
+    assert ToolHelper.tool_call_signature(first) == ToolHelper.tool_call_signature(second)
+
+
+def test_exposed_tool_name_normalizes_only_known_namespace_variants() -> None:
+    exposed = {"HassTurnOn", "ha_ragent__HassSemanticSearch"}
+
+    assert ToolHelper.resolve_exposed_tool_name("switch__HassTurnOn", exposed) == "HassTurnOn"
+    assert ToolHelper.resolve_exposed_tool_name("HassSemanticSearch", exposed) == (
+        "ha_ragent__HassSemanticSearch"
+    )
+    assert ToolHelper.resolve_exposed_tool_name("switch__HassSwitchToggle", exposed) is None
+
+
+def test_discovered_tools_are_converted_for_next_iteration() -> None:
+    existing_names = {"HassSemanticSearch"}
+    discovered = ToolHelper.discovered_tools(
+        {
+            "candidate_tools": [{
+                "name": "HassTurnOn",
+                "description": "Turn on a target",
+                "parameters": {"properties": {"name": {"type": "string"}}},
+                "metadata": {"family": "power", "is_domain_aware": True},
+            }],
+        },
+        existing_names,
+    )
+
+    assert [tool.name for tool in discovered] == ["HassTurnOn"]
+    assert discovered[0].metadata.family == "power"
+    assert discovered[0].metadata.is_domain_aware is True
+    assert "HassTurnOn" in existing_names
+
 def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
     """Domain-aware tools cannot target every entity in an area implicitly."""
     call = Mock(

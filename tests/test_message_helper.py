@@ -18,7 +18,7 @@ def test_create_tool_failure_message() -> None:
         "error": "failed",
     }
 
-def test_compact_tool_result_only_compacts_semantic_search() -> None:
+def test_compact_tool_result_labels_semantic_search_candidates() -> None:
     search = conversation.ToolResultContent(
         agent_id="agent", tool_call_id="call-1",
         tool_name="ha_ragent__HassSemanticSearch",
@@ -29,8 +29,12 @@ def test_compact_tool_result_only_compacts_semantic_search() -> None:
         tool_name="HassTurnOn", tool_result={"success": False},
     )
 
-    assert MessageHelper.compact_tool_result(search).tool_result == {"success": True}
-    assert MessageHelper.compact_tool_result(other) is other
+    compact_search = MessageHelper.compact_tool_result(search).tool_result
+
+    assert compact_search["result_type"] == "candidate_search"
+    assert compact_search["candidate_devices"] == ["large"]
+    assert "no action has been performed" in compact_search["candidate_notice"]
+    assert MessageHelper.compact_tool_result(other).tool_result == {"success": False}
 
 def test_message_to_retrieval_text() -> None:
     assert MessageHelper.message_to_retrieval_text(
@@ -100,7 +104,126 @@ def test_repeated_list_and_search_results_remain_successful() -> None:
     )
 
     assert list_result.tool_result["success"] is True
-    assert search_result.tool_result["success"] is True
+    assert search_result.tool_result["result_type"] == "candidate_search"
+    assert search_result.tool_result["reused"] is True
+
+
+def test_repeated_search_reuses_compact_candidate_names() -> None:
+    message = MessageHelper.create_repeated_tool_result_message(
+        "agent",
+        "call-5",
+        "ha_ragent__HassSemanticSearch",
+        {
+            "candidate_devices": [{"name": "light.kitchen"}],
+            "candidate_tools": [{"name": "HassTurnOn"}],
+            "error": [],
+        },
+    )
+
+    assert message.tool_result["candidate_devices"] == [{"name": "light.kitchen"}]
+    assert message.tool_result["candidate_tools"] == [{"name": "HassTurnOn"}]
+    assert message.tool_result["reused"] is True
+
+
+def test_compact_search_preserves_device_state_and_location() -> None:
+    result = MessageHelper.compact_tool_result_value(
+        "ha_ragent__HassSemanticSearch",
+        {
+            "candidate_devices": [{
+                "name": "sensor.kitchen_temperature",
+                "friendly_name": "Kitchen temperature",
+                "state": "21.5",
+                "unit_of_measurement": "°C",
+                "area": "Kitchen",
+                "floor": "Ground floor",
+                "domain": ["sensor"],
+                "aliases": ["ignored to keep history compact"],
+            }],
+            "error": [],
+        },
+    )
+
+    candidate = result["candidate_devices"][0]
+    assert candidate == {
+        "name": "sensor.kitchen_temperature",
+        "friendly_name": "Kitchen temperature",
+        "state": "21.5",
+        "unit_of_measurement": "°C",
+        "area": "Kitchen",
+        "floor": "Ground floor",
+        "domain": ["sensor"],
+    }
+    assert "directly" in result["candidate_data_notice"]
+
+
+def test_compact_search_preserves_zero_tool_fallback_signal() -> None:
+    result = MessageHelper.compact_tool_result_value(
+        "ha_ragent__HassSemanticSearch",
+        {
+            "candidate_devices": [{"name": "switch.bathroom_heater"}],
+            "candidate_tools": [],
+            "tool_search_status": "no_tools_found",
+            "fallback_required": True,
+            "tool_search_message": "Do not invent a tool name.",
+            "error": [],
+        },
+    )
+
+    assert result["tool_search_status"] == "no_tools_found"
+    assert result["fallback_required"] is True
+    assert result["tool_search_message"] == "Do not invent a tool name."
+
+
+def test_compact_search_preserves_tool_ranking_metadata() -> None:
+    result = MessageHelper.compact_tool_result_value(
+        "ha_ragent__HassSemanticSearch",
+        {
+            "candidate_tools": [{
+                "name": "HassTurnOn",
+                "description": "Turn on a device",
+                "canonical_action": "on",
+                "supported_domains": ["light", "switch"],
+                "retrieval_score": 6.25,
+                "ranking_signals": {
+                    "semantic_similarity": 0.8,
+                    "action_intent": 1.0,
+                    "domain": 0.35,
+                },
+                "parameters": {"omitted": True},
+            }],
+            "tool_search_confidence": "high",
+            "error": [],
+        },
+    )
+
+    candidate = result["candidate_tools"][0]
+    assert candidate["name"] == "HassTurnOn"
+    assert candidate["canonical_action"] == "on"
+    assert candidate["ranking_signals"]["semantic_similarity"] == 0.8
+    assert "parameters" not in candidate
+    assert result["tool_search_confidence"] == "high"
+
+
+def test_iteration_summary_separates_actions_from_candidates() -> None:
+    summary = MessageHelper.build_iteration_summary(
+        ["HassTurnOn succeeded for light.kitchen"],
+        ["light.dining"],
+    )
+
+    assert summary["role"] == "system"
+    assert "Completed actions" in summary["content"]
+    assert "light.kitchen" in summary["content"]
+    assert "Remaining retrieval candidates" in summary["content"]
+    assert "light.dining" in summary["content"]
+
+
+def test_long_success_result_is_bounded() -> None:
+    result = MessageHelper.compact_tool_result_value(
+        "HassTurnOn",
+        {"success": [f"light.room_{index}" for index in range(30)]},
+    )
+
+    assert len(result["success"]) == MessageHelper._MAX_RESULT_ITEMS
 
 
 def test_tool_result_success_rejects_failed_and_error_results() -> None:
