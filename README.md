@@ -13,11 +13,9 @@
 [![HACS](https://img.shields.io/badge/HACS-default-orange.svg?style=flat-square)](https://hacs.xyz)
 
 # HA-RAGent (Home Assistant Retrieval-Augmented Generation Agent)
-HA-RAGent is a custom conversation agent that gives an LLM focused access to your Home Assistant setup. It creates embeddings for the entities exposed to Assist and for the tools provided by the selected Home Assistant LLM API, then stores them in a vector database. For each request, it retrieves a configurable number of relevant entities and tools using the current message. Backend-normalized vector scores are fused with exact, fuzzy and structured-metadata rankings using reciprocal rank fusion (RRF). The internal candidate pool expands adaptively, while strong agreement can produce a smaller shortlist. Tool ranking also considers compatibility with retrieved device domains, classes and locations. All lexical normalization is language-neutral and Unicode-aware. The selected entities are enriched with their live states and attributes before this context is passed to the model.
+HA-RAGent adds a Home Assistant conversation agent that can use your own LLM. It finds the devices and tools relevant to each request, so the model does not need to receive your entire Home Assistant setup every time.
 
-When device control is enabled, the model can call the retrieved Home Assistant tools. HA-RAGent executes those calls through Home Assistant, returns the results to the model and allows it to continue until it can answer or reaches the configured iteration limit. It also provides semantic search for resolving fuzzy device references and tools for scheduling or clearing delayed actions.
-
-This approach is especially useful for self-hosted models with limited context windows. Instead of including every exposed entity and tool in every prompt, HA-RAGent sends only the most relevant subset. That keeps prompts smaller as your setup grows and reduces the irrelevant context that can slow down or confuse smaller models.
+If you enable device control, the model can call Home Assistant tools and use their results to complete a request. You can also limit how much conversation history, device information, tools and memory are sent to the model. This is helpful for smaller or self-hosted models.
 
 ## Disclaimers
 ### Default System Prompt
@@ -99,18 +97,24 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
     - **Assist** allows the model to control devices and exposes Home Assistant tools
 - `System Prompt`
     - The Jinja template rendered and sent to the model as its system prompt
+- `Retrieval Method`
+    - **Automatic** (default) combines vector, text and metadata matching
+    - **Vector search** uses embedding similarity only
+    - **Lexical search** uses names, aliases and metadata without semantic similarity
 - `Allow Auto Embedding`
     - Automatically rebuilds embeddings for exposed entities and tools during startup and after configuration changes
 - `Allow Follow-up Questions`
     - Lets the assistant ask a clarification question and keep the conversation open for the user's reply
 - `Enable Model Thinking`
-    - Controls wheter model is allowed to think (when speed is of the essence keep the default)
+    - Controls whether the model may use its thinking mode. Leave disabled for faster responses when supported.
 - `Number of Devices`
     - Controls how many relevant entity candidates are retrieved and added to the prompt
 - `Number of Tools`
     - Controls how many relevant tools are retrieved and offered to the model (required HA-RAGent tools do not count to this limit)
 - `Number of Long-Term Memories`
     - Controls how many semantically relevant, explicitly stored memories are added to each prompt. Set it to `0` to disable recall without deleting memories.
+- `Maximum Memory Entries`
+    - Controls how many long-term memories are retained for this RAGent.
 - `Tools excluded from embedding`
     - Excludes selected tool names from the vector index. Names are matched exactly and are case-sensitive
 - `Context Length` (Ollama only)
@@ -122,9 +126,11 @@ Use the `Add Integration` button in the bottom right to add a new integration ca
 - `Maximum Tool Call Iterations`
     - Limits the number of model/tool rounds per request. A single round may contain multiple tool calls
 - `Conversation Memory Interactions`
-    - Limits how many previous user interactions are retained for conversation context and retrieval
+    - Maximum number of previous user interactions retained for context and retrieval. Set to `0` to disable this limit.
 - `Conversation Memory Duration`
-    - Limits how long conversation history is retained, in minutes
+    - Maximum age of conversation history in minutes. Set to `0` to disable this limit. If both history settings are `0`, no conversation history is used.
+
+Both history limits apply when they are greater than `0`. For example, with `10` interactions and `60` minutes, only interactions from the last hour and within the last 10 turns are kept.
 
 ### Available Prompt Variables
 The **System Prompt** is rendered as a Home Assistant Jinja template for every request. The following variables are passed to it:
@@ -158,7 +164,7 @@ When **Assist** is selected, HA-RAGent resolves it to its custom LLM API, which 
 - Cancels all currently scheduled one-time Home Assistant actions.
 
 **HassRememberFact**
-- Stores a fact and seves as per-agent long-term memory when the user explicitly asks for it to be remembered.
+- Stores a fact as per-agent long-term memory when the user explicitly asks for it to be remembered.
 
 **HassForgetFact**
 - Deletes one recalled long-term memory by its exact memory ID.
