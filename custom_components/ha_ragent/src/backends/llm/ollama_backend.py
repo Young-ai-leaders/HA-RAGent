@@ -134,11 +134,13 @@ class OllamaLlmBackend(ALlmBaseBackend):
         emitted = kwargs.pop("_emitted", None)
         if emitted is None:
             emitted = {"value": False}
+        unexpected_reasoning_logged = False
+        thinking_enabled = bool(config_subentry[CONF_ENABLE_MODEL_THINKING])
 
         payload = {
             "model": config_subentry[CONF_LLM_MODEL],
             "stream": "keep_alive" not in kwargs,
-            "think": config_subentry[CONF_ENABLE_MODEL_THINKING],
+            "think": thinking_enabled,
             "options": {
                 "temperature": config_subentry[CONF_TEMPERATURE],
                 "num_ctx": config_subentry[CONF_CONTEXT_LENGTH],
@@ -165,6 +167,11 @@ class OllamaLlmBackend(ALlmBaseBackend):
 
                     try:
                         data = json.loads(line)
+
+                        reasoning_content = data.get("message", {}).get("thinking")
+                        if reasoning_content and not thinking_enabled and not unexpected_reasoning_logged:
+                            _logger.warning("Model returned reasoning although model thinking is disabled in the UI.")
+                            unexpected_reasoning_logged = True
                         
                         if "message" in data and "content" in data["message"]:
                             content = data["message"]["content"]
