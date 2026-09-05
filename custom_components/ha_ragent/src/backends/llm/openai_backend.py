@@ -155,18 +155,14 @@ class OpenAiLlmBackend(ALlmBaseBackend):
             request["tools"] = self.convert_tools_to_model_format(tools)
             request["tool_choice"] = "auto"
 
-            # llama.cpp-specific request fields go through the extension body so the
-            # OpenAI client still validates standard Chat Completions fields. Recent
-            # llama.cpp versions use reasoning_effort, while older versions use the
-            # Jinja-template enable_thinking argument.
+            # llama.cpp-specific request fields go through the extension body so the 
+            # OpenAI client still validates standard Chat Completions fields.
             request["extra_body"] = {
                 "parse_tool_calls": True,
                 "chat_template_kwargs": {
                     "enable_thinking": thinking_enabled,
                 },
             }
-            if not thinking_enabled:
-                request["extra_body"]["reasoning_effort"] = "none"
             required_tool_names, searched_tool_names = self.split_tool_names(tools)
             _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request: required_tools={required_tool_names}, searched_tools={searched_tool_names}")
 
