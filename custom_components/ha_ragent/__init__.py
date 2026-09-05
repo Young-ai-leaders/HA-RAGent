@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
-from homeassistant.const import Platform, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 from homeassistant.config_entries import ConfigEntryState, OperationNotAllowed
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import llm
@@ -21,6 +21,7 @@ from custom_components.ha_ragent.src.homeassistant.extractors.tool_extractor imp
 from custom_components.ha_ragent.src.const import (
     CONF_ALLOW_AUTO_EMBEDDING,
     DOMAIN,
+    PLATFORMS,
     
     CONF_VECTOR_DB_BACKEND_TYPE,
     CONF_EMBEDDING_BACKEND_TYPE,
@@ -44,9 +45,6 @@ from custom_components.ha_ragent.src.utils import (
 )
 
 _logger = logging.getLogger(__name__)
-
-PLATFORMS = (Platform.CONVERSATION,)
-
 
 def _ensure_llm_api_registered(hass: HomeAssistant) -> None:
     if any(api.id == RAGENT_LLM_API_ID for api in llm.async_get_apis(hass)):

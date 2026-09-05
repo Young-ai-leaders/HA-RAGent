@@ -93,6 +93,7 @@
                     "data": {
                         "llm_hass_api": "LLM-Home-Assistant-API",
                         "rag_prompt": "System-Prompt",
+                        "rag_retrieval_method": "Abrufmethode",
                         "rag_allow_auto_embedding": "Automatisches Embedding erlauben",
                         "rag_allow_questions": "Rückfragen erlauben",
                         "rag_enable_model_thinking": "Modelldenken aktivieren",
@@ -110,6 +111,7 @@
                     },
                     "data_description": {
                         "rag_prompt": "Der System-Prompt, der das Verhalten und die Persönlichkeit des Assistenten definiert",
+                        "rag_retrieval_method": "Legt fest, wie Geräte und Tools gefunden werden. Automatisch kombiniert Vektor-, Text- und Metadatenabgleich; Vektorsuche verwendet nur Embeddings; Textsuche verwendet Namen, Aliase und Metadaten.",
                         "rag_allow_auto_embedding": "Bindet exponierte Geräte und Tools für diesen KI-RAGent automatisch beim Start und nach Konfigurationsänderungen ein.",
                         "rag_allow_questions": "Erlaubt dem Assistenten, Rückfragen zu stellen und das Gespräch fortzusetzen.",
                         "rag_enable_model_thinking": "Deaktiviert das Denken des Modells, um die Antwortzeiten zu verkürzen.",
@@ -122,8 +124,8 @@
                         "rag_num_memories_to_extract": "Maximale Anzahl relevanter Langzeiterinnerungen im Modellkontext pro Anfrage. 0 deaktiviert den Abruf, ohne gespeicherte Erinnerungen zu löschen.",
                         "rag_max_memory_entries": "Maximale Anzahl der zu speichernden Langzeiterinnerungen.",
                         "rag_excluded_tools": "Tool-Namen vom Embedding ausschließen. Exakte Tool-Namen eingeben (Groß/Kleinschreibung wird beachtet).",
-                        "rag_remember_conversation_num_interactions": "Wie viele frühere Benutzerinteraktionen im Speicher behalten werden",
-                        "rag_remember_conversation_time_minutes": "Wie lange sich der Assistent das Gespräch in Minuten merken soll"
+                        "rag_remember_conversation_num_interactions": "Maximale Anzahl früherer Benutzerinteraktionen. Auf 0 setzen, um diese Grenze zu deaktivieren.",
+                        "rag_remember_conversation_time_minutes": "Maximales Alter des Gesprächsverlaufs in Minuten. Auf 0 setzen, um diese Grenze zu deaktivieren. Wenn beide Grenzen 0 sind, wird kein Gesprächsverlauf verwendet."
                     }
                 }
             },
@@ -183,6 +185,13 @@
         }
     },
     "selector": {
+        "rag_retrieval_method": {
+            "options": {
+                "automatic": "Automatisch",
+                "vector": "Vektorsuche",
+                "lexical": "Textsuche"
+            }
+        },
         "rag_vector_db_backend": {
             "options": {
                 "mongodb": "MongoDB",

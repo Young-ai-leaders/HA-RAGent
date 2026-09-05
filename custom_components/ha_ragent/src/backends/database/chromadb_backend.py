@@ -12,12 +12,13 @@ from chromadb import Client
 from chromadb.config import Settings
 
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 
 from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_HOST,
@@ -100,7 +101,7 @@ class ChromaDbBackend(ABaseDbBackend):
         collection.add(ids=ids, metadatas=metadatas, embeddings=embeddings)
         _logger.info(f"Saved {len(device_embeddings)} device embeddings to collection {collection_name}")
 
-    def _query_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
+    def _query_scored_devices(self, collection_name: str, query_embedding: List[float], top_k: int):
         client = self._get_client()
         if not self._collection_exists(client, collection_name):
             return {"metadatas": []}
@@ -113,7 +114,7 @@ class ChromaDbBackend(ABaseDbBackend):
         return collection.query(
             query_embeddings=[query_embedding],
             n_results=min(top_k, object_count),
-            include=["metadatas"],
+            include=["metadatas", "distances"],
         )
 
     def _reset_collection(self, collection_name: str):
@@ -248,17 +249,24 @@ class ChromaDbBackend(ABaseDbBackend):
             _logger.error(f"Error upserting objects: {e}", exc_info=True)
             raise
 
-    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
-        devices: List[Device | LlmTool | Memory] = []
+    async def async_retrieve_scored_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[ScoredResult[Device | LlmTool | Memory]]:
         try:
-            result = await self.hass.async_add_executor_job(self._query_devices, collection_name, query_embedding, top_k)
-            metadata = result.get("metadatas") or []
-            if metadata:
-                devices = [object_type.parse_object(m) for m in metadata[0]]
-                
-        except Exception as e:
-            _logger.error(f"Error retrieving devices: {e}", exc_info=True)
-        return devices
+            result = await self.hass.async_add_executor_job(self._query_scored_devices, collection_name, query_embedding, top_k)
+            metadata_rows = result.get("metadatas") or []
+            distance_rows = result.get("distances") or []
+            metadatas = metadata_rows[0] if metadata_rows else []
+            distances = distance_rows[0] if distance_rows else []
+            return [
+                ScoredResult(
+                    object_type.parse_object(metadata),
+                    1.0 / (1.0 + max(0.0, float(distance))),
+                    rank,
+                )
+                for rank, (metadata, distance) in enumerate(zip(metadatas, distances), start=1)
+            ]
+        except Exception as err:
+            _logger.error(f"Error retrieving scored objects: {err}", exc_info=True)
+            return []
 
     async def async_list_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
         try:

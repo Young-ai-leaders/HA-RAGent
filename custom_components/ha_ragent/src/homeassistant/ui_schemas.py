@@ -42,6 +42,8 @@ from custom_components.ha_ragent.src.const import (
     CONF_MAX_TOKENS,
     CONF_MAX_TOOL_CALL_ITERATIONS,
     CONF_PROMPT,
+    CONF_RETRIEVAL_METHOD,
+    RETRIEVAL_METHOD_OPTIONS,
     CONF_REMEMBER_CONVERSATION_TIME_MINUTES,
     CONF_REMEMBER_CONVERSATION_NUM_INTERACTIONS,
     CONF_SELECTED_LANGUAGE,
@@ -66,6 +68,7 @@ from custom_components.ha_ragent.src.const import (
     CONF_LLM_HOST,
     CONF_EMBEDDING_HOST,
     CONF_LLM_API_KEY,
+    CONF_RETRIEVAL_METHOD,
 
     DEFAULT_EMBEDDING_BACKEND_TYPE,
     DEFAULT_LLM_BACKEND_TYPE,
@@ -315,6 +318,20 @@ def ui_schema_config_options(
             CONF_PROMPT,
             default=options.get(CONF_PROMPT, default_prompt),
         ): TemplateSelector(),
+        vol.Required(
+            CONF_RETRIEVAL_METHOD,
+            description={"suggested_value": options.get(CONF_RETRIEVAL_METHOD, RETRIEVAL_METHOD_OPTIONS[0])},
+            default=options.get(CONF_RETRIEVAL_METHOD, RETRIEVAL_METHOD_OPTIONS[0]),
+        ): SelectSelector(SelectSelectorConfig(
+            options=[
+                SelectOptionDict(value="automatic", label="Automatic"),
+                SelectOptionDict(value="vector", label="Vector search"),
+                SelectOptionDict(value="lexical", label="Lexical search"),
+            ],
+            custom_value=False,
+            multiple=False,
+            mode=SelectSelectorMode.DROPDOWN,
+        )),
         vol.Optional(
             CONF_ALLOW_AUTO_EMBEDDING,
             description={"suggested_value": options.get(CONF_ALLOW_AUTO_EMBEDDING, DEFAULT_ALLOW_AUTO_EMBEDDING)},
@@ -421,6 +438,7 @@ def ui_schema_config_options(
         CONF_ALLOW_AUTO_EMBEDDING,
         CONF_ALLOW_QUESTIONS,
         CONF_ENABLE_MODEL_THINKING,
+        CONF_RETRIEVAL_METHOD,
         CONF_NUM_DEVICES_TO_EXTRACT,
         CONF_NUM_TOOLS_TO_EXTRACT,
         CONF_NUM_MEMORIES_TO_EXTRACT,

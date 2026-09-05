@@ -12,7 +12,7 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_SEMANTIC_SEARCH_TOOL_NAME,
     TOOL_REGEX_PATTERN,
 )
-from custom_components.ha_ragent.src.models.chat_message import (
+from custom_components.ha_ragent.src.models.chat.chat_message import (
     ChatFunction,
     ChatMessage,
     ChatToolCall,
@@ -21,19 +21,161 @@ from custom_components.ha_ragent.src.models.chat_message import (
 
 
 class MessageHelper:
+    _MAX_RESULT_ITEMS = 12
+    _MAX_RESULT_TEXT = 2000
+
     @staticmethod
-    def create_repeated_tool_result_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, previous_result: object) -> conversation.ToolResultContent:
+    def _is_semantic_search(tool_name: str) -> bool:
+        return str(tool_name or "").rsplit("__", 1)[-1] == RAGENT_SEMANTIC_SEARCH_TOOL_NAME
+
+    @staticmethod
+    def _compact_candidate_devices(candidates: object) -> list[object]:
+        """Preserve bounded state and location data for candidate devices."""
+        if not isinstance(candidates, list):
+            return []
+        retained_keys = (
+            "name",
+            "friendly_name",
+            "state",
+            "unit_of_measurement",
+            "area",
+            "floor",
+            "domain",
+            "device_class",
+        )
+        compact: list[object] = []
+        for candidate in candidates[:MessageHelper._MAX_RESULT_ITEMS]:
+            if not isinstance(candidate, dict):
+                compact.append(candidate)
+                continue
+            compact.append(
+                {
+                    key: MessageHelper._compact_value(candidate[key])
+                    for key in retained_keys
+                    if candidate.get(key) is not None
+                }
+            )
+        return compact
+
+    @staticmethod
+    def _compact_candidate_tools(candidates: object) -> list[object]:
+        """Preserve compact capability and confidence data for candidate tools."""
+        if not isinstance(candidates, list):
+            return []
+        retained_keys = (
+            "name",
+            "description",
+            "canonical_action",
+            "supported_domains",
+            "retrieval_score",
+            "ranking_signals",
+        )
+        compact: list[object] = []
+        for candidate in candidates[:MessageHelper._MAX_RESULT_ITEMS]:
+            if not isinstance(candidate, dict):
+                compact.append(candidate)
+                continue
+            compact.append(
+                {
+                    key: MessageHelper._compact_value(candidate[key])
+                    for key in retained_keys
+                    if candidate.get(key) is not None
+                }
+            )
+        return compact
+
+    @staticmethod
+    def _compact_value(value: object) -> object:
+        if isinstance(value, list):
+            return value[:MessageHelper._MAX_RESULT_ITEMS]
+        if isinstance(value, str):
+            return value[:MessageHelper._MAX_RESULT_TEXT]
+        return value
+
+    @staticmethod
+    def compact_tool_result_value(tool_name: str, result: object) -> object:
+        """Keep actionable result details while bounding prompt size."""
+        if not isinstance(result, dict):
+            return MessageHelper._compact_value(result)
+        if MessageHelper._is_semantic_search(tool_name):
+            devices = result.get("candidate_devices", result.get("devices", []))
+            tools = result.get("candidate_tools", result.get("tools", []))
+            return {
+                "result_type": "candidate_search",
+                "candidate_notice": "Candidates only; no action has been performed.",
+                "candidate_data_notice": (
+                    "Use the included state and location data directly when it answers the request."
+                ),
+                "candidate_devices": MessageHelper._compact_candidate_devices(devices),
+                "candidate_tools": MessageHelper._compact_candidate_tools(tools),
+                "candidate_device_count": len(devices) if isinstance(devices, list) else 0,
+                "candidate_tool_count": len(tools) if isinstance(tools, list) else 0,
+                "tool_search_status": result.get("tool_search_status", ""),
+                "tool_search_confidence": result.get("tool_search_confidence", ""),
+                "fallback_required": bool(result.get("fallback_required", False)),
+                "tool_search_message": MessageHelper._compact_value(
+                    result.get("tool_search_message", "")
+                ),
+                "error": MessageHelper._compact_value(result.get("error", [])),
+                **({"reused": True} if result.get("reused") else {}),
+            }
+
+        retained_keys = ("success", "failed", "error", "errors", "already_executed")
+        compact = {
+            key: MessageHelper._compact_value(result[key])
+            for key in retained_keys
+            if key in result
+        }
+        if compact:
+            return compact
+        return {
+            key: MessageHelper._compact_value(value)
+            for key, value in list(result.items())[:MessageHelper._MAX_RESULT_ITEMS]
+        }
+
+    @staticmethod
+    def tool_result_succeeded(result: object) -> bool:
+        """Return whether a tool result represents a success."""
+        if isinstance(result, dict):
+            if "success" in result:
+                return bool(result["success"])
+            if any(result.get(key) for key in ("error", "errors", "failed")):
+                return False
+            return True
+
+        success = getattr(result, "success", None)
+        if success is not None:
+            return bool(success)
+        return not any(getattr(result, key, None) for key in ("error", "errors", "failed"))
+
+    @staticmethod
+    def create_repeated_tool_result_message(
+        agent_id: str | None,
+        tool_call_id: str | None,
+        tool_name: str,
+        previous_result: object,
+    ) -> conversation.ToolResultContent:
         """Return the original result for a repeated tool call."""
+        if MessageHelper._is_semantic_search(tool_name):
+            reused_result = dict(previous_result) if isinstance(previous_result, dict) else {"result": previous_result}
+            reused_result["reused"] = True
+            return conversation.ToolResultContent(
+                agent_id=agent_id,
+                tool_call_id=tool_call_id,
+                tool_name=tool_name,
+                tool_result=MessageHelper.compact_tool_result_value(tool_name, reused_result),
+            )
+
         success_value = previous_result.get("success")
         if success_value is None:
-            success = not any(previous_result.get(key) for key in ("error", "errors"))
+            success = not any(previous_result.get(key) for key in ("error", "errors", "failed"))
         else:
             success = bool(success_value)
         result = {
             "success": success,
             "already_executed": True,
         }
-        for error_key in ("error", "errors"):
+        for error_key in ("error", "errors", "failed"):
             if result["success"] is False and error_key in previous_result:
                 result[error_key] = previous_result[error_key]
 
@@ -45,9 +187,18 @@ class MessageHelper:
         )
 
     @staticmethod
-    def create_tool_failure_message(agent_id: str | None, tool_call_id: str | None, tool_name: str, error: Exception) -> conversation.ToolResultContent:
+    def create_tool_failure_message(
+        agent_id: str | None,
+        tool_call_id: str | None,
+        tool_name: str,
+        error: Exception,
+    ) -> conversation.ToolResultContent:
         """Create a tool-result message for a failed tool call."""
-        error_value = "Unknown error ensure you follow the tool call format." if isinstance(error, KeyError) and error.args else str(error)
+        error_value = (
+            "Unknown error ensure you follow the tool call format."
+            if isinstance(error, KeyError) and error.args
+            else str(error)
+        )
         failure = ChatToolFailure(
             success=False,
             tool=tool_name,
@@ -63,15 +214,15 @@ class MessageHelper:
 
     @staticmethod
     def compact_tool_result(tool_message: conversation.ToolResultContent) -> conversation.ToolResultContent:
-        """Compact semantic-search results stored in prompt history."""
-        if tool_message.tool_name != RAGENT_SEMANTIC_SEARCH_TOOL_NAME:
-            return tool_message
-
+        """Compact tool results stored in prompt history."""
         return conversation.ToolResultContent(
             agent_id=tool_message.agent_id,
             tool_call_id=tool_message.tool_call_id,
             tool_name=tool_message.tool_name,
-            tool_result={"success": True},
+            tool_result=MessageHelper.compact_tool_result_value(
+                tool_message.tool_name,
+                tool_message.tool_result,
+            ),
         )
 
     @staticmethod
@@ -123,7 +274,10 @@ class MessageHelper:
             elif isinstance(message, conversation.ToolResultContent):
                 tool_message = ChatMessage(
                     role="tool",
-                    content=message.tool_result,
+                    content=MessageHelper.compact_tool_result_value(
+                        message.tool_name,
+                        message.tool_result,
+                    ),
                     tool_name=message.tool_name
                 )
                 if message.tool_call_id:

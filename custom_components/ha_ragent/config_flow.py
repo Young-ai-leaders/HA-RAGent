@@ -32,6 +32,7 @@ from .src.const import (
     CONF_LLM_HOST,
     CONF_LLM_PORT,
     CONF_LLM_SSL,
+    CONFIG_FLOW_VERSION,
 )
 
 from .src.homeassistant.option_flow import RagentOptionsFlow
@@ -52,7 +53,7 @@ from .src.utils import (
 _logger = logging.getLogger(__name__)
 
 class RagentConfigFlow(ConfigFlow, domain=DOMAIN):
-    VERSION = 1
+    VERSION = CONFIG_FLOW_VERSION
 
     def __init__(self) -> None:
         super().__init__()

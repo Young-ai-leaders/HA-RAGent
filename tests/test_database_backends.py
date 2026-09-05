@@ -22,13 +22,13 @@ from custom_components.ha_ragent.src.backends.database.faiss_backend import Fais
 from custom_components.ha_ragent.src.backends.database.mongodb_backend import MongoDbBackend
 from custom_components.ha_ragent.src.const import CONF_VECTOR_DB_NAME
 from custom_components.ha_ragent.src.mock import MockHomeAssistant
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
 from tests.mocks import (
     MOCK_CHROMADB_CONNECTION_USER_INPUT,
     MOCK_CHROMADB_CONNECTION_USER_INPUT_INVALID,
@@ -170,6 +170,7 @@ async def _async_test_object_round_trips(
         device_labels=["Climate"],
         services=["turn_on", "turn_off"],
         aliases=["Bath temperature"],
+        device_class="temperature",
         unit_of_measurement="°C",
     )
     tool = LlmTool(
@@ -210,6 +211,27 @@ async def _async_test_object_round_trips(
         LlmToolEmbedding, config, tool_collection
     ) == [tool]
 
+    backend.invalidate_collection_cache(device_collection)
+    original_list_objects = backend.async_list_objects
+    list_calls = 0
+
+    async def count_list_objects(*args: Any, **kwargs: Any) -> list[Any]:
+        nonlocal list_calls
+        list_calls += 1
+        return await original_list_objects(*args, **kwargs)
+
+    backend.async_list_objects = count_list_objects  # type: ignore[method-assign]
+    try:
+        assert await backend.async_get_lexical_objects(
+            DeviceEmbedding, config, device_collection
+        ) == [device]
+        assert await backend.async_get_lexical_objects(
+            DeviceEmbedding, config, device_collection
+        ) == [device]
+    finally:
+        backend.async_list_objects = original_list_objects  # type: ignore[method-assign]
+    assert list_calls == 1
+
     retrieved_devices = await _async_wait_for_retrieval(
         backend,
         DeviceEmbedding,
@@ -226,6 +248,17 @@ async def _async_test_object_round_trips(
     )
     assert retrieved_devices == [device]
     assert retrieved_tools == [tool]
+
+    scored_devices = await backend.async_retrieve_scored_objects(
+        DeviceEmbedding,
+        config,
+        device_collection,
+        [1.0, 0.0, 0.0],
+        top_k=1,
+    )
+    assert scored_devices[0].item == device
+    assert 0.0 <= scored_devices[0].score <= 1.0
+    assert scored_devices[0].rank == 1
 
     await backend.async_reset_collection(
         config, device_collection, EMBEDDING_DIMENSION

@@ -128,17 +128,35 @@ class RAGentAugmentedAPIInstance(llm.APIInstance):
                 tool.entry_id = entry_id
                 tool.subentry_id = subentry_id
 
-    def set_search_context(self, latest_request: str, recent_requests: list[str], area: str, floor: str, candidates: list[dict[str, object]]) -> None:
+    def set_search_context(
+        self,
+        *,
+        latest_request: str = "",
+        area: str = "",
+        floor: str = "",
+        candidates: list[dict[str, object]] | None = None,
+    ) -> None:
         """Bind trusted request context to semantic-search tools."""
         for tool in self.tools:
             if isinstance(tool, RAGentSemanticSearchTool):
                 tool.set_search_context(
                     latest_request=latest_request,
-                    recent_requests=recent_requests,
                     area=area,
                     floor=floor,
                     candidates=candidates,
                 )
+
+    def refresh_search_candidates(self, candidates: list[dict[str, object]]) -> None:
+        """Replace semantic-search candidates for the active turn."""
+        for tool in self.tools:
+            if isinstance(tool, RAGentSemanticSearchTool):
+                tool.refresh_candidates(candidates)
+
+    def prune_search_candidates(self, completed_names: set[str]) -> None:
+        """Remove completed targets from semantic-search context."""
+        for tool in self.tools:
+            if isinstance(tool, RAGentSemanticSearchTool):
+                tool.prune_candidates(completed_names)
 
     async def async_call_tool(self, tool_input: llm.ToolInput) -> Any:
         """Intercept calls to RAGent tools and delegate to the appropriate tool instance."""

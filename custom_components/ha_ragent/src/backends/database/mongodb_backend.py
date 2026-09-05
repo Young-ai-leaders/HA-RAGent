@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Any, Dict, List
 import logging
-from pymongo import AsyncMongoClient, WriteConcern
+from pymongo import AsyncMongoClient
 from pymongo.errors import OperationFailure
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.asynchronous.collection import AsyncCollection
@@ -13,12 +13,13 @@ except ImportError:
     from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
 
 from custom_components.ha_ragent.src.backends.database.base_backend import ABaseDbBackend
-from custom_components.ha_ragent.src.models.device import Device
-from custom_components.ha_ragent.src.models.device_embedding import DeviceEmbedding
-from custom_components.ha_ragent.src.models.tool import LlmTool
-from custom_components.ha_ragent.src.models.tool_embedding import LlmToolEmbedding
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.device import Device
+from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_embedding import LlmToolEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.retrieval.scored_result import ScoredResult
 
 from custom_components.ha_ragent.src.const import (
     CONF_VECTOR_DB_NAME,
@@ -239,72 +240,40 @@ class MongoDbBackend(ABaseDbBackend):
             if conn:
                 await conn.close()
 
-    async def async_retrieve_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[Device | LlmTool | Memory]:
+    async def async_retrieve_scored_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str, query_embedding: List[float], top_k: int = 10) -> List[ScoredResult[Device | LlmTool | Memory]]:
         conn = None
-        devices = []
-
         try:
             conn = self._get_connection()
             if not await self._async_collection_exists(conn, collection_name):
                 return []
             collection = self._get_collection(conn, collection_name)
-
-            if object_type == DeviceEmbedding:
-                projection = {
-                    "device_id": 1,
-                    "friendly_name": 1,
-                    "domain": 1,
-                    "floor_name": 1,
-                    "area_name": 1,
-                    "device_labels": 1,
-                    "services": 1,
-                    "aliases": 1,
-                    "unit_of_measurement": 1,
-                }
-            elif object_type == LlmToolEmbedding:
-                projection = {
-                    "name": 1,
-                    "description": 1,
-                    "parameters": 1,
-                    "metadata": 1
-                }
-            elif object_type == MemoryEmbedding:
-                projection = {
-                    "memory_id": 1,
-                    "content": 1,
-                    "created_at": 1,
-                    "retrieval_count": 1,
-                }
-            else:
-                _logger.error(f"Unsupported object type for retrieval: {object_type}")
-                return []
-
+            projection = {"_id": 0, "vector_embedding": 0}
             pipeline = [
-                {
-                    "$vectorSearch": {
-                        "index": "vector_search_index",
-                        "path": "vector_embedding",
-                        "queryVector": query_embedding,
-                        "numCandidates": top_k * 10,
-                        "limit": top_k
-                    }
-                },
-                {
-                    "$project": projection
-                }
+                {"$vectorSearch": {
+                    "index": "vector_search_index",
+                    "path": "vector_embedding",
+                    "queryVector": query_embedding,
+                    "numCandidates": top_k * 10,
+                    "limit": top_k,
+                }},
+                {"$project": {**projection, "vector_score": {"$meta": "vectorSearchScore"}}},
             ]
-
             cursor = await collection.aggregate(pipeline)
             results = await cursor.to_list(length=top_k)
-            
-            devices = [object_type.parse_object(doc) for doc in results]
-        except Exception as e:
-            _logger.error(f"Error retrieving devices: {e}", exc_info=True)
+            return [
+                ScoredResult(
+                    object_type.parse_object(document),
+                    min(1.0, max(0.0, float(document.get("vector_score", 0.0)))),
+                    rank,
+                )
+                for rank, document in enumerate(results, start=1)
+            ]
+        except Exception as err:
+            _logger.error(f"Error retrieving scored objects: {err}", exc_info=True)
+            return []
         finally:
             if conn:
                 await conn.close()
-                
-        return devices
 
     async def async_list_objects(self, object_type: type[DeviceEmbedding | LlmToolEmbedding | MemoryEmbedding], config_subentry: dict, collection_name: str) -> List[Device | LlmTool | Memory]:
         conn = None

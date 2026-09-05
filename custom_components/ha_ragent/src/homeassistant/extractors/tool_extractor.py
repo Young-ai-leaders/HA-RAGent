@@ -4,7 +4,6 @@ import logging
 from collections.abc import Iterable
 from typing import Any, List, Tuple
 
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
 import voluptuous as vol
 from probatio import to_openapi
 
@@ -24,10 +23,11 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_PREFIXED_REQUIRED_TOOL_NAMES,
     RAGENT_TIMER_DEVICE_ID,
 )
-from custom_components.ha_ragent.src.models.tool import LlmTool
+
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.homeassistant.ragent_api import resolve_llm_api_id
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
-from custom_components.ha_ragent.src.homeassistant.tools.planned_action import RAGentPlannedActionTool
 
 _logger = logging.getLogger(__name__)
 
@@ -83,8 +83,8 @@ class ToolExtractor:
 
         return list(values), universal, has_field
 
-    def _extract_tool_metadata(self, parameters: Any) -> ToolMetadata:
-        metadata = ToolMetadata()
+    def _extract_tool_metadata(self, tool_name: str, parameters: Any) -> ToolMetadata:
+        metadata = ToolMetadata(family=ToolMetadata.family_from_name(tool_name))
 
         if not isinstance(parameters, dict):
             return metadata
@@ -184,15 +184,17 @@ class ToolExtractor:
                         name=tool_name,
                         description=getattr(tool, "description", ""),
                         parameters=parameters,
-                        metadata=self._extract_tool_metadata(parameters),
+                        metadata=self._extract_tool_metadata(tool_name, parameters),
                     )
                 )
                 seen_tool_names.add(tool_name)
 
         except HomeAssistantError as err:
             _logger.warning(f"Error getting LLM API for tool extraction: {err}")
+            return None
         except Exception as err:
             _logger.error(f"Error extracting tools from LLM API: {err}", exc_info=True)
+            return None
         finally:
             self._remove_fake_timer_device()
 
@@ -200,7 +202,8 @@ class ToolExtractor:
 
     async def async_get_embeddable_tool_names(self, subentry: ConfigSubentry) -> list[str]:
         """Return the tool names currently produced by the extractor."""
-        return [tool.name for tool in await self._async_get_embeddable_tools(subentry)]
+        tools = await self._async_get_embeddable_tools(subentry)
+        return [tool.name for tool in tools or []]
 
     async def async_embed_exposed_tools(self, subentry_id: str) -> None:
         total_embedded_tools = 0
@@ -218,7 +221,10 @@ class ToolExtractor:
                 exposed_tools = await self._async_get_embeddable_tools(subentry)
                 _logger.debug(f"Tool embedding starting: {len(exposed_tools)} exposed to conversation. ({[tool.name for tool in exposed_tools]})")
                 if not exposed_tools:
-                    _logger.debug(f"No tools to embed for subentry {subentry_id}")
+                    collection_name = f"tools_{subentry_id}"
+                    await self._entry.vector_db_backend.async_cleanup_collection(dict(subentry.data), collection_name)
+                    self._entry.vector_db_backend.cache_collection_objects(collection_name, [])
+                    _logger.info("Cleared tool embeddings for empty subentry %s", subentry_id)
                     return
 
                 collection_name = f"tools_{subentry_id}"
@@ -226,9 +232,11 @@ class ToolExtractor:
 
                 if tool_embeddings:
                     embedding_len = len(tool_embeddings[0].vector_embedding)
+                    self._entry.vector_db_backend.invalidate_collection_cache(collection_name)
                     await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                     _logger.debug(f"Saving {len(tool_embeddings)} tool embeddings to collection {collection_name}.")
                     await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, tool_embeddings)
+                    self._entry.vector_db_backend.cache_collection_objects(collection_name, exposed_tools)
                     total_embedded_tools += len(tool_embeddings)
                 else:
                     _logger.warning(f"No tools to embed for subentry {subentry_id}")

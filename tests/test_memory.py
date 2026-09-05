@@ -10,8 +10,8 @@ from custom_components.ha_ragent.src.const import CONF_VECTOR_DB_NAME, DOMAIN
 from custom_components.ha_ragent.src.homeassistant.helpers.memory_manager import MemoryManager
 from custom_components.ha_ragent.src.homeassistant.tools.forget_fact import RAGentForgetTool
 from custom_components.ha_ragent.src.homeassistant.tools.remember_fact import RAGentRememberTool
-from custom_components.ha_ragent.src.models.memory import Memory
-from custom_components.ha_ragent.src.models.memory_embedding import MemoryEmbedding
+from custom_components.ha_ragent.src.models.embedding.memory import Memory
+from custom_components.ha_ragent.src.models.embedding.memory_embedding import MemoryEmbedding
 
 
 class FakeEmbedder:

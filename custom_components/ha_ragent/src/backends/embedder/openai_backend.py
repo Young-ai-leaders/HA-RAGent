@@ -21,8 +21,8 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_EMBEDDING_BATCH_SIZE
 )
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
-from custom_components.ha_ragent.src.models.embeddable_model import EmbeddableModel
-from custom_components.ha_ragent.src.models.embedding_record import EmbeddingRecord
+from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
+from custom_components.ha_ragent.src.models.base.embedding_record import EmbeddingRecord
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 
 _logger = logging.getLogger(__name__)

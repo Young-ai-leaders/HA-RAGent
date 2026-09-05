@@ -22,9 +22,9 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_CHAT_TRUNCATE_MAX_CHARS,
     RAGENT_CHAT_TRUNCATE_RETRIES
 )
-from custom_components.ha_ragent.src.models.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
-from custom_components.ha_ragent.src.models.chat_message import ChatMessage
+from custom_components.ha_ragent.src.models.chat.chat_message import ChatMessage
 
 _logger = logging.getLogger(__name__)
 
@@ -164,8 +164,8 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                     ),
                 },
             }
-            tool_names, required_tool_names = self.split_tool_names(tools)
-            _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request: tools={tool_names}, required_tools={required_tool_names}")
+            required_tool_names, searched_tool_names = self.split_tool_names(tools)
+            _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request: required_tools={required_tool_names}, searched_tools={searched_tool_names}")
 
         try:
             client = await self._async_get_client()

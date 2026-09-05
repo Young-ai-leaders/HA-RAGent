@@ -1,9 +1,10 @@
+import json
 from unittest.mock import Mock
 
-import pytest
 
 from custom_components.ha_ragent.src.homeassistant.helpers.tool_helper import ToolHelper
-from custom_components.ha_ragent.src.models.tool_metadata import ToolMetadata
+from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
+from custom_components.ha_ragent.src.models.embedding.tool_metadata import ToolMetadata
 
 def test_parse_tool_call_preserves_friendly_name() -> None:
     """A friendly-name target must survive nested argument parsing."""
@@ -34,6 +35,25 @@ def test_parse_tool_call_preserves_apostrophes_in_json_strings() -> None:
 
     assert len(calls) == 1
     assert calls[0].tool_args == {"memory": "My brother's name is Elias."}
+
+
+def test_unknown_tool_arguments_are_preserved_exactly_from_live_schema() -> None:
+    helper = ToolHelper(Mock())
+    arguments = {
+        "name": "raw.vendor_target",
+        "friendly_name": "schema-owned value",
+        "original_name": "schema-owned original",
+        "options": {"mode": "turbo", "levels": [1, 2]},
+    }
+    response = f'''```homeassistant
+{{"tool": "VendorExecute", "arguments": {json.dumps(arguments)}}}
+```'''
+
+    calls = helper.parse_tool_calls(response, {"VendorExecute": ToolMetadata()})
+    execution_call = helper.to_home_assistant_tool_call(calls[0], ToolMetadata())
+
+    assert execution_call.tool_args == arguments
+
 
 def test_parse_tool_call_uses_device_class_as_missing_domain() -> None:
     """A device class supplies the domain when the model omitted it."""
@@ -152,54 +172,114 @@ def test_tool_call_signature_distinguishes_targets() -> None:
         bedroom_two
     )
 
-def test_validate_tool_call_target_rejects_area_only_device_call() -> None:
-    """Domain-aware tools cannot target every entity in an area implicitly."""
-    call = Mock(
+
+def test_identical_failed_retry_ignores_argument_order() -> None:
+    helper = ToolHelper(Mock())
+    first = Mock(
         tool_name="HassTurnOn",
-        tool_args={"area": "Bedroom 1"},
+        tool_args={"domain": ["light"], "area": "Bedroom"},
+    )
+    retry = Mock(
+        tool_name="HassTurnOn",
+        tool_args={"area": "Bedroom", "domain": ["light"]},
     )
 
-    with pytest.raises(ValueError, match="requires a combination"):
-        ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
+    failed = {helper.tool_call_signature(first): {"success": False}}
 
-@pytest.mark.parametrize(
-    "tool_args",
-    [
-        {"name": "Bedroom 1 Ceiling Light"},
-        {"domain": ["light"]},
-        {},
-    ],
-)
-def test_validate_tool_call_target_rejects_unscoped_device_call(
-    tool_args: dict,
-) -> None:
-    """Domain-aware tools require both a target and a location scope."""
-    call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
+    assert helper.is_identical_failed_retry(retry, failed)
 
-    with pytest.raises(ValueError, match="requires a combination"):
-        ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
 
-@pytest.mark.parametrize(
-    "tool_args",
-    [
-        {"name": "Bedroom 1 Ceiling Light", "area": "Bedroom 1"},
-        {"area": "Bedroom 1", "domain": ["light"]},
-        {"name": "Bedroom 1 Ceiling Light", "floor": "Ground Floor"},
-    ],
-)
-def test_validate_tool_call_target_accepts_scoped_device_call(
-    tool_args: dict,
-) -> None:
-    """A name or domain provides the required device scope."""
-    call = Mock(tool_name="HassTurnOn", tool_args=tool_args)
-
-    ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=True))
-
-def test_validate_tool_call_target_ignores_non_domain_tool() -> None:
-    """Tools without device-domain targeting may validly use an area alone."""
-    call = Mock(
-        tool_name="HassBroadcast",
-        tool_args={"area": "Bedroom 1"},
+def test_semantic_search_signature_normalizes_query_and_scope() -> None:
+    first = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "  TURN   ON lights ", "scope": "TOOLS"},
+    )
+    second = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"scope": "tools", "search_query": "turn on LIGHTS"},
     )
 
-    ToolHelper(Mock()).block_broad_tool_calls(call, ToolMetadata(is_domain_aware=False))
+    assert ToolHelper.tool_call_signature(first) == ToolHelper.tool_call_signature(second)
+
+
+def test_semantic_search_signature_reuses_action_aliases() -> None:
+    first = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "switch off kitchen lights", "scope": "tools"},
+    )
+    second = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "power off the kitchen light", "scope": "tools"},
+    )
+
+    assert ToolHelper.tool_call_signature(first) == ToolHelper.tool_call_signature(second)
+
+
+def test_semantic_search_signature_reuses_weak_power_rewrites() -> None:
+    first = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "heater bathroom switch toggle", "scope": "tools"},
+    )
+    second = Mock(
+        tool_name="ha_ragent__HassSemanticSearch",
+        tool_args={"search_query": "heater bathroom on/off", "scope": "tools"},
+    )
+
+    assert ToolHelper.tool_call_signature(first) == ToolHelper.tool_call_signature(second)
+
+
+def test_exposed_tool_name_normalizes_only_known_namespace_variants() -> None:
+    exposed = {"HassTurnOn", "ha_ragent__HassSemanticSearch"}
+
+    assert ToolHelper.resolve_exposed_tool_name("switch__HassTurnOn", exposed) == "HassTurnOn"
+    assert ToolHelper.resolve_exposed_tool_name("HassSemanticSearch", exposed) == (
+        "ha_ragent__HassSemanticSearch"
+    )
+    assert ToolHelper.resolve_exposed_tool_name("switch__HassSwitchToggle", exposed) is None
+
+
+def test_discovered_tools_are_converted_for_next_iteration() -> None:
+    existing_names = {"HassSemanticSearch"}
+    discovered = ToolHelper.discovered_tools(
+        {
+            "candidate_tools": [{
+                "name": "HassTurnOn",
+                "description": "Turn on a target",
+                "parameters": {"properties": {"name": {"type": "string"}}},
+                "metadata": {"family": "power", "is_domain_aware": True},
+            }],
+        },
+        existing_names,
+    )
+
+    assert [tool.name for tool in discovered] == ["HassTurnOn"]
+    assert discovered[0].metadata.family == "power"
+    assert discovered[0].metadata.is_domain_aware is True
+    assert "HassTurnOn" in existing_names
+
+
+def test_discovered_unknown_tool_keeps_live_schema_and_generic_metadata() -> None:
+    parameters = {"type": "object", "properties": {"mode": {"enum": ["quiet"]}}}
+    discovered = ToolHelper.discovered_tools(
+        {"candidate_tools": [{
+            "name": "VendorExecute",
+            "description": "Execute a vendor operation",
+            "parameters": parameters,
+        }]},
+        set(),
+    )
+
+    assert discovered[0].parameters is parameters
+    assert discovered[0].metadata == ToolMetadata()
+
+
+def test_device_registry_lookup_uses_device_id(monkeypatch) -> None:
+    from custom_components.ha_ragent.src.homeassistant.helpers import tool_helper
+    registry = Mock()
+    registry.async_get.return_value = Mock(area_id=None)
+    monkeypatch.setattr(tool_helper, "device_registry", Mock(async_get=Mock(return_value=registry)))
+    ToolHelper(Mock())._parse_area_and_floor(Mock(area_id=None, device_id="device-1"), None, None)
+    registry.async_get.assert_called_once_with("device-1")
+    registry.async_get_device.assert_not_called()
+
+

@@ -4,7 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry, device_registry, entity_registry, floor_registry, label_registry, llm
 from homeassistant.components.homeassistant.exposed_entities import async_should_expose
 
-from custom_components.ha_ragent.src.models.device import Device
+from custom_components.ha_ragent.src.models.embedding.device import Device
 from custom_components.ha_ragent.src.homeassistant.ragent_config_entry import RAGentConfigEntry
 from custom_components.ha_ragent.src.const import HOME_ASSISTANT_SCRIPT_DOMAIN as SCRIPT_DOMAIN
 
@@ -37,14 +37,17 @@ class DeviceExtractor:
             area_name = ""
             floor_name = ""
             entity_entry = entity_reg.async_get(entity_id)
+            device_entry = (
+                device_reg.async_get(entity_entry.device_id)
+                if entity_entry and entity_entry.device_id
+                else None
+            )
             if entity_entry:
                 area = None
                 if entity_entry.area_id:
                     area = area_reg.async_get_area(entity_entry.area_id)
-                elif entity_entry.device_id:
-                    device = device_reg.async_get(entity_entry.device_id)
-                    if device and device.area_id:
-                        area = area_reg.async_get_area(device.area_id)
+                elif device_entry and device_entry.area_id:
+                    area = area_reg.async_get_area(device_entry.area_id)
 
                 if area:
                     area_name = area.name
@@ -78,6 +81,7 @@ class DeviceExtractor:
                 aliases=aliases,
                 services=services,
                 unit_of_measurement=state.attributes.get("unit_of_measurement"),
+                device_class=state.attributes.get("device_class"),
             ))
         
         return devices
@@ -107,13 +111,20 @@ class DeviceExtractor:
             try:
                 collection_name = f"devices_{subentry_id}"
                 device_list = await self._async_get_embeddable_devices(entities_to_embed)
+                if not device_list:
+                    await self._entry.vector_db_backend.async_cleanup_collection(dict(subentry.data), collection_name)
+                    self._entry.vector_db_backend.cache_collection_objects(collection_name, [])
+                    _logger.info("Cleared device embeddings for empty subentry %s", subentry_id)
+                    return
                 device_embeddings = await self._entry.embedder_backend.async_embed_object(dict(subentry.data), device_list)
 
                 if device_embeddings:
                     embedding_len = len(device_embeddings[0].vector_embedding)
+                    self._entry.vector_db_backend.invalidate_collection_cache(collection_name)
                     await self._entry.vector_db_backend.async_reset_collection(dict(subentry.data), collection_name, embedding_len)
                     _logger.debug(f"Saving {len(device_embeddings)} device embeddings to collection {collection_name}.")
                     await self._entry.vector_db_backend.async_save_objects(dict(subentry.data), collection_name, device_embeddings)
+                    self._entry.vector_db_backend.cache_collection_objects(collection_name, device_list)
                     total_embedded_devices += len(device_embeddings)
                 else:
                     _logger.warning("No devices to embed for subentry %s", subentry_id)
