@@ -31,6 +31,13 @@ class ToolHelper:
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
 
+    @staticmethod
+    def _copy_tool_input(tool_call: ToolInput, tool_name: str, arguments: dict[str, Any]) -> ToolInput:
+        """Copy a tool input across Home Assistant and lightweight test models."""
+        if hasattr(tool_call, "id"):
+            return ToolInput(id=tool_call.id, tool_name=tool_name, tool_args=arguments)
+        return ToolInput(tool_name=tool_name, tool_args=arguments)
+
     def _save_json_load(self, json_string: str) -> dict | None:
         """Safely load a JSON string into a dictionary."""
         if not isinstance(json_string, str):
@@ -146,6 +153,12 @@ class ToolHelper:
 
     def _parse_parameters(self, parameters: dict[str, Any], tool_metadata: ToolMetadata | None) -> None:
         """Parse and normalize tool parameters."""
+        if tool_metadata and not any((
+            tool_metadata.is_domain_aware,
+            tool_metadata.is_area_aware,
+            tool_metadata.is_device_class_aware,
+        )):
+            return
         is_domain_aware = tool_metadata.is_domain_aware if tool_metadata else False
         is_area_aware = tool_metadata.is_area_aware if tool_metadata else False
 
@@ -235,6 +248,114 @@ class ToolHelper:
         return str(tool_name or "").rsplit("__", 1)[-1] == RAGENT_SEMANTIC_SEARCH_TOOL_NAME
 
     @staticmethod
+    def requested_action_for_tool(tool_name: str, tools: list[LlmTool], outstanding: list[str]) -> str | None:
+        """Match a tool to an explicitly outstanding action."""
+        if not outstanding:
+            return None
+        if outstanding == ["request"]:
+            return "request"
+        tool = next((candidate for candidate in tools if candidate.name == tool_name), None)
+        action = tool.canonical_action if tool else RetrievalHelper.requested_action(tool_name)
+        return action if action in outstanding else None
+
+    @staticmethod
+    def _argument_values(arguments: dict[str, Any], *names: str) -> set[str]:
+        values: set[str] = set()
+        for name in names:
+            value = arguments.get(name)
+            if isinstance(value, str) and value:
+                values.add(RetrievalHelper._normalize(value))
+            elif isinstance(value, (list, tuple, set)):
+                values.update(RetrievalHelper._normalize(item) for item in value if item)
+        return values
+
+    @staticmethod
+    def _candidate_matches_target(candidate: dict[str, object], targets: set[str]) -> bool:
+        values = {
+            RetrievalHelper._normalize(value)
+            for value in RetrievalHelper._candidate_identity_values(candidate)
+            if value
+        }
+        return bool(values & targets)
+
+    @staticmethod
+    def _candidate_values(candidates: list[dict[str, object]], *names: str) -> set[str]:
+        values: set[str] = set()
+        for candidate in candidates:
+            values.update(ToolHelper._argument_values(candidate, *names))
+        return values
+
+    @staticmethod
+    def authorize_requested_target(
+        tool_call: ToolInput,
+        metadata: ToolMetadata | None,
+        request_query: str,
+        candidates: list[dict[str, object]],
+        requested_action: str,
+    ) -> tuple[bool, str]:
+        """Authorize a target from full request intent, independently of rank."""
+        target_aware = bool(metadata and any((
+            metadata.is_domain_aware,
+            metadata.is_area_aware,
+            metadata.is_device_class_aware,
+        )))
+        if requested_action == "request" and not target_aware:
+            return True, ""
+
+        status, authorized_names = RetrievalHelper.device_resolution(request_query, candidates)
+        if status == "ambiguous":
+            return False, "The requested target is ambiguous; ask the user to choose before acting."
+        if status == "weak" or not authorized_names:
+            return False, "The requested target could not be resolved confidently; do not act."
+
+        arguments = tool_call.tool_args if isinstance(tool_call.tool_args, dict) else {}
+        targets = ToolHelper._argument_values(arguments, "original_name", "name", "entity_id")
+        authorized = [
+            candidate
+            for candidate in candidates
+            if str(candidate.get("name", "") or "") in authorized_names
+        ]
+        if status == "group":
+            if targets:
+                return False, "The request targets a group; use its domain and location instead of one candidate."
+            domains = ToolHelper._argument_values(arguments, "domain")
+            locations = ToolHelper._argument_values(arguments, "area", "floor")
+            if not domains or not locations:
+                return False, "The requested group requires both domain and location arguments."
+            candidate_domains = ToolHelper._candidate_values(authorized, "domain")
+            candidate_locations = ToolHelper._candidate_values(
+                authorized,
+                "area",
+                "area_name",
+                "floor",
+                "floor_name",
+            )
+            if not domains & candidate_domains or not locations & candidate_locations:
+                return False, "The tool domain or location does not match the resolved target group."
+            return True, ""
+
+        if not targets or not any(
+            ToolHelper._candidate_matches_target(candidate, targets)
+            for candidate in authorized
+        ):
+            return False, "The tool target does not match the resolved action, target, and location."
+
+        requested_locations = ToolHelper._argument_values(arguments, "area", "floor")
+        if requested_locations and not any(
+            requested_locations & {
+                RetrievalHelper._normalize(value)
+                for value in RetrievalHelper._candidate_location_values(candidate)
+                if value
+            }
+            for candidate in authorized
+        ):
+            return False, "The tool location does not match the resolved target."
+        requested_domains = ToolHelper._argument_values(arguments, "domain")
+        if requested_domains and not requested_domains & ToolHelper._candidate_values(authorized, "domain"):
+            return False, "The tool domain does not match the resolved target."
+        return True, ""
+
+    @staticmethod
     def resolve_exposed_tool_name(tool_name: str, exposed_names: set[str]) -> str | None:
         """Resolve harmless namespace variants without accepting invented tools."""
         requested = str(tool_name or "").casefold()
@@ -261,11 +382,7 @@ class ToolHelper:
             return tool_call
         arguments = dict(tool_call.tool_args)
         self._parse_parameters(arguments, (metadata_by_name or {}).get(tool_name))
-        return ToolInput(
-            id=tool_call.id,
-            tool_name=tool_name,
-            tool_args=arguments,
-        )
+        return self._copy_tool_input(tool_call, tool_name, arguments)
 
     @staticmethod
     def candidate_devices(result: object) -> list[dict[str, object]]:
@@ -299,7 +416,7 @@ class ToolHelper:
                     name=name,
                     description=str(candidate.get("description", "") or ""),
                     parameters=candidate.get("parameters") or {},
-                    metadata=ToolMetadata.from_dict(metadata) if isinstance(metadata, dict) else None,
+                    metadata=ToolMetadata.from_dict(metadata) if isinstance(metadata, dict) else ToolMetadata(),
                 )
             )
             existing_names.add(name)
@@ -370,14 +487,20 @@ class ToolHelper:
         return tool_result
 
     @staticmethod
-    def to_home_assistant_tool_call(tool_call: ToolInput) -> ToolInput:
+    def to_home_assistant_tool_call(tool_call: ToolInput, metadata: ToolMetadata | None = None) -> ToolInput:
         """Create the Home Assistant call with parser metadata removed."""
         args = dict(tool_call.tool_args)
+        if metadata and not any((
+            metadata.is_domain_aware,
+            metadata.is_area_aware,
+            metadata.is_device_class_aware,
+        )):
+            return ToolHelper._copy_tool_input(tool_call, tool_call.tool_name, args)
         args.pop("original_name", None)
         friendly_name = args.pop("friendly_name", None)
         if friendly_name is not None:
             args["name"] = friendly_name
-        return ToolInput(id=tool_call.id, tool_name=tool_call.tool_name, tool_args=args)
+        return ToolHelper._copy_tool_input(tool_call, tool_call.tool_name, args)
 
     @staticmethod
     def to_history_tool_call(tool_call: ToolInput) -> ToolInput:
@@ -387,4 +510,4 @@ class ToolHelper:
         original_name = args.pop("original_name", None)
         if original_name is not None:
             args["name"] = original_name
-        return ToolInput(id=tool_call.id, tool_name=tool_call.tool_name, tool_args=args)
+        return ToolHelper._copy_tool_input(tool_call, tool_call.tool_name, args)

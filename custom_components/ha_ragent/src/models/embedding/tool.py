@@ -58,6 +58,39 @@ class LlmTool(SerializableModel, EmbeddableModel):
                 values.update(LlmTool._schema_values(value))
         return values
 
+    @staticmethod
+    def _schema_search_parts(schema: object, path: str = "", depth: int = 0) -> tuple[str, ...]:
+        """Return bounded names, descriptions, required fields, types, and enums."""
+        if depth > 4 or not isinstance(schema, dict):
+            return ()
+        parts: list[str] = []
+        description = schema.get("description")
+        schema_type = schema.get("type")
+        required = schema.get("required")
+        enum = schema.get("enum")
+        if path:
+            parts.append(f"parameter {path}")
+        if isinstance(description, str) and description:
+            parts.append(description)
+        if schema_type:
+            parts.append(f"type {schema_type}")
+        if isinstance(required, list) and required:
+            parts.append("required " + " ".join(str(name) for name in required))
+        if isinstance(enum, list) and enum:
+            parts.append("choices " + " ".join(str(value) for value in enum))
+        for name, value in (schema.get("properties") or {}).items():
+            child_path = f"{path}.{name}" if path else str(name)
+            parts.extend(LlmTool._schema_search_parts(value, child_path, depth + 1))
+        items = schema.get("items")
+        if isinstance(items, dict):
+            parts.extend(LlmTool._schema_search_parts(items, f"{path} item".strip(), depth + 1))
+        return tuple(parts[:80])
+
+    @property
+    def canonical_schema_parts(self) -> tuple[str, ...]:
+        """Return searchable live-schema metadata."""
+        return self._schema_search_parts(self.parameters or {})
+
     @property
     def canonical_supported_domains(self) -> tuple[str, ...]:
         """Return explicit target domains declared by the tool schema."""
@@ -79,6 +112,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
                 *self.canonical_supported_domains,
                 self.family,
                 self.description,
+                *self.canonical_schema_parts,
             )
             if value
         )
@@ -133,6 +167,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
             ", ".join(self.canonical_supported_domains),
         )
         self.append_if_exists(parts, "Description", self.description)
+        self.append_if_exists(parts, "schema", "; ".join(self.canonical_schema_parts))
 
         return " | ".join(parts)
 

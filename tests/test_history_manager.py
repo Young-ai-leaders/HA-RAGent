@@ -140,3 +140,16 @@ def test_failed_tool_calls_are_excluded_from_structured_history() -> None:
     retained = manager.filter_prompt_history(chat_log)
     assert len(retained) == 1
     assert isinstance(retained[0], conversation.UserContent)
+
+
+def test_replace_system_prompt_removes_stale_candidate_context() -> None:
+    manager = HistoryManager({})
+    manager._message_history = [
+        conversation.SystemContent(content="candidate light.kitchen"),
+        conversation.UserContent(content="turn it on"),
+    ]
+
+    manager.replace_system_prompt("candidate-free prompt")
+
+    assert manager.message_history[0].content == "candidate-free prompt"
+    assert manager.message_history[1].content == "turn it on"

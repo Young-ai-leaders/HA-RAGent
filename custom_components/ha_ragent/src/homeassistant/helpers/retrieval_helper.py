@@ -10,6 +10,7 @@ from custom_components.ha_ragent.src.models.retrieval.continuity_context import 
 from custom_components.ha_ragent.src.models.retrieval.turn_context import TurnContext
 from custom_components.ha_ragent.src.models.embedding.tool_metadata import (
     CANONICAL_ACTION_ALIASES,
+    canonical_actions_from_text,
     canonical_action_from_text,
     normalize_canonical_text,
     split_canonical_name,
@@ -49,7 +50,8 @@ class RetrievalHelper:
         "the",
         "them",
     }
-    _FOLLOWUP_REFERENCES = ("same room", "there", "again", "the ones")
+    _FOLLOWUP_REFERENCES = ("it", "them", "same room", "there", "again", "the ones")
+    _LOCATION_FOLLOWUP_PREFIXES = ("at ", "at the ", "in ", "in the ")
     _TOOL_SIGNAL_WEIGHTS = {
         "semantic_rank": 0.75,
         "semantic_similarity": 1.0,
@@ -69,6 +71,11 @@ class RetrievalHelper:
     def requested_action(query: str) -> str:
         """Return the explicit canonical action requested by the user."""
         return canonical_action_from_text(query)
+
+    @staticmethod
+    def requested_actions(query: str) -> tuple[str, ...]:
+        """Return actions explicitly requested in the original request."""
+        return canonical_actions_from_text(query)
 
     @staticmethod
     def _remove_action_phrases(query: str, action: str) -> str:
@@ -152,23 +159,63 @@ class RetrievalHelper:
         return " | ".join(sections)
 
     @staticmethod
+    def _followup_target_terms(group: Any) -> tuple[str, ...]:
+        """Derive reusable target words without carrying the prior location."""
+        ignored = {
+            RetrievalHelper._normalize(value)
+            for value in (*group.areas, *group.floors, *group.domains)
+            if value
+        }
+        terms: list[str] = []
+        for entity in group.entities:
+            entity_name = str(entity).split(".", 1)[-1]
+            terms.extend(
+                part
+                for part in RetrievalHelper._normalize(entity_name).split()
+                if part not in ignored
+            )
+        return tuple(dict.fromkeys(terms))
+
+    @staticmethod
     def resolve_followup_query(query: str, continuity: ContinuityContext) -> str:
         """Add compact successful target context for explicit follow-up references."""
         normalized = f" {RetrievalHelper._normalize(query)} "
-        if not any(f" {phrase} " in normalized for phrase in RetrievalHelper._FOLLOWUP_REFERENCES):
+        normalized_query = normalized.strip()
+        is_reference = any(
+            f" {phrase} " in normalized
+            for phrase in RetrievalHelper._FOLLOWUP_REFERENCES
+        )
+        is_location_followup = (
+            not RetrievalHelper.requested_action(query)
+            and any(
+                normalized_query.startswith(prefix)
+                for prefix in RetrievalHelper._LOCATION_FOLLOWUP_PREFIXES
+            )
+        )
+        if not is_reference and not is_location_followup:
             return query
         if not continuity.target_groups:
             return query
 
-        group, _ = max(continuity.target_groups, key=lambda item: item[1])
-        context_parts = [
-            *(f"entity={value}" for value in group.entities),
-            *(f"area={value}" for value in group.areas),
-            *(f"floor={value}" for value in group.floors),
-            *(f"domain={value}" for value in group.domains),
-            *(f"device_class={value}" for value in group.device_classes),
-        ]
-        inherit_action = " again " in normalized and not RetrievalHelper.requested_action(query)
+        group, _ = continuity.target_groups[0]
+        if is_location_followup:
+            context_parts = [
+                *(f"target={value}" for value in RetrievalHelper._followup_target_terms(group)),
+                *(f"domain={value}" for value in group.domains),
+                *(f"device_class={value}" for value in group.device_classes),
+            ]
+        else:
+            context_parts = [
+                *(f"entity={value}" for value in group.entities),
+                *(f"area={value}" for value in group.areas),
+                *(f"floor={value}" for value in group.floors),
+                *(f"domain={value}" for value in group.domains),
+                *(f"device_class={value}" for value in group.device_classes),
+            ]
+        inherit_action = (
+            (" again " in normalized or is_location_followup)
+            and not RetrievalHelper.requested_action(query)
+        )
         if group.action and inherit_action:
             context_parts.append(f"previous_action={group.action}")
         if not context_parts:
@@ -176,9 +223,171 @@ class RetrievalHelper:
         return f"{query}\nRecent successful context: {' | '.join(context_parts)}"
 
     @staticmethod
+    def _candidate_identity_values(device: Any) -> tuple[object, ...]:
+        aliases = RetrievalHelper._device_value(device, "aliases", []) or []
+        if isinstance(aliases, str):
+            aliases = [aliases]
+        return (
+            RetrievalHelper._device_value(device, "id", ""),
+            RetrievalHelper._device_value(device, "name", ""),
+            RetrievalHelper._device_value(device, "friendly_name", ""),
+            *aliases,
+        )
+
+    @staticmethod
+    def _candidate_location_values(device: Any) -> tuple[object, ...]:
+        return (
+            RetrievalHelper._device_value(device, "area_name", ""),
+            RetrievalHelper._device_value(device, "area", ""),
+            RetrievalHelper._device_value(device, "floor_name", ""),
+            RetrievalHelper._device_value(device, "floor", ""),
+        )
+
+    @staticmethod
+    def _query_requests_group(query: str, domains: set[str]) -> bool:
+        normalized = RetrievalHelper._normalize(query)
+        tokens = set(normalized.split())
+        if tokens & {"all", "both", "every"}:
+            return True
+        return any(
+            plural in tokens
+            for domain in domains
+            for plural in RetrievalHelper._DOMAIN_ALIASES.get(domain, set())
+            if plural.endswith("s")
+        )
+
+    @staticmethod
+    def device_resolution(query: str, devices: Iterable[Any]) -> tuple[str, tuple[str, ...]]:
+        """Resolve devices independently from retrieval rank for execution safety."""
+        devices = list(devices)
+        if not devices:
+            return "weak", ()
+        normalized_query = RetrievalHelper._normalize(query)
+        requested_domains = RetrievalHelper.requested_domains(query)
+        location_scope = (
+            normalized_query.rsplit(" in ", 1)[-1]
+            if " in " in normalized_query
+            else normalized_query
+        )
+        requested_locations = {
+            RetrievalHelper._normalize(value)
+            for device in devices
+            for value in RetrievalHelper._candidate_location_values(device)
+            if value and RetrievalHelper._normalize(value) in location_scope
+        }
+        location_tokens = set(location_scope.split())
+        temporal_location = any(token.isdigit() for token in location_tokens) or bool(
+            location_tokens & {"hour", "hours", "minute", "minutes", "second", "seconds"}
+        )
+        location_required = bool(requested_locations) or (
+            " in " in normalized_query
+            and not temporal_location
+        )
+        scored: list[tuple[float, float, float, float, str]] = []
+        for device in devices:
+            identity, identity_fuzzy = RetrievalHelper._match_scores(
+                query,
+                RetrievalHelper._candidate_identity_values(device),
+            )
+            domains = RetrievalHelper._device_domains((device,))
+            domain_match = 1.0 if requested_domains and domains & requested_domains else 0.0
+            location_values = {
+                RetrievalHelper._normalize(value)
+                for value in RetrievalHelper._candidate_location_values(device)
+                if value
+            }
+            location_match = 1.0 if requested_locations & location_values else 0.0
+            name = str(
+                RetrievalHelper._device_value(device, "id", "")
+                or RetrievalHelper._device_value(device, "name", "")
+            )
+            score = 3.0 * max(identity, identity_fuzzy) + 1.5 * domain_match + 2.0 * location_match
+            scored.append((score, max(identity, identity_fuzzy), domain_match, location_match, name))
+        scored.sort(reverse=True)
+
+        exact = [
+            item
+            for item in scored
+            if item[1] >= 0.9
+            and (not requested_domains or item[2] >= 1.0)
+            and (not location_required or item[3] >= 1.0)
+        ]
+        if len(exact) == 1:
+            return "high", (exact[0][4],)
+
+        compatible = [
+            item
+            for item in scored
+            if (not requested_domains or item[2] >= 1.0)
+            and (not location_required or item[3] >= 1.0)
+        ]
+        if compatible and RetrievalHelper._query_requests_group(query, requested_domains):
+            names = tuple(item[4] for item in compatible if item[4])
+            return "group", names
+        if len(compatible) == 1:
+            return "high", (compatible[0][4],)
+        if len(compatible) > 1:
+            names = tuple(item[4] for item in compatible if item[4])
+            return "ambiguous", names
+        if len(scored) == 1 and scored[0][0] > 0 and not requested_domains and not location_required:
+            return "high", (scored[0][4],)
+        return "weak", tuple(item[4] for item in scored if item[4])
+
+    @staticmethod
+    def reduce_confident_devices(query: str, devices: Iterable[T]) -> list[T]:
+        """Expose only independently resolved devices when confidence is high."""
+        devices = list(devices)
+        status, names = RetrievalHelper.device_resolution(query, devices)
+        if status not in {"high", "group"}:
+            return devices
+        selected = set(names)
+        return [
+            device
+            for device in devices
+            if str(
+                RetrievalHelper._device_value(device, "id", "")
+                or RetrievalHelper._device_value(device, "name", "")
+            ) in selected
+        ]
+
+    @staticmethod
+    def select_device_candidates(query: str, devices: Iterable[T], limit: int) -> list[T]:
+        """Apply ambiguity-aware exposure after broad device retrieval."""
+        devices = list(devices)
+        status, _ = RetrievalHelper.device_resolution(query, devices)
+        if status == "high":
+            return RetrievalHelper.reduce_confident_devices(query, devices)[:1]
+        if status == "group":
+            return RetrievalHelper.reduce_confident_devices(query, devices)[:max(2, limit)]
+        if status == "ambiguous":
+            return devices[:max(2, limit)]
+        return devices[:limit]
+
+    @staticmethod
     def build_retrieval_text(current_request: str) -> str:
         """Build a language-neutral query from only the current request."""
         return " ".join(current_request.split())
+
+    @staticmethod
+    def is_clarification(query: str, pending: str = "") -> bool:
+        """Return whether a short turn refines an unresolved request."""
+        normalized = RetrievalHelper._normalize(query)
+        query_tokens = set(normalized.split()) - RetrievalHelper._SEARCH_STOP_WORDS
+        pending_tokens = set(RetrievalHelper._normalize(pending).split()) - RetrievalHelper._SEARCH_STOP_WORDS
+        return (
+            not RetrievalHelper.requested_action(query)
+            and (
+                any(normalized.startswith(prefix) for prefix in RetrievalHelper._LOCATION_FOLLOWUP_PREFIXES)
+                or any(f" {phrase} " in f" {normalized} " for phrase in RetrievalHelper._FOLLOWUP_REFERENCES)
+                or bool(query_tokens & pending_tokens)
+                or len(query_tokens) == 1
+            )
+        )
+
+    @staticmethod
+    def merge_pending_request(pending: str, clarification: str) -> str:
+        """Merge a clarification without changing the pending intent."""
+        return f"{pending}\nUser clarification: {clarification}" if pending else clarification
 
     @staticmethod
     def cosine_similarity(left: Iterable[float], right: Iterable[float]) -> float:
@@ -237,6 +446,7 @@ class RetrievalHelper:
     def build_continuity_context(selected_contexts: Iterable[tuple[TurnContext, float]]) -> ContinuityContext:
         """Aggregate selected structured turns into weighted continuity maps."""
         continuity = ContinuityContext()
+        selected_contexts = list(selected_contexts)
         for context, weight in selected_contexts:
             continuity.selected_turn_keys.add(context.key)
             for attribute in (
@@ -253,9 +463,16 @@ class RetrievalHelper:
                 for value in values:
                     normalized = str(value).casefold()
                     target[normalized] = max(target.get(normalized, 0.0), weight)
-            continuity.target_groups.extend(
-                (group, weight) for group in context.target_groups
-            )
+        recent_contexts = sorted(
+            selected_contexts,
+            key=lambda item: item[0].created_at or 0.0,
+            reverse=True,
+        )
+        continuity.target_groups = [
+            (group, weight)
+            for context, weight in recent_contexts
+            for group in context.target_groups
+        ]
         return continuity
 
     @staticmethod
@@ -321,6 +538,23 @@ class RetrievalHelper:
         """Score structured metadata using language-neutral matching."""
         exact, fuzzy = RetrievalHelper._match_scores(query, values)
         return exact + (0.5 * fuzzy)
+
+    @staticmethod
+    def device_target_score(query: str, device: Any) -> float:
+        """Score target identity and capability above location-only similarity."""
+        aliases = RetrievalHelper._device_value(device, "aliases", []) or []
+        domains = RetrievalHelper._device_value(device, "domain", []) or []
+        if isinstance(aliases, str):
+            aliases = [aliases]
+        if isinstance(domains, str):
+            domains = [domains]
+        return RetrievalHelper.field_match_score(query, (
+            RetrievalHelper._device_value(device, "id", ""),
+            RetrievalHelper._device_value(device, "friendly_name", ""),
+            *aliases,
+            *domains,
+            RetrievalHelper._device_value(device, "device_class", ""),
+        ))
 
     @staticmethod
     def trusted_location_score(device: Any, area: str = "", floor: str = "") -> float:
@@ -752,6 +986,10 @@ class RetrievalHelper:
                 )
             )
         scored.sort(key=lambda item: (-item[0], item[1], item[2]))
+        if len(scored) > 1:
+            top_signals = RetrievalHelper.tool_ranking_signals(scored[0][3], query, devices)
+            if top_signals["action_intent"] >= 1.0 and scored[0][0] - scored[1][0] >= 1.5:
+                return [scored[0][3]]
         return [tool for _, _, _, tool in scored[:limit]]
 
     @staticmethod

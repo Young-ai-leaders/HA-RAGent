@@ -307,28 +307,30 @@ class RAGentSemanticSearchTool(llm.Tool):
                             device.device_class,
                             *(device.device_labels or []),
                         ),
-                        device_limit,
-                        metadata_score=lambda device: RetrievalHelper.field_match_score(
+                        candidate_limit,
+                        metadata_score=lambda device: 2.0 * RetrievalHelper.device_target_score(
                             device_query,
-                            (
-                                device.area_name,
-                                device.floor_name,
-                                *(device.domain or []),
-                                device.device_class,
-                                *(device.device_labels or []),
-                            ),
+                            device,
                         ),
                         trim_confident=False,
                     )
-                    if not compatible_devices:
+                    retrieved_devices = RetrievalHelper.select_device_candidates(
+                        device_query,
+                        retrieved_devices,
+                        device_limit,
+                    )
+                    if retrieved_devices:
                         compatible_devices = retrieved_devices
+                        self.refresh_candidates([
+                            self._device_candidate(device)
+                            for device in retrieved_devices
+                            if isinstance(device, Device)
+                        ])
                     for device in retrieved_devices:
                         if not isinstance(device, Device) or device.id in seen_device_ids:
                             continue
                         seen_device_ids.add(device.id)
                         devices.append(self._device_candidate(device))
-                        if len(devices) >= device_limit:
-                            break
 
                 if search_tools and len(tools) < tool_limit:
                     tool_query = self._tool_search_query(
@@ -422,7 +424,11 @@ class RAGentSemanticSearchTool(llm.Tool):
             except Exception as err:
                 errors.append(f"Failed to search subentry {subentry.title}: {err}")
 
-        returned_devices = devices[:device_limit]
+        returned_devices = RetrievalHelper.select_device_candidates(
+            device_query,
+            devices,
+            device_limit,
+        )
         if not returned_devices:
             returned_devices = list(self._candidate_context[:8])
         tool_status, fallback_required, tool_message = self._tool_search_feedback(

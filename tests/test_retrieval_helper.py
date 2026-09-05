@@ -245,6 +245,32 @@ def test_current_followup_action_overrides_previous_action() -> None:
     assert RetrievalHelper.requested_action(resolved) == "on"
 
 
+def test_explicit_pronoun_resolves_last_successful_target_before_validation() -> None:
+    group = TargetGroup(
+        entities=("switch.bathroom_heater",),
+        areas=("Bathroom",),
+        domains=("switch",),
+        action="HassTurnOff",
+    )
+    continuity = ContinuityContext(target_groups=[(group, 0.9)])
+
+    resolved = RetrievalHelper.resolve_followup_query("turn it on", continuity)
+
+    assert "entity=switch.bathroom_heater" in resolved
+    assert "area=Bathroom" in resolved
+    assert RetrievalHelper.requested_action(resolved) == "on"
+
+
+def test_pending_request_merges_clarification_but_not_new_request() -> None:
+    pending = "turn on the bathroom light"
+
+    assert RetrievalHelper.is_clarification("the ceiling light", pending)
+    assert RetrievalHelper.merge_pending_request(pending, "the ceiling light") == (
+        "turn on the bathroom light\nUser clarification: the ceiling light"
+    )
+    assert not RetrievalHelper.is_clarification("what is tomorrow's weather", pending)
+
+
 def test_location_followup_does_not_repeat_previous_action() -> None:
     group = TargetGroup(
         entities=("sensor.kitchen_temperature",),
@@ -277,6 +303,112 @@ def test_non_followup_does_not_inject_recent_context() -> None:
     assert RetrievalHelper.resolve_followup_query("turn on bedroom light", continuity) == (
         "turn on bedroom light"
     )
+
+
+def test_elliptical_location_followup_inherits_action_and_target_type() -> None:
+    group = TargetGroup(
+        entities=("switch.kitchen_heater",),
+        areas=("Kitchen",),
+        domains=("switch",),
+        action="HassTurnOn",
+    )
+    continuity = ContinuityContext(target_groups=[(group, 0.9)])
+
+    resolved = RetrievalHelper.resolve_followup_query("in the bathroom", continuity)
+
+    assert "previous_action=HassTurnOn" in resolved
+    assert "target=heater" in resolved
+    assert "domain=switch" in resolved
+    assert "entity=switch.kitchen_heater" not in resolved
+    assert "area=Kitchen" not in resolved
+    assert RetrievalHelper.requested_action(resolved) == "on"
+    tool_query = RetrievalHelper.build_tool_search_query(
+        resolved,
+        "",
+        [Device(
+            id="switch.bathroom_heater",
+            friendly_name="Bathroom heater",
+            area_name="Bathroom",
+            floor_name="Ground floor",
+            domain=["switch"],
+        )],
+    )
+    assert "canonical action: on" in tool_query
+    assert "supported domains: switch" in tool_query
+
+
+def test_explicit_request_resolves_one_full_intent_candidate() -> None:
+    devices = [
+        Device(
+            id="light.bathroom_ceiling",
+            friendly_name="Bathroom ceiling light",
+            area_name="Bathroom",
+            floor_name="Ground floor",
+            domain=["light"],
+        ),
+        Device(
+            id="light.kitchen_ceiling",
+            friendly_name="Kitchen ceiling light",
+            area_name="Kitchen",
+            floor_name="Ground floor",
+            domain=["light"],
+        ),
+    ]
+
+    status, names = RetrievalHelper.device_resolution(
+        "turn on the bathroom ceiling light",
+        devices,
+    )
+
+    assert status == "high"
+    assert names == ("light.bathroom_ceiling",)
+    assert RetrievalHelper.reduce_confident_devices(
+        "turn on the bathroom ceiling light",
+        devices,
+    ) == [devices[0]]
+
+
+def test_ambiguous_singular_request_does_not_authorize_top_rank() -> None:
+    devices = [
+        Device(
+            id="light.bathroom_ceiling",
+            friendly_name="Bathroom ceiling light",
+            area_name="Bathroom",
+            floor_name="Ground floor",
+            domain=["light"],
+        ),
+        Device(
+            id="light.bathroom_mirror",
+            friendly_name="Bathroom mirror light",
+            area_name="Bathroom",
+            floor_name="Ground floor",
+            domain=["light"],
+        ),
+    ]
+
+    status, names = RetrievalHelper.device_resolution("turn on the bathroom light", devices)
+
+    assert status == "ambiguous"
+    assert set(names) == {"light.bathroom_ceiling", "light.bathroom_mirror"}
+    assert RetrievalHelper.reduce_confident_devices("turn on the bathroom light", devices) == devices
+    assert len(RetrievalHelper.select_device_candidates("turn on the bathroom light", devices, 1)) == 2
+
+
+def test_explicit_location_mismatch_is_not_authorized_by_exact_entity_name() -> None:
+    device = Device(
+        id="light.kitchen_ceiling",
+        friendly_name="Kitchen ceiling light",
+        area_name="Kitchen",
+        floor_name="Ground floor",
+        domain=["light"],
+    )
+
+    status, _ = RetrievalHelper.device_resolution(
+        "turn on light.kitchen_ceiling in the bathroom",
+        [device],
+    )
+
+    assert status == "weak"
 
 
 def test_normalization_supports_unicode_without_language_patterns() -> None:
@@ -631,3 +763,36 @@ def test_supported_tool_domains_are_indexed() -> None:
 
     assert tool.canonical_supported_domains == ("light", "switch")
     assert "supported domains: light, switch" in tool.to_embedding_text()
+
+
+def test_multiple_requested_actions_keep_textual_order() -> None:
+    assert RetrievalHelper.requested_actions(
+        "turn on the kitchen light and turn off the bathroom fan"
+    ) == ("on", "off")
+    assert RetrievalHelper.requested_actions(
+        "turn on the kitchen light and turn on the bathroom light"
+    ) == ("on", "on")
+
+    assert RetrievalHelper.requested_actions("is the kitchen light on") == ()
+    assert RetrievalHelper.requested_actions("kitchen light on") == ("on",)
+
+
+def test_unknown_tool_schema_is_searchable_and_remains_live() -> None:
+    parameters = {
+        "type": "object",
+        "required": ["mode"],
+        "properties": {
+            "mode": {
+                "type": "string",
+                "description": "Cleaning program to start",
+                "enum": ["quiet", "turbo"],
+            },
+        },
+    }
+    tool = LlmTool(name="VendorExecute", description="Run a vendor capability", parameters=parameters)
+
+    assert "parameter mode" in tool.canonical_search_parts
+    assert "Cleaning program to start" in tool.canonical_search_parts
+    assert "required mode" in tool.to_embedding_text()
+    assert "choices quiet turbo" in tool.to_embedding_text()
+    assert tool.to_tool_dict()["function"]["parameters"] is parameters

@@ -134,22 +134,6 @@ class MessageHelper:
         }
 
     @staticmethod
-    def build_iteration_summary(actions: list[str], remaining_candidates: list[str]) -> ChatMessage:
-        """Build explicit state for the next model iteration."""
-        action_lines = "\n".join(f"- {action}" for action in actions)
-        candidate_lines = "\n".join(f"- {name}" for name in remaining_candidates)
-        if not candidate_lines:
-            candidate_lines = "- none"
-        content = (
-            "Completed actions this turn:\n"
-            f"{action_lines}\n"
-            "Remaining retrieval candidates (completed targets were removed):\n"
-            f"{candidate_lines}\n"
-            "Do not treat search candidates as completed actions."
-        )
-        return ChatMessage(role="system", content=content)
-
-    @staticmethod
     def tool_result_succeeded(result: object) -> bool:
         """Return whether a tool result represents a success."""
         if isinstance(result, dict):

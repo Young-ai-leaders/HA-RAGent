@@ -52,16 +52,18 @@ def test_faiss_returns_normalized_vector_scores(tmp_path) -> None:
     assert result[0].rank == 1
 
 
-def test_tool_embedding_omits_parameter_schema() -> None:
+def test_tool_embedding_includes_parameter_schema() -> None:
     tool = LlmTool(
         name="HassTurnOff",
         description="Turn off a Home Assistant device.",
         parameters={"properties": {"area": {"type": "string"}}},
     )
 
-    assert tool.to_embedding_text() == (
-        "Tool name: HassTurnOff | description: Turn off a Home Assistant device."
-    )
+    embedding_text = tool.to_embedding_text()
+
+    assert "canonical parts: hass turn off" in embedding_text
+    assert "parameter area" in embedding_text
+    assert "type string" in embedding_text
 
 
 def test_device_embedding_includes_device_class() -> None:
@@ -78,5 +80,5 @@ def test_device_embedding_includes_device_class() -> None:
 
 
 def test_recovery_instruction_searches_for_missing_action_tool() -> None:
-    assert "A matching device candidate alone is insufficient" in INSTRUCTION_PROMPT["en"]
+    assert "never additional tasks or authorization to act" in INSTRUCTION_PROMPT["en"]
     assert "scope `tools`" in INSTRUCTION_PROMPT["en"]

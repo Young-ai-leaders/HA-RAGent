@@ -370,6 +370,11 @@ class HistoryManager:
         """Append content to the active history."""
         self._message_history.append(message)
 
+    def replace_system_prompt(self, content: str) -> None:
+        """Replace the active system prompt without retaining stale candidates."""
+        if self._message_history and isinstance(self._message_history[0], conversation.SystemContent):
+            self._message_history[0] = conversation.SystemContent(content=content)
+
     def persist_chat_history(self, chat_log: conversation.ChatLog) -> None:
         """Persist the active normalized history to Home Assistant."""
         chat_log.content = self._message_history

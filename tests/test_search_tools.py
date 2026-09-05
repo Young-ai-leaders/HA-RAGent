@@ -189,7 +189,7 @@ def test_tool_search_uses_trusted_action_and_resolved_switch_domain() -> None:
 
     candidate_names = [candidate["name"] for candidate in result["candidate_tools"]]
     assert candidate_names[0] == "HassTurnOn"
-    assert set(candidate_names) == {"HassTurnOn", "HassBroadcast", "HassLightSet"}
+    assert candidate_names == ["HassTurnOn"]
     assert result["candidate_tools"][0]["canonical_action"] == "on"
     assert result["candidate_tools"][0]["ranking_signals"]["action_intent"] == 1.0
     assert result["tool_search_confidence"] == "high"

@@ -204,19 +204,6 @@ def test_compact_search_preserves_tool_ranking_metadata() -> None:
     assert result["tool_search_confidence"] == "high"
 
 
-def test_iteration_summary_separates_actions_from_candidates() -> None:
-    summary = MessageHelper.build_iteration_summary(
-        ["HassTurnOn succeeded for light.kitchen"],
-        ["light.dining"],
-    )
-
-    assert summary["role"] == "system"
-    assert "Completed actions" in summary["content"]
-    assert "light.kitchen" in summary["content"]
-    assert "Remaining retrieval candidates" in summary["content"]
-    assert "light.dining" in summary["content"]
-
-
 def test_long_success_result_is_bounded() -> None:
     result = MessageHelper.compact_tool_result_value(
         "HassTurnOn",

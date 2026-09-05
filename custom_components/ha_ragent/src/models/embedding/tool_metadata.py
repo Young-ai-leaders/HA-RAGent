@@ -43,23 +43,36 @@ def normalize_canonical_text(text: object) -> str:
 
 def canonical_action_from_text(text: object) -> str:
     """Return the canonical action explicitly expressed by text."""
+    actions = canonical_actions_from_text(text)
+    return actions[0] if actions else ""
+
+
+def canonical_actions_from_text(text: object) -> tuple[str, ...]:
+    """Return explicit canonical actions in their textual order."""
     normalized_text = normalize_canonical_text(text)
     if normalized_text in CANONICAL_ACTION_ALIASES:
-        return normalized_text
+        return (normalized_text,)
     normalized = f" {normalized_text} "
+    matches: list[tuple[int, str]] = []
     for action, aliases in CANONICAL_ACTION_ALIASES.items():
-        if any(f" {alias} " in normalized for alias in aliases):
-            return action
+        for alias in aliases:
+            marker = re.compile(rf"(?<!\w){re.escape(alias)}(?!\w)")
+            matches.extend((match.start(), action) for match in marker.finditer(normalized_text))
     tokens = normalized_text.split()
     directional_verbs = {"power", "shut", "switch", "turn"}
+    informational_words = {"are", "check", "is", "status", "what", "whether", "which"}
     for action in ("off", "on"):
+        if any(found_action == action for _, found_action in matches):
+            continue
         for index, token in enumerate(tokens):
             if token != action:
                 continue
             recent_tokens = set(tokens[max(0, index - 3):index])
-            if index == len(tokens) - 1 or recent_tokens & directional_verbs:
-                return action
-    return ""
+            is_short_imperative = index == len(tokens) - 1 and not set(tokens) & informational_words
+            if is_short_imperative or recent_tokens & directional_verbs:
+                matches.append((index, action))
+                break
+    return tuple(action for _, action in sorted(set(matches)))
 
 
 def canonical_action_aliases(text: object) -> tuple[str, ...]:
