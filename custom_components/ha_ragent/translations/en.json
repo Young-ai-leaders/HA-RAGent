@@ -125,8 +125,8 @@
                         "rag_num_memories_to_extract": "The maximum number of relevant long-term memories to include in the model context per request. Set to 0 to disable recall without deleting stored memories.",
                         "rag_max_memory_entries": "The maximum number of long-term memories to retain.",
                         "rag_excluded_tools": "Tool names to exclude from embedding. Enter exact tool names (values are case-sensitive).",
-                        "rag_remember_conversation_num_interactions": "How many past user interactions to keep in memory",
-                        "rag_remember_conversation_time_minutes": "How long the assistant should remember the conversation in minutes"
+                        "rag_remember_conversation_num_interactions": "Maximum number of past user interactions to keep. Set to 0 to disable this limit.",
+                        "rag_remember_conversation_time_minutes": "Maximum age of conversation history in minutes. Set to 0 to disable this limit. If both limits are 0, conversation history is disabled."
                     }
                 }
             },
@@ -186,6 +186,13 @@
         }
     },
     "selector": {
+        "rag_retrieval_method": {
+            "options": {
+                "automatic": "Automatic",
+                "vector": "Vector search",
+                "lexical": "Lexical search"
+            }
+        },
         "rag_vector_db_backend": {
             "options": {
                 "mongodb": "MongoDB",
