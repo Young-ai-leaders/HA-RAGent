@@ -149,27 +149,31 @@ class OpenAiLlmBackend(ALlmBaseBackend):
             "temperature": config_subentry[CONF_TEMPERATURE],
             "max_tokens": config_subentry[CONF_MAX_TOKENS],
         }
+        thinking_enabled = bool(config_subentry[CONF_ENABLE_MODEL_THINKING])
 
         if tools:
             request["tools"] = self.convert_tools_to_model_format(tools)
             request["tool_choice"] = "auto"
 
-            # llama.cpp-specific request fields go through the extension body so the 
-            # OpenAI client still validates standard Chat Completions fields.
+            # llama.cpp-specific request fields go through the extension body so the
+            # OpenAI client still validates standard Chat Completions fields. Recent
+            # llama.cpp versions use reasoning_effort, while older versions use the
+            # Jinja-template enable_thinking argument.
             request["extra_body"] = {
                 "parse_tool_calls": True,
                 "chat_template_kwargs": {
-                    "enable_thinking": bool(
-                        config_subentry[CONF_ENABLE_MODEL_THINKING]
-                    ),
+                    "enable_thinking": thinking_enabled,
                 },
             }
+            if not thinking_enabled:
+                request["extra_body"]["reasoning_effort"] = "none"
             required_tool_names, searched_tool_names = self.split_tool_names(tools)
             _logger.debug(f"Added {len(tools)} tools to OpenAI-compatible request: required_tools={required_tool_names}, searched_tools={searched_tool_names}")
 
         try:
             client = await self._async_get_client()
             max_chars = RAGENT_CHAT_TRUNCATE_MAX_CHARS
+            unexpected_reasoning_logged = False
             for attempt in range(RAGENT_CHAT_TRUNCATE_RETRIES + 1):
                 request["messages"] = (
                     prepared_messages
@@ -188,8 +192,9 @@ class OpenAiLlmBackend(ALlmBaseBackend):
                                 yield delta.content
 
                             reasoning_content = getattr(delta, "reasoning_content", None)
-                            if reasoning_content:
-                                _logger.debug(f"llama.cpp reasoning: {reasoning_content}")
+                            if reasoning_content and not thinking_enabled and not unexpected_reasoning_logged:
+                                _logger.warning("Model returned reasoning although model thinking is disabled in the UI.")
+                                unexpected_reasoning_logged = True
 
                             for tool_call in delta.tool_calls or []:
                                 index = tool_call.index or 0
