@@ -8,8 +8,6 @@ from custom_components.ha_ragent.src.models.base.serializeable_model import Seri
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
 from custom_components.ha_ragent.src.models.embedding.tool_metadata import (
     ToolMetadata,
-    canonical_action_aliases as get_canonical_action_aliases,
-    canonical_action_from_text,
     split_canonical_name,
 )
 
@@ -33,14 +31,8 @@ class LlmTool(SerializableModel, EmbeddableModel):
 
     @property
     def canonical_action(self) -> str:
-        """Return the tool's canonical action capability."""
-        searchable_text = " ".join((*self.canonical_name_parts, self.description or ""))
-        return canonical_action_from_text(searchable_text)
-
-    @property
-    def canonical_action_aliases(self) -> tuple[str, ...]:
-        """Return equivalent phrases for the tool's canonical action."""
-        return get_canonical_action_aliases(self.canonical_action)
+        """Return an explicitly declared capability, never inferred from prose."""
+        return self.metadata.canonical_action if self.metadata else ""
 
     @staticmethod
     def _schema_values(schema: object) -> set[str]:
@@ -100,7 +92,10 @@ class LlmTool(SerializableModel, EmbeddableModel):
     def canonical_supported_domains(self) -> tuple[str, ...]:
         """Return explicit target domains declared by the tool schema."""
         properties = (self.parameters or {}).get("properties") or {}
-        return tuple(sorted(self._schema_values(properties.get("domain", {}))))
+        domains = self._schema_values(properties.get("domain", {}))
+        if self.metadata:
+            domains.update(self.metadata.supported_domains)
+        return tuple(sorted(domains))
 
     @property
     def canonical_search_parts(self) -> tuple[str, ...]:
@@ -113,7 +108,6 @@ class LlmTool(SerializableModel, EmbeddableModel):
                 self.name,
                 canonical_name,
                 action_keywords,
-                *self.canonical_action_aliases,
                 *self.canonical_supported_domains,
                 self.family,
                 self.description,
@@ -127,7 +121,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
         """Determine the family of the tool based on its metadata or name."""
         if self.metadata and self.metadata.family:
             return self.metadata.family
-        return ToolMetadata.family_from_name(self.name)
+        return ""
 
     @staticmethod
     def split_canonical_name(name: str) -> tuple[str, ...]:
@@ -165,7 +159,6 @@ class LlmTool(SerializableModel, EmbeddableModel):
         )
         self.append_if_exists(parts, "family", self.family)
         self.append_if_exists(parts, "action keywords", " ".join(self.canonical_action_keywords))
-        self.append_if_exists(parts, "action aliases", ", ".join(self.canonical_action_aliases))
         self.append_if_exists(
             parts,
             "supported domains",

@@ -7,14 +7,8 @@ from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
 from custom_components.ha_ragent.src.models.base.embedding_record import EmbeddingRecord
 
-try:
-    from homeassistant.core import HomeAssistant
-    from homeassistant.helpers.aiohttp_client import async_get_clientsession
-except ImportError:
-    from custom_components.ha_ragent.src.mock import (
-        MockHomeAssistant as HomeAssistant,
-        async_get_clientsession,
-    )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_HOST,
@@ -24,6 +18,8 @@ from custom_components.ha_ragent.src.const import (
     RAGENT_EMBEDDING_BATCH_SIZE,
     RAGENT_EMBEDDING_TRUNCATE_MAX_CHARS,
     CONNECTION_RETRIES,
+    RETRY_BACKOFF_BASE_SECONDS,
+    RETRY_BACKOFF_MULTIPLIER,
 )
 from custom_components.ha_ragent.src.backends.embedder.base_backend import ABaseEmbedder
 
@@ -45,7 +41,7 @@ async def async_request_json(session: aiohttp.ClientSession, method: str, url: s
         except Exception as error:
             if attempt == CONNECTION_RETRIES or not _is_retryable_error(error):
                 raise
-            await asyncio.sleep(0.5 * (2 ** attempt))
+            await asyncio.sleep(RETRY_BACKOFF_BASE_SECONDS * (RETRY_BACKOFF_MULTIPLIER ** attempt))
     
 class OllamaEmbedder(ABaseEmbedder):
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):

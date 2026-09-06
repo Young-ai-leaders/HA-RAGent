@@ -6,10 +6,7 @@ from custom_components.ha_ragent.src.models.model_info import ModelInfo
 from custom_components.ha_ragent.src.models.base.embeddable_model import EmbeddableModel
 from custom_components.ha_ragent.src.models.base.embedding_record import EmbeddingRecord
 
-try:
-    from homeassistant.core import HomeAssistant
-except ImportError:
-    from custom_components.ha_ragent.src.mock import MockHomeAssistant as HomeAssistant
+from homeassistant.core import HomeAssistant
 
 from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_API_KEY,
@@ -17,6 +14,8 @@ from custom_components.ha_ragent.src.const import (
     CONF_EMBEDDING_PORT,
     CONF_EMBEDDING_SSL,
     STREAM_READ_TIMEOUT,
+    HTTP_REQUEST_TIMEOUT,
+    STREAM_CONNECT_TIMEOUT,
 )
 from custom_components.ha_ragent.src.models.embedding.device import Device
 from custom_components.ha_ragent.src.models.embedding.device_embedding import DeviceEmbedding
@@ -27,8 +26,8 @@ from custom_components.ha_ragent.src.models.embedding.memory_embedding import Me
 
 
 class ABaseEmbedder(ABC):
-    _default_timeout = aiohttp.ClientTimeout(total=5)
-    _chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=30, sock_read=STREAM_READ_TIMEOUT)
+    _default_timeout = aiohttp.ClientTimeout(total=HTTP_REQUEST_TIMEOUT)
+    _chat_timeout = aiohttp.ClientTimeout(total=None, sock_connect=STREAM_CONNECT_TIMEOUT, sock_read=STREAM_READ_TIMEOUT)
 
     def __init__(self, hass: HomeAssistant, client_options: dict[str, Any]):
         self._hass = hass

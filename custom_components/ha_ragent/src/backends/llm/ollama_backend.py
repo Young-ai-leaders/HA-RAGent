@@ -6,14 +6,8 @@ from functools import wraps
 import aiohttp
 from typing import Any, Dict, List, AsyncGenerator
 
-try:
-    from homeassistant.core import HomeAssistant
-    from homeassistant.helpers.aiohttp_client import async_get_clientsession
-except ImportError:
-    from custom_components.ha_ragent.src.mock import (
-        MockHomeAssistant as HomeAssistant,
-        async_get_clientsession,
-    )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from custom_components.ha_ragent.src.backends.llm.base_backend import ALlmBaseBackend
 from custom_components.ha_ragent.src.const import (
@@ -26,6 +20,8 @@ from custom_components.ha_ragent.src.const import (
     CONF_MAX_TOKENS,
     CONF_TEMPERATURE,
     CONNECTION_RETRIES,
+    RETRY_BACKOFF_BASE_SECONDS,
+    RETRY_BACKOFF_MULTIPLIER,
 )
 from custom_components.ha_ragent.src.models.embedding.tool import LlmTool
 from custom_components.ha_ragent.src.models.model_info import ModelInfo
@@ -50,7 +46,7 @@ async def async_request_json(session: aiohttp.ClientSession, method: str, url: s
         except Exception as error:
             if attempt == CONNECTION_RETRIES or not _is_retryable_error(error):
                 raise
-            await asyncio.sleep(0.5 * (2 ** attempt))
+            await asyncio.sleep(RETRY_BACKOFF_BASE_SECONDS * (RETRY_BACKOFF_MULTIPLIER ** attempt))
 
 def retry_stream_connection_errors(operation):
     @wraps(operation)
@@ -66,7 +62,7 @@ def retry_stream_connection_errors(operation):
             except Exception as error:
                 if emitted or attempt == CONNECTION_RETRIES or not _is_retryable_error(error):
                     raise
-                await asyncio.sleep(0.5 * (2 ** attempt))
+                await asyncio.sleep(RETRY_BACKOFF_BASE_SECONDS * (RETRY_BACKOFF_MULTIPLIER ** attempt))
     return wrapped
 
 class OllamaLlmBackend(ALlmBaseBackend):
