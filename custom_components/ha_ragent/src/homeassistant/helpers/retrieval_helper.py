@@ -702,9 +702,30 @@ class RetrievalHelper:
             "semantic_similarity": max(0.0, min(1.0, semantic_score or 0.0)),
             "lexical_exact": exact,
             "lexical_fuzzy": fuzzy,
+            "lexical_action": float(bool(RetrievalHelper._matched_action_phrases(tool, query))),
             "domain": RetrievalHelper._tool_domain_signal(tool, requested_domains),
             "device_metadata": max(-1.0, min(1.0, compatibility / 2.0)),
             "continuity": max(0.0, continuity),
+        }
+
+    @staticmethod
+    def _matched_action_phrases(tool: Any, query: str) -> set[str]:
+        """Match ordered live capability names without interpreting user intent.
+
+        Keep complete phrases distinct: overlapping words do not make two
+        capabilities interchangeable. This is retrieval evidence only, including
+        when a capability occurs in a negated request.
+        """
+        phrases = (
+            getattr(tool, "canonical_action", ""),
+            " ".join(getattr(tool, "canonical_action_keywords", ()) or ()),
+        )
+        normalized_query = f" {RetrievalHelper._normalize(query)} "
+        return {
+            normalized
+            for phrase in phrases
+            if (normalized := RetrievalHelper._normalize(phrase))
+            and f" {normalized} " in normalized_query
         }
 
     @staticmethod
@@ -795,25 +816,36 @@ class RetrievalHelper:
             for name, terms in matched_terms.items()
         }
         covered: set[str] = set()
+        matched_actions = {
+            name: RetrievalHelper._matched_action_phrases(tool, query)
+            for _, _, name, tool in scored
+        }
+        covered_actions: set[str] = set()
         selected: list[T] = []
         while scored and len(selected) < limit:
             def marginal_score(index: int) -> float:
                 score, _, name, _ = scored[index]
+                action_weight = RETRIEVAL_TOOL_SIGNAL_WEIGHTS["lexical_action"]
+                # Reserve the phrase bonus for a capability not yet represented.
+                # Descriptions mentioning the opposite action cannot cover it.
+                action_bonus = action_weight if matched_actions[name] - covered_actions else 0.0
+                score -= action_weight if matched_actions[name] else 0.0
                 weight = tool_weights[name]
                 if not weight:
-                    return score
+                    return score + action_bonus
                 uncovered = sum(
                     term_weights[term]
                     for term in matched_terms[name] - covered
                 ) / weight
                 # Keep a residual relevance score for alternatives, but spend
                 # the limited slots on capabilities not represented yet.
-                return score - 0.8 * abs(score) * (1.0 - uncovered)
+                return score - 0.8 * abs(score) * (1.0 - uncovered) + action_bonus
 
             best = max(range(len(scored)), key=marginal_score)
             _, _, name, tool = scored.pop(best)
             selected.append(tool)
             covered.update(matched_terms[name])
+            covered_actions.update(matched_actions[name])
         return selected
 
     @staticmethod

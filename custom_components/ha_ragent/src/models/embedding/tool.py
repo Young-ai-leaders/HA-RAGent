@@ -26,7 +26,7 @@ class LlmTool(SerializableModel, EmbeddableModel):
     @property
     def canonical_action_keywords(self) -> tuple[str, ...]:
         """Return the action-bearing canonical name parts."""
-        parts = self.canonical_name_parts
+        parts = self.split_canonical_name(self.name.rsplit("__", 1)[-1])
         return parts[1:] if parts and parts[0] == "hass" else parts
 
     @property
